@@ -1,0 +1,8 @@
+build/
+rsas.egg-info/
+dist/
+*.pyc
+*.swo
+*.swp
+.ropeproject
+/rsas/.ropeproject
