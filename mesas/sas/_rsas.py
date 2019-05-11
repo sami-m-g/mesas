@@ -9,20 +9,23 @@
 """
 
 from __future__ import division
+from f_solve import f_solve
 import numpy as np
 from warnings import warn
 dtype = np.float64
-from f_solve import f_solve
 
 # for debugging
 DEBUG = False
 VERBOSE = False
+
+
 def _debug(statement):
     """Prints debuging messages if DEBUG==True
 
     """
     if DEBUG:
         print statement,
+
 
 def _verbose(statement):
     """Prints debuging messages if VERBOSE==True
@@ -31,17 +34,19 @@ def _verbose(statement):
     if VERBOSE:
         print statement
 
+
 def make_lookup(rSAS_fun, N, P_list):
     numflux = len(rSAS_fun)
-    rSAS_lookup = np.zeros((len(P_list),N,numflux))
+    rSAS_lookup = np.zeros((len(P_list), N, numflux))
     for i in range(N):
         for q in range(numflux):
-            rSAS_lookup[:,i,q] = rSAS_fun[q].invcdf_i(P_list,i)
-            rSAS_lookup[0,i,q] = rSAS_fun[q].ST_min[i]
+            rSAS_lookup[:, i, q] = rSAS_fun[q].invcdf_i(P_list, i)
+            rSAS_lookup[0, i, q] = rSAS_fun[q].ST_min[i]
     return rSAS_lookup
 
-def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_list=None,
-          full_outputs=True, CS_init = None, C_J=None, alpha=None, k1=None, C_eq=None,  C_old=None, verbose=False, debug=False):
+
+def solve(J, Q, rSAS_fun, mode='RK4', ST_init=None, dt=1, n_substeps=1, P_list=None,
+          full_outputs=True, CS_init=None, C_J=None, alpha=None, k1=None, C_eq=None,  C_old=None, verbose=False, debug=False):
     """Solve the rSAS model for given fluxes
 
     Args:
@@ -118,31 +123,30 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     # then calls the private implementation functions defined below
     global VERBOSE
     global DEBUG
-    VERBOSE=verbose
-    DEBUG=debug
-    from time import clock
-    starttime = clock()
+    VERBOSE = verbose
+    DEBUG = debug
     _verbose('Checking inputs...')
     if type(J) is not np.ndarray:
         J = np.array(J)
-    if J.ndim!=1:
+    if J.ndim != 1:
         raise TypeError('J must be a 1-D array')
     J = J.astype(np.float)
     timeseries_length = len(J)
     if type(Q) is not np.ndarray:
         Q = np.array(Q).T
     Q = Q.astype(np.float)
-    if (Q.ndim>2) or (Q.shape[0]!=timeseries_length):
-        raise TypeError('Q must be a 1 or 2-D numpy array with a column for each outflow\nor a list of 1-D numpy arrays (like ''[Q1, Q2]'')\nand each must be the same size as J')
-    elif Q.ndim==1:
-            Q=np.c_[Q]
+    if (Q.ndim > 2) or (Q.shape[0] != timeseries_length):
+        raise TypeError(
+            'Q must be a 1 or 2-D numpy array with a column for each outflow\nor a list of 1-D numpy arrays (like ''[Q1, Q2]'')\nand each must be the same size as J')
+    elif Q.ndim == 1:
+        Q = np.c_[Q]
     numflux = Q.shape[1]
     if ST_init is not None:
         if type(ST_init) is not np.ndarray:
             ST_init = np.array(ST_init)
-        if ST_init.ndim!=1:
+        if ST_init.ndim != 1:
             raise TypeError('ST_init must be a 1-D array')
-        if ST_init[0]!=0:
+        if ST_init[0] != 0:
             raise TypeError('ST_init[0] must be 0')
     else:
         ST_init = np.zeros(timeseries_length+1)
@@ -150,21 +154,21 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     if P_list is not None:
         if type(P_list) is not np.ndarray:
             P_list = np.array(P_list)
-        if P_list.ndim!=1:
+        if P_list.ndim != 1:
             raise TypeError('P_list must be a 1-D array')
-        if P_list[-1]!=1:
+        if P_list[-1] != 1:
             raise TypeError('P_list[-1] must be 1')
-        if P_list[0]!=0:
+        if P_list[0] != 0:
             raise TypeError('P_list[0] must be 0')
         if not all(P_list[i] <= P_list[i+1] for i in xrange(len(P_list)-1)):
             raise TypeError('P_list must be sorted')
     else:
-        P_list = np.linspace(0,1,101)
+        P_list = np.linspace(0, 1, 101)
     nP_list = len(P_list)
     if type(rSAS_fun) is np.ndarray:
-        if ((rSAS_fun.shape[0]==nP_list) and
-            (rSAS_fun.shape[1]==timeseries_length) and
-            (rSAS_fun.shape[2]==numflux)):
+        if ((rSAS_fun.shape[0] == nP_list)
+                and (rSAS_fun.shape[1] == timeseries_length)
+                and (rSAS_fun.shape[2] == numflux)):
             _verbose('...assuming rSAS_fun is already rSAS_lookup...')
             rSAS_lookup = rSAS_fun
         else:
@@ -172,12 +176,14 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     else:
         if type(rSAS_fun) is not list:
             rSAS_fun = [rSAS_fun]
-        if numflux!=len(rSAS_fun):
-            raise TypeError('Each rSAS function must have a corresponding outflow in Q. Numbers don''t match')
+        if numflux != len(rSAS_fun):
+            raise TypeError(
+                'Each rSAS function must have a corresponding outflow in Q. Numbers don''t match')
         for fun in rSAS_fun:
             fun_methods = [method for method in dir(fun) if callable(getattr(fun, method))]
             if not ('cdf_all' in fun_methods and 'cdf_i' in fun_methods):
-                raise TypeError('Each rSAS function must have methods rSAS_fun.cdf_all and rSAS_fun.cdf_i')
+                raise TypeError(
+                    'Each rSAS function must have methods rSAS_fun.cdf_all and rSAS_fun.cdf_i')
         _verbose('...making rsas lookup table rSAS_lookup...')
         rSAS_lookup = make_lookup(rSAS_fun, timeseries_length, P_list)
         _verbose('...done...')
@@ -186,20 +192,21 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     if C_J is not None:
         if type(C_J) is not np.ndarray:
             C_J = np.array(C_J, dtype=dtype)
-        if ((C_J.ndim>2) or (C_J.shape[0]!=timeseries_length)):
-            raise TypeError('C_J must be a 1 or 2-D array with a first dimension the same length as J')
-        elif C_J.ndim==1:
-                C_J=np.c_[C_J]
-        C_J=C_J.astype(np.float)
+        if ((C_J.ndim > 2) or (C_J.shape[0] != timeseries_length)):
+            raise TypeError(
+                'C_J must be a 1 or 2-D array with a first dimension the same length as J')
+        elif C_J.ndim == 1:
+            C_J = np.c_[C_J]
+        C_J = C_J.astype(np.float)
     else:
         C_J = np.zeros((timeseries_length, 1))
     numsol = C_J.shape[1]
     if alpha is not None:
         if type(alpha) is not np.ndarray:
             alpha = np.array(alpha, dtype=dtype)
-        if alpha.ndim==2:
-            alpha = np.tile(alpha,(timeseries_length,1,1))
-        if (alpha.shape[2]!=numsol) and (alpha.shape[1]!=numflux):
+        if alpha.ndim == 2:
+            alpha = np.tile(alpha, (timeseries_length, 1, 1))
+        if (alpha.shape[2] != numsol) and (alpha.shape[1] != numflux):
             raise TypeError("alpha array dimensions don't match other inputs")
         alpha = alpha.astype(dtype)
     else:
@@ -207,9 +214,9 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     if k1 is not None:
         if type(k1) is not np.ndarray:
             k1 = np.array(k1, dtype=dtype)
-        if k1.ndim==1 and len(k1)==numsol:
-            k1 = np.tile(k1,(timeseries_length,1))
-        if (k1.shape[1]!=numsol) and (k1.shape[0]!=timeseries_length):
+        if k1.ndim == 1 and len(k1) == numsol:
+            k1 = np.tile(k1, (timeseries_length, 1))
+        if (k1.shape[1] != numsol) and (k1.shape[0] != timeseries_length):
             raise TypeError("k1 array dimensions don't match other inputs")
         k1 = k1.astype(dtype)
     else:
@@ -217,9 +224,9 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     if C_eq is not None:
         if type(C_eq) is not np.ndarray:
             C_eq = np.array(C_eq, dtype=dtype)
-        if C_eq.ndim==1 and len(C_eq)==numsol:
-            C_eq = np.tile(C_eq,(timeseries_length,1))
-        if (C_eq.shape[1]!=numsol) and (C_eq.shape[0]!=timeseries_length):
+        if C_eq.ndim == 1 and len(C_eq) == numsol:
+            C_eq = np.tile(C_eq, (timeseries_length, 1))
+        if (C_eq.shape[1] != numsol) and (C_eq.shape[0] != timeseries_length):
             raise TypeError("C_eq array dimensions don't match other inputs")
         C_eq = C_eq.astype(dtype)
     else:
@@ -227,7 +234,7 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     if C_old is not None:
         if type(C_old) is not np.ndarray:
             C_old = np.array(C_old, dtype=dtype)
-        if len(C_old)!=numsol:
+        if len(C_old) != numsol:
             raise TypeError('C_old must have the same number of entries as C_J has columns')
         C_old = C_old.astype(dtype)
     else:
@@ -235,9 +242,9 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
     if CS_init is not None:
         if type(CS_init) is not np.ndarray:
             CS_init = np.array(CS_init, dtype=dtype)
-        if CS_init.ndim==1:
-            CS_init = np.tile(CS_init,(max_age-1,1))
-        if (CS_init.shape[1]!=numsol) and (CS_init.shape[0]!=max_age):
+        if CS_init.ndim == 1:
+            CS_init = np.tile(CS_init, (max_age-1, 1))
+        if (CS_init.shape[1] != numsol) and (CS_init.shape[0] != max_age):
             raise TypeError("CS_init array dimensions don't match other inputs")
         CS_init = CS_init.astype(dtype)
     else:
@@ -246,39 +253,41 @@ def solve(J, Q, rSAS_fun, mode='RK4', ST_init = None, dt = 1, n_substeps = 1, P_
         dt = np.float64(dt)
     if n_substeps is not None:
         n_substeps = np.int(n_substeps)
-    if full_outputs==False and C_J is None:
+    if full_outputs is False and C_J is None:
         warn('No output will be generated! Are you sure you mean to do this?')
     # Run implemented solvers
     _verbose('Running rsas...')
-    if mode=='age':
+    if mode == 'age':
         warn('mode age is deprecated, switching to RK4')
-        mode='RK4'
-    if mode=='time':
+        mode = 'RK4'
+    if mode == 'time':
         warn('mode time is deprecated, switching to RK4')
-        mode='RK4'
-    if mode=='RK4':
-        #result = _solve_RK4(J, Q, rSAS_fun, ST_init=ST_init,
+        mode = 'RK4'
+    if mode == 'RK4':
+        # result = _solve_RK4(J, Q, rSAS_fun, ST_init=ST_init,
         #                    dt=dt, n_substeps=n_substeps,
         #                    full_outputs=full_outputs,
         #                    CS_init=CS_init, C_J=C_J, alpha=alpha, k1=k1, C_eq=C_eq, C_old=C_old)
         fresult = f_solve(
-                J, Q, rSAS_lookup, P_list, ST_init, dt, 
-                verbose, debug, full_outputs,
-                CS_init, C_J, alpha, k1, C_eq, C_old, 
-                n_substeps, numflux, numsol, max_age, timeseries_length,  nP_list)
+            J, Q, rSAS_lookup, P_list, ST_init, dt,
+            verbose, debug, full_outputs,
+            CS_init, C_J, alpha, k1, C_eq, C_old,
+            n_substeps, numflux, numsol, max_age, timeseries_length,  nP_list)
         _verbose('... done')
         ST, PQ, WaterBalance, MS, MQ, MR, C_Q, SoluteBalance = fresult
     else:
         raise TypeError('Invalid solution mode.')
-    
+
     _verbose('...making output dict...')
-    if numsol>0:
-        result = {'C_Q':C_Q}
+    if numsol > 0:
+        result = {'C_Q': C_Q}
     else:
         result = {}
     if full_outputs:
-        if numsol>0:
-            result.update({'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance, 'MS':MS, 'MQ':MQ, 'MR':MR, 'C_Q':C_Q, 'SoluteBalance':SoluteBalance, 'P_list':P_list, 'rSAS_lookup':rSAS_lookup})
+        if numsol > 0:
+            result.update({'ST': ST, 'PQ': PQ, 'WaterBalance': WaterBalance, 'MS': MS, 'MQ': MQ, 'MR': MR,
+                           'C_Q': C_Q, 'SoluteBalance': SoluteBalance, 'P_list': P_list, 'rSAS_lookup': rSAS_lookup})
         else:
-            result.update({'ST':ST, 'PQ':PQ, 'WaterBalance':WaterBalance, 'P_list':P_list, 'rSAS_lookup':rSAS_lookup})
+            result.update({'ST': ST, 'PQ': PQ, 'WaterBalance': WaterBalance,
+                           'P_list': P_list, 'rSAS_lookup': rSAS_lookup})
     return result

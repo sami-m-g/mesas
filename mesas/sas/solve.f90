@@ -371,7 +371,7 @@
       real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQt
       real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mRt
       real(8), intent(in), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSt
-      integer M, iq, s 
+      integer M, iq, s
       M = max_age * n_substeps
       STt_cum = cumsum(sTt, M)
       call f_debug(debug, 'sTt', sTt)
