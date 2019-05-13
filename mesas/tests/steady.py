@@ -5,28 +5,29 @@ Runs the rSAS model for a synthetic dataset with one flux in and out
 and steady state flow
 
 Theory is presented in:
-Harman, C. J. (2014), Time-variable transit time distributions and transport:
+Harman, C. J. (2015), Time-variable transit time distributions and transport:
 Theory and application to storage-dependent transport of chloride in a watershed,
 Water Resour. Res., 51, doi:10.1002/2014WR015707.
 """
 
 import mesas.sas as sas
+#import rsas as sas
 import numpy as np
 import matplotlib.pyplot as plt
 # =====================================
 # Generate the input timeseries
 # =====================================
 # length of the dataset
-S_0 = 4.  # <-- volume of the uniformly sampled store
+S_0 = 10.  # <-- volume of the uniformly sampled store
 Q_0 = 1.0  # <-- steady-state flow rate
 T_0 = S_0 / Q_0
-N = 10
-n_substeps = 2
+N = 100
+n_substeps = 4
 # Steady-state flow in and out for N timesteps
 J = np.ones(N) * Q_0
-Q = np.ones((N, 1)) * Q_0
+Q = np.ones(N) * Q_0
 # A timeseries of concentrations
-C_J = np.ones((N, 1))
+C_J = np.ones(N)
 #C_J = -np.log(np.random.rand(N,1))
 # =========================
 # Parameters needed by rsas
@@ -49,22 +50,17 @@ rSAS_fun_Q1 = sas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
 # Unknown initial age distribution, so just set this to zeros
 ST_init = np.zeros(N + 1)
 # =============
-# Run the model - first method
+# Run the model
 # =============
 # Run it
-outputs = sas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init,
-                    mode='RK4', dt=1., n_substeps=n_substeps, C_J=C_J, C_old=[C_old], verbose=True, debug=False)
+outputs = sas.solve(J, [Q], [rSAS_fun_Q1], ST_init=ST_init,
+                    dt=1., n_substeps=n_substeps, C_J=C_J,
+                    C_old=[C_old], verbose=True, debug=False)
 # %%
 # Timestep-averaged outflow concentration
 # ROWS of C_Q are t - times
 # COLUMNS of PQ are q - fluxes
 C_Qm1 = outputs['C_Q'][:, 0, 0]
-# =============
-# Run the model - second method
-# =============
-# Run it
-outputs = sas.solve(J, Q, [rSAS_fun_Q1], ST_init=ST_init,
-                    mode='RK4', dt=1., n_substeps=n_substeps, verbose=True, debug=False)
 # Age-ranked storage
 # ROWS of ST are T - ages
 # COLUMNS of ST are t - times
@@ -79,7 +75,7 @@ PQm = outputs['PQ'][:, :, 0]
 # ROWS of C_Q are t - times
 # COLUMNS of PQ are q - fluxes
 # Use rsas.transport to convolve the input concentration with the TTD
-C_Qm2, C_mod_raw, observed_fraction = sas.transport(PQm, C_J[:, 0], C_old)
+C_Qm2, C_mod_raw, observed_fraction = sas.transport(PQm, C_J, C_old)
 
 # ==================================
 # Plot the age-ranked storage
@@ -115,9 +111,9 @@ PQe = np.tile(1-np.exp(-T/T_0), (N*n+1, 1)).T
 # Use the transit time distribution and input timeseries to estimate
 # the output timeseries for the exact and instantaneous cases
 print('Getting the concentrations')
-C_Qi, C_mod_raw, observed_fraction = sas.transport(PQi, C_J[:, 0], C_old)
+C_Qi, C_mod_raw, observed_fraction = sas.transport(PQi, C_J, C_old)
 C_Qei, C_mod_raw, observed_fraction = sas.transport(
-    PQe, C_J[:, 0].repeat(n), C_old)
+    PQe, C_J.repeat(n), C_old)
 # This calculates an exact timestep-averaged value
 C_Qem = np.reshape(C_Qei, (N, n)).mean(axis=1)
 # Plot the results

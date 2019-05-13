@@ -24,7 +24,7 @@ def _debug(statement):
 
     """
     if DEBUG:
-        print statement,
+        print(statement, end='')
 
 
 def _verbose(statement):
@@ -32,7 +32,7 @@ def _verbose(statement):
 
     """
     if VERBOSE:
-        print statement
+        print(statement)
 
 
 def make_lookup(rSAS_fun, N, P_list):

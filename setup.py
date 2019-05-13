@@ -7,6 +7,7 @@ Created on Sun Apr 27 16:11:18 2019
 
 from numpy.distutils.core import setup
 from numpy.distutils.core import Extension
+from distutils import util
 import numpy
 
 config = {
@@ -16,19 +17,19 @@ config = {
     'download_url': '',
     'author_email': 'charman1@jhu.edu',
     'version': '0.01',
-    'install_requires': ['numpy', 'scipy'],
-    'packages' : ['mesas'],
+    # 'install_requires': ['numpy', 'scipy'],
+    'packages': ['mesas', 'mesas.sas'],
+    'package_dir': {'mesas': 'mesas', 'mesas.sas': util.convert_path('mesas/sas')},
     'scripts': [],
     'name': 'mesas',
-    'ext_modules': [Extension(name='f_solve', sources=['./mesas/sas/solve.f90'],
+    'ext_modules': [Extension(name='f_solve', sources=[util.convert_path('./mesas/sas/solve.f90')],
                               include_dirs=[numpy.get_include()],
-                              extra_f90_compile_args = ["-fcheck=all"],
+                              extra_f90_compile_args=["-fcheck=all", "-pg"],
                               libraries=None),
-        Extension(name='f_convolve', sources=['./mesas/sas/convolve.f90'],
+                    Extension(name='f_convolve', sources=[util.convert_path('./mesas/sas/convolve.f90')],
                               include_dirs=[numpy.get_include()],
-                              extra_f90_compile_args = ["-fcheck=all"],
+                              extra_f90_compile_args=["-fcheck=all", "-pg"],
                               libraries=None)],
 }
 
 setup(**config)
-

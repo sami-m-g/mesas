@@ -120,8 +120,8 @@
       enddo
       ST0_cum = cumsum(sTn, M)
       do iq=0,numflux-1
-        call lookup(rSAS_lookup(:,0,iq), P_list, ST0_cum, &
-                 PQ0_cum(:,iq), nP_list, M+1)
+        call lookup(rSAS_lookup(:,0,iq), P_list, &
+                    ST0_cum, PQ0_cum(:,iq), nP_list, M+1)
       enddo
       ST(1:max_age,0) = ST0_cum(n_substeps:M:n_substeps)
       do iq=0,numflux-1
