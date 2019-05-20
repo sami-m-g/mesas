@@ -24,11 +24,11 @@ config = {
     'name': 'mesas',
     'ext_modules': [Extension(name='f_solve', sources=[util.convert_path('./mesas/sas/solve.f90')],
                               include_dirs=[numpy.get_include()],
-                              extra_f90_compile_args=["-fcheck=all", "-pg"],
+                              extra_f90_compile_args=["-Ofast"],
                               libraries=None),
                     Extension(name='f_convolve', sources=[util.convert_path('./mesas/sas/convolve.f90')],
                               include_dirs=[numpy.get_include()],
-                              extra_f90_compile_args=["-fcheck=all", "-pg"],
+                              extra_f90_compile_args=["-Ofast"],
                               libraries=None)],
 }
 
