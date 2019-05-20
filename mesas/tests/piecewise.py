@@ -29,21 +29,20 @@ from scipy.interpolate import interp1d
 '''
     This part import data and save variable names
 '''
-#csvfile = '/home/esther/PycharmProjects/rsas/rsas/lower_hafren.csv'
-csvfile = '/Users/ciaran/Documents/Teaching/CUAHSI masterclass/examples/lower_hafren.csv'
+csvfile = '../data/lower_hafren.csv'
 
-data = pd.read_csv(csvfile, index_col=0, header =0, parse_dates = True)[:2000]
+data = pd.read_csv(csvfile, index_col=0, header=0, parse_dates=True)[:2000]
 J = data['J']
 Q = data['Q']
 ET = data['Q_2']
-C_Q = data['C_Q'] # the measured concentration, observation
-C_J = data['C_J'] # input concentration
-C_Q = C_Q.replace(0,np.nan) # replace the error measurements with 0
+C_Q = data['C_Q']  # the measured concentration, observation
+C_J = data['C_J']  # input concentration
+C_Q = C_Q.replace(0, np.nan)  # replace the error measurements with 0
 C_old = [7.7]
 
 
 '''
-    This part can be refined in the future for more flexable use  
+    This part can be refined in the future for more flexable use
 '''
 # numflux = 2  # number of fluxes involved
 # npieces = np.ones(numflux)  # number of SAS pieces for both fluxes
@@ -55,19 +54,19 @@ C_old = [7.7]
 # [lkup, P_list] = lkup_init(N, numflux, npiece)
 
 '''
-    This part makes the lookup take and the CDF partition  
+    This part makes the lookup take and the CDF partition
 '''
 numflux = 2  # number of fluxes involved
 npieceQ = 3  # number of SAS pieces for both fluxes
 npieceE = 1
-N = len(C_Q) # The number of observations
+N = len(C_Q)  # The number of observations
 '''
 Find the maximum pieces from npieceQ and npieceE and use it to make the lookup table
 '''
 [lkupQ, P_listQ] = lkup_init(N, 1, npieceQ)
 [lkupE, P_listE] = lkup_init(N, 1, npieceE)
-lkup = [lkupQ,lkupE]
-plist = [P_listQ,P_listE]
+lkup = [lkupQ, lkupE]
+plist = [P_listQ, P_listE]
 
 # '''
 #     This part defines the rSAS function, Let's start with the values given by Harman, 2015
@@ -98,6 +97,7 @@ for i in range(npieceE - 1):
 # the initial guess for params
 params0 = np.r_[np.log(np.diff(SQ)), np.log(np.diff(SE))]
 
+
 def _run(params, lkup, plist, J, Q, ET, C_J, C_old, C_Q):
     '''
     Given ST and initialized lkup table and corresponding P lists, along with other inputs, run the model
@@ -121,8 +121,8 @@ def _run(params, lkup, plist, J, Q, ET, C_J, C_old, C_Q):
     P_listQ = plist[0]
     P_listE = plist[1]
     # corresponding lkup table with regularization applied
-    lkupQ = np.zeros((npieceQ+101,N))
-    lkupE = np.zeros((npieceE+101,N))
+    lkupQ = np.zeros((npieceQ+101, N))
+    lkupE = np.zeros((npieceE+101, N))
     for i in range(N):  # for all timesteps
         lkupQ[:, i], P_listQ_reg = reg(SQ, P_listQ)
         lkupE[:, i], P_listE_reg = reg(SE, P_listE)
@@ -132,13 +132,13 @@ def _run(params, lkup, plist, J, Q, ET, C_J, C_old, C_Q):
     lkup_union = np.zeros((len(P_list_union), N, numflux))
     for i in range(N):  # for all timesteps
         for q in range(numflux):
-            lkup_union[:,i,q] = interp1d(P_listn[q], lkupn[q][:,i])(P_list_union)
+            lkup_union[:, i, q] = interp1d(P_listn[q], lkupn[q][:, i])(P_list_union)
     # todo: need to be fixed, "P_list must be a 1-D array"
-    outputs = rsas.solve(J, [Q, ET], lkup_union, P_list = P_list_union, C_J = C_J, verbose = False, C_old = C_old, n_substeps=1)
+    outputs = rsas.solve(J, [Q, ET], lkup_union, P_list=P_list_union,
+                         C_J=C_J, verbose=False, C_old=C_old, n_substeps=1)
     opt = outputs['C_Q'][:, 0, 0]
 
     return opt
-
 
 
 def obj(params, *args):
@@ -154,12 +154,8 @@ def obj(params, *args):
     return err
 
 
-
 params_opt = fmin(obj, params0, args=(lkup, plist, J, Q, ET, C_J, C_old, C_Q))
 C_Q_pred = _run(params_opt, lkup, plist, J, Q, ET, C_J, C_old, C_Q)
-
-
-
 
 
 '''
@@ -170,8 +166,7 @@ C_Q_pred = _run(params_opt, lkup, plist, J, Q, ET, C_J, C_old, C_Q)
 ''' Define the objective function as minimum SSE between outputs and observations'''
 
 
-
- # notice that these parameters should be listed in sequences
+# notice that these parameters should be listed in sequences
 
 
 # # Initialization
@@ -228,6 +223,3 @@ C_Q_pred = _run(params_opt, lkup, plist, J, Q, ET, C_J, C_old, C_Q)
 # print("done with the process!!! file saved to {}".format(outfile))
 #
 #
-
-
-
