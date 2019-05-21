@@ -1,8 +1,8 @@
 ! -*- f90 -*-
-      subroutine f_solve(J, Q, rSAS_lookup, P_list, ST_init, dt,  &
+      subroutine f_solve(J_ts, Q_ts, rSAS_lookup, P_list, STcum_init_ts, dt,  &
                  verbose, debug, full_outputs,&
-                 CS_init, C_J, alpha, k1, C_eq, C_old, ST, PQ, &
-                 WaterBalance, MS, MQ, MR, C_Q, SoluteBalance, &
+                 CS_init_ts, C_J_ts, alpha_ts, k1_ts, C_eq_ts, C_old, STcum_ts, PQcum_ts, &
+                 WaterBalance_ts, MScum_ts, MQcum_ts, MRcum_ts, C_Q_ts, SoluteBalance_ts, &
                  n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
       implicit none
@@ -10,253 +10,253 @@
       integer, intent(in) ::  n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list
       real(8), intent(in) :: dt
-      real(8), intent(in), dimension(0:timeseries_length-1) :: J
-      real(8), intent(in), dimension(0:timeseries_length-1, 0:numflux-1) :: Q
+      real(8), intent(in), dimension(0:timeseries_length-1) :: J_ts
+      real(8), intent(in), dimension(0:timeseries_length-1, 0:numflux-1) :: Q_ts
       real(8), intent(in), dimension(0:nP_list-1) :: P_list
       real(8), intent(in), dimension(0:nP_list-1, 0:timeseries_length-1, 0:numflux-1) :: rSAS_lookup
-      real(8), intent(in), dimension(0:max_age) :: ST_init
-      real(8), intent(in), dimension(0:max_age-1,0:numsol-1) :: CS_init
-      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: C_J
+      real(8), intent(in), dimension(0:max_age) :: STcum_init_ts
+      real(8), intent(in), dimension(0:max_age-1,0:numsol-1) :: CS_init_ts
+      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: C_J_ts
       real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1,0:numsol-1) &
-                 :: alpha
-      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: k1
-      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: C_eq
+                 :: alpha_ts
+      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: k1_ts
+      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: C_eq_ts
       real(8), intent(in), dimension(0:numsol-1) :: C_old
-      real(8), intent(out), dimension(0:timeseries_length-1, 0:numflux-1, 0:numsol-1) :: C_Q
-      real(8), intent(out), dimension(0:max_age, 0:timeseries_length) :: ST
+      real(8), intent(out), dimension(0:timeseries_length-1, 0:numflux-1, 0:numsol-1) :: C_Q_ts
+      real(8), intent(out), dimension(0:max_age, 0:timeseries_length) :: STcum_ts
       real(8), intent(out), dimension(0:max_age-1, 0:timeseries_length-1) :: &
-                 WaterBalance
-      real(8), intent(out), dimension(0:max_age, 0:timeseries_length, 0:numflux-1) :: PQ
-      real(8), intent(out), dimension(0:max_age, 0:timeseries_length, 0:numsol-1) :: MS
-      real(8), intent(out), dimension(0:max_age, 0:timeseries_length, 0:numflux-1, 0:numsol-1) :: MQ
-      real(8), intent(out), dimension(0:max_age, 0:timeseries_length, 0:numsol-1) :: MR
-      real(8), intent(out), dimension(0:max_age-1, 0:timeseries_length-1, 0:numsol-1) :: SoluteBalance
+                 WaterBalance_ts
+      real(8), intent(out), dimension(0:max_age, 0:timeseries_length, 0:numflux-1) :: PQcum_ts
+      real(8), intent(out), dimension(0:max_age, 0:timeseries_length, 0:numsol-1) :: MScum_ts
+      real(8), intent(out), dimension(0:max_age, 0:timeseries_length, 0:numflux-1, 0:numsol-1) :: MQcum_ts
+      real(8), intent(out), dimension(0:max_age, 0:timeseries_length, 0:numsol-1) :: MRcum_ts
+      real(8), intent(out), dimension(0:max_age-1, 0:timeseries_length-1, 0:numsol-1) :: SoluteBalance_ts
       integer :: k, i
       real(8) :: h
-      real(8), dimension(0:max_age*n_substeps) :: ST0_cum
-      real(8), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQ0_cum
-      real(8), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQt_cum
-      real(8), dimension(0:max_age*n_substeps) :: STt_cum
-      real(8), dimension(0:max_age*n_substeps-1) :: sTp
-      real(8), dimension(0:max_age*n_substeps-1) :: sTt
-      real(8), dimension(0:max_age*n_substeps-1) :: sTn
-      real(8), dimension(0:max_age*n_substeps) :: STn_cum
+      real(8), dimension(0:max_age*n_substeps) :: STcum_init
+      real(8), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQcum_init
+      real(8), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQcum_temp
+      real(8), dimension(0:max_age*n_substeps) :: STcum_temp
+      real(8), dimension(0:max_age*n_substeps-1) :: sT_prev
+      real(8), dimension(0:max_age*n_substeps-1) :: sT_temp
+      real(8), dimension(0:max_age*n_substeps-1) :: sT_substep
+      real(8), dimension(0:max_age*n_substeps) :: STcum_substep
       real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQ1
       real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQ2
       real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQ3
       real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQ4
-      real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQn
-      real(8), dimension(0:max_age-1, 0:numflux-1) :: pQs
+      real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQ_substep
+      real(8), dimension(0:max_age-1, 0:numflux-1) :: pQ_ts
       real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQ1
       real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQ2
       real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQ3
       real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQ4
-      real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQn
-      real(8), dimension(0:max_age-1, 0:numflux-1, 0:numsol-1) :: mQs
+      real(8), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQ_substep
+      real(8), dimension(0:max_age-1, 0:numflux-1, 0:numsol-1) :: mQ_ts
       real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mR1
       real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mR2
       real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mR3
       real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mR4
-      real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mRn
-      real(8), dimension(0:max_age-1, 0:numsol-1) :: mRs
-      real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSp
-      real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSn
-      real(8), dimension(0:max_age*n_substeps, 0:numsol-1) :: MSn_cum
-      real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSt
+      real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mR_substep
+      real(8), dimension(0:max_age-1, 0:numsol-1) :: mR_ts
+      real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mS_prev
+      real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mS_substep
+      real(8), dimension(0:max_age*n_substeps, 0:numsol-1) :: MScum_substep
+      real(8), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mS_temp
       real(8) :: one8
       character(len=128) :: debugstring
       integer is, ie, iq, s, M
       one8 = 1.0
       call f_verbose(verbose,'...Initializing arrays...')
-      C_Q(:, :, :) = 0.
-      ST(:, :) = 0.
-      WaterBalance(:, :) = 0.
-      PQ(:, :, :) = 0.
-      MS(:, :, :) = 0.
-      MQ(:, :, :, :) = 0.
-      MR(:, :, :) = 0.
-      SoluteBalance(:, :, :) = 0.
-      ST0_cum(:) = 0.
-      PQ0_cum(:, :) = 0.
-      PQt_cum(:,:) = 0.
-      STt_cum(:) = 0.
-      sTp(:) = 0.
-      sTt(:) = 0.
-      sTn(:) = 0.
-      STn_cum(:) = 0.
+      C_Q_ts(:, :, :) = 0.
+      STcum_ts(:, :) = 0.
+      WaterBalance_ts(:, :) = 0.
+      PQcum_ts(:, :, :) = 0.
+      MScum_ts(:, :, :) = 0.
+      MQcum_ts(:, :, :, :) = 0.
+      MRcum_ts(:, :, :) = 0.
+      SoluteBalance_ts(:, :, :) = 0.
+      STcum_init(:) = 0.
+      PQcum_init(:, :) = 0.
+      PQcum_temp(:,:) = 0.
+      STcum_temp(:) = 0.
+      sT_prev(:) = 0.
+      sT_temp(:) = 0.
+      sT_substep(:) = 0.
+      STcum_substep(:) = 0.
       pQ1(:, :) = 0.
       pQ2(:, :) = 0.
       pQ3(:, :) = 0.
       pQ4(:, :) = 0.
-      pQn(:, :) = 0.
-      pQs(:, :) = 0.
+      pQ_substep(:, :) = 0.
+      pQ_ts(:, :) = 0.
       mQ1(:, :, :) = 0.
       mQ2(:, :, :) = 0.
       mQ3(:, :, :) = 0.
       mQ4(:, :, :) = 0.
-      mQn(:, :, :) = 0.
-      mQs(:, :, :) = 0.
+      mQ_substep(:, :, :) = 0.
+      mQ_ts(:, :, :) = 0.
       mR1(:, :) = 0.
       mR2(:, :) = 0.
       mR3(:, :) = 0.
       mR4(:, :) = 0.
-      mRn(:, :) = 0.
-      mRs(:, :) = 0.
-      mSp(:, :) = 0.
-      mSn(:, :) = 0.
-      MSn_cum(:, :) = 0.
-      mSt(:, :) = 0.
+      mR_substep(:, :) = 0.
+      mR_ts(:, :) = 0.
+      mS_prev(:, :) = 0.
+      mS_substep(:, :) = 0.
+      MScum_substep(:, :) = 0.
+      mS_temp(:, :) = 0.
       M = max_age * n_substeps
       h = dt / n_substeps
       call f_verbose(verbose,'...Setting initial conditions...')
       do i=0,max_age-1
         is = i*n_substeps
         ie = (i+1)*n_substeps-1
-        sTn(is:ie) = (ST_init(i+1) - ST_init(i))/n_substeps
+        sT_substep(is:ie) = (STcum_init_ts(i+1) - STcum_init_ts(i))/n_substeps
         do s=0,numsol-1
-          mSn(is:ie,s) = (CS_init(i,s) * (ST_init(i+1) - ST_init(i)))&
+          mS_substep(is:ie,s) = (CS_init_ts(i,s) * (STcum_init_ts(i+1) - STcum_init_ts(i)))&
                           /n_substeps
         enddo
       enddo
-      ST0_cum = cumsum(sTn, M)
+      STcum_init = cumsum(sT_substep, M)
       do iq=0,numflux-1
         call lookup(rSAS_lookup(:,0,iq), P_list, &
-                    ST0_cum, PQ0_cum(:,iq), nP_list, M+1)
+                    STcum_init, PQcum_init(:,iq), nP_list, M+1)
       enddo
-      ST(1:max_age,0) = ST0_cum(n_substeps:M:n_substeps)
+      STcum_ts(1:max_age,0) = STcum_init(n_substeps:M:n_substeps)
       do iq=0,numflux-1
-        PQ(:,0,iq) = PQ0_cum(0:M:n_substeps, iq)
+        PQcum_ts(:,0,iq) = PQcum_init(0:M:n_substeps, iq)
       enddo
       do s=0,numsol-1
-        MSn_cum(:,s) = cumsum(mSn(:,s), M)
-        MS(:,0,s) = MSn_cum(0:M:n_substeps, s)
+        MScum_substep(:,s) = cumsum(mS_substep(:,s), M)
+        MScum_ts(:,0,s) = MScum_substep(0:M:n_substeps, s)
       enddo
       call f_verbose(verbose,'...Starting main loop...')
       do i=0,timeseries_length-1
-        pQs(:, :) = 0.
-        mQs(:, :, :) = 0.
-        mRs(:, :) = 0.
+        pQ_ts(:, :) = 0.
+        mQ_ts(:, :, :) = 0.
+        mR_ts(:, :) = 0.
         do k=0,n_substeps-1
           call f_debug(debug, 'Timestep, Substep', (/ i*one8, k*one8/))
-          sTp(1:M-1) = sTn(0:M-2)
-          sTp(0) = 0.
-          mSp(1:M-1,:) = mSn(0:M-2,:)
-          mSp(0,:) = 0.
+          sT_prev(1:M-1) = sT_substep(0:M-2)
+          sT_prev(0) = 0.
+          mS_prev(1:M-1,:) = mS_substep(0:M-2,:)
+          mS_prev(0,:) = 0.
           call f_debug(debug, 'RK', (/1._8/))
-          call get_flux(i, sTp, STt_cum, pQ1, PQt_cum, J, Q, rSAS_lookup, &
-                 P_list, mSp, mQ1, mR1, alpha, k1, C_eq, n_substeps, &
+          call get_flux(i, sT_prev, STcum_temp, pQ1, PQcum_temp, J_ts, Q_ts, rSAS_lookup, &
+                 P_list, mS_prev, mQ1, mR1, alpha_ts, k1_ts, C_eq_ts, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
-          call new_state(i, h/2, sTp, sTt, pQ1, J, Q, mSp, mSt, mQ1, &
-                 mR1, C_J, n_substeps, numflux, numsol, max_age, &
+          call new_state(i, h/2, sT_prev, sT_temp, pQ1, J_ts, Q_ts, mS_prev, mS_temp, mQ1, &
+                 mR1, C_J_ts, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
           call f_debug(debug, 'RK', (/2._8/))
-          call get_flux(i, sTt, STt_cum, pQ2, PQt_cum, J, Q, rSAS_lookup, &
-                 P_list, mSt, mQ2, mR2, alpha, k1, C_eq, n_substeps, &
+          call get_flux(i, sT_temp, STcum_temp, pQ2, PQcum_temp, J_ts, Q_ts, rSAS_lookup, &
+                 P_list, mS_temp, mQ2, mR2, alpha_ts, k1_ts, C_eq_ts, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
-          call new_state(i, h/2, sTp, sTt, pQ2, J, Q, mSp, mSt, mQ2, &
-                 mR2, C_J, n_substeps, numflux, numsol, max_age, &
+          call new_state(i, h/2, sT_prev, sT_temp, pQ2, J_ts, Q_ts, mS_prev, mS_temp, mQ2, &
+                 mR2, C_J_ts, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
           call f_debug(debug, 'RK', (/3._8/))
-          call get_flux(i, sTt, STt_cum, pQ3, PQt_cum, J, Q, rSAS_lookup, &
-                 P_list, mSt, mQ3, mR3, alpha, k1, C_eq, n_substeps, &
+          call get_flux(i, sT_temp, STcum_temp, pQ3, PQcum_temp, J_ts, Q_ts, rSAS_lookup, &
+                 P_list, mS_temp, mQ3, mR3, alpha_ts, k1_ts, C_eq_ts, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
-          call new_state(i, h, sTp, sTt, pQ3, J, Q, mSp, mSt, mQ3, mR3&
-                 , C_J, n_substeps, numflux, numsol, max_age, &
+          call new_state(i, h, sT_prev, sT_temp, pQ3, J_ts, Q_ts, mS_prev, mS_temp, mQ3, mR3&
+                 , C_J_ts, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
           call f_debug(debug, 'RK', (/4._8/))
-          call get_flux(i, sTt, STt_cum, pQ4, PQt_cum, J, Q, rSAS_lookup, &
-                 P_list, mSt, mQ4, mR4, alpha, k1, C_eq, n_substeps, &
+          call get_flux(i, sT_temp, STcum_temp, pQ4, PQcum_temp, J_ts, Q_ts, rSAS_lookup, &
+                 P_list, mS_temp, mQ4, mR4, alpha_ts, k1_ts, C_eq_ts, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
-          pQn = (pQ1 + 2*pQ2 + 2*pQ3 + pQ4) / 6.
-          mQn = (mQ1 + 2*mQ2 + 2*mQ3 + mQ4) / 6.
-          mRn = (mR1 + 2*mR2 + 2*mR3 + mR4) / 6.
+          pQ_substep = (pQ1 + 2*pQ2 + 2*pQ3 + pQ4) / 6.
+          mQ_substep = (mQ1 + 2*mQ2 + 2*mQ3 + mQ4) / 6.
+          mR_substep = (mR1 + 2*mR2 + 2*mR3 + mR4) / 6.
           do iq=0,numflux-1
-            if (Q(i,iq)==0) then
-              pQn(:,iq) = 0.
+            if (Q_ts(i,iq)==0) then
+              pQ_substep(:,iq) = 0.
             endif
           enddo
-          call new_state(i, h, sTp, sTn, pQn, J, Q, mSp, mSn, mQn, mRn&
-                 , C_J, n_substeps, numflux, numsol, max_age, &
+          call new_state(i, h, sT_prev, sT_substep, pQ_substep, J_ts, Q_ts, mS_prev, mS_substep, mQ_substep, mR_substep&
+                 , C_J_ts, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
           do iq=0,numflux-1
-            call f_debug(debug, 'pQn', pQn(:,iq))
+            call f_debug(debug, 'pQ_substep', pQ_substep(:,iq))
           enddo
           do s=0,numsol-1
-            call f_debug(debug, 'mSn', mSn(:,s))
-            call f_debug(debug, 'mRn', mRn(:,s))
+            call f_debug(debug, 'mS_substep', mS_substep(:,s))
+            call f_debug(debug, 'mR_substep', mR_substep(:,s))
             do iq=0,numflux-1
-              call f_debug(debug, 'mQn', mQn(:,iq,s))
+              call f_debug(debug, 'mQ_substep', mQ_substep(:,iq,s))
             enddo
           enddo
           do iq=0,numflux-1
             do s=0,numsol-1
-              if (Q(i,iq)>0) then
-                C_Q(i,iq,s) = C_Q(i,iq,s) + sum(mQn(:,iq,s)) / &
-                 Q(i,iq) / n_substeps
-              call f_debug(debug, 'C_Q', C_Q(i:i,iq,s))
+              if (Q_ts(i,iq)>0) then
+                C_Q_ts(i,iq,s) = C_Q_ts(i,iq,s) + sum(mQ_substep(:,iq,s)) / &
+                 (dt * Q_ts(i,iq)) / n_substeps
+              call f_debug(debug, 'C_Q_ts', C_Q_ts(i:i,iq,s))
               endif
             enddo
           enddo
           if (full_outputs) then
             do iq=0,numflux-1
-              pQs(0, iq) = pQs(0, iq) &
-                           + sum(pQn(0:k, iq))/n_substeps
-              pQs(1:max_age-1, iq) = pQs(1:max_age-1, iq) &
-                   + sum(reshape(pQn(k+1:M-n_substeps+k, iq),&
+              pQ_ts(0, iq) = pQ_ts(0, iq) &
+                           + sum(pQ_substep(0:k, iq))/n_substeps
+              pQ_ts(1:max_age-1, iq) = pQ_ts(1:max_age-1, iq) &
+                   + sum(reshape(pQ_substep(k+1:M-n_substeps+k, iq),&
                                  [n_substeps,max_age-1]),1)/n_substeps
               do s=0,numsol-1
-                mQs(0, iq, s) = mQs(0, iq, s) &
-                           + sum(mQn(0:k, iq, s))/n_substeps
-                mQs(1:max_age-1, iq, s) = mQs(1:max_age-1, iq, s)&
-                           + sum(reshape(mQn(k+1:M-n_substeps+k, iq, s), &
+                mQ_ts(0, iq, s) = mQ_ts(0, iq, s) &
+                           + sum(mQ_substep(0:k, iq, s))/n_substeps
+                mQ_ts(1:max_age-1, iq, s) = mQ_ts(1:max_age-1, iq, s)&
+                           + sum(reshape(mQ_substep(k+1:M-n_substeps+k, iq, s), &
                                  [n_substeps,max_age-1]),1)/n_substeps
               enddo
             enddo
             do s=0,numsol-1
-              mRs(0, s) = mRs(0, s) &
-                           + sum(mRn(0:k, s))/n_substeps
-              mRs(1:max_age-1, s) = mRs(1:max_age-1, s) &
-                           + sum(reshape(mRn(k+1:M-n_substeps+k, s), &
+              mR_ts(0, s) = mR_ts(0, s) &
+                           + sum(mR_substep(0:k, s))/n_substeps
+              mR_ts(1:max_age-1, s) = mR_ts(1:max_age-1, s) &
+                           + sum(reshape(mR_substep(k+1:M-n_substeps+k, s), &
                                  [n_substeps,max_age-1]),1)/n_substeps
             enddo
           endif
         enddo
         if (full_outputs) then
-          STn_cum = cumsum(sTn, M)
-          ST(1:max_age, i+1) = STn_cum(n_substeps:M:n_substeps)
-          WaterBalance(1:max_age-1, i) = diff(ST(0:max_age-1, i), max_age) - &
-                   diff(ST(1:max_age, i+1), max_age)
-          WaterBalance(0, i) = J(i) * dt - ST(1, i+1)
+          STcum_substep = cumsum(sT_substep, M)
+          STcum_ts(1:max_age, i+1) = STcum_substep(n_substeps:M:n_substeps)
+          WaterBalance_ts(1:max_age-1, i) = diff(STcum_ts(0:max_age-1, i), max_age) - &
+                   diff(STcum_ts(1:max_age, i+1), max_age)
+          WaterBalance_ts(0, i) = J_ts(i) * dt - STcum_ts(1, i+1)
           do iq=0,numflux-1
-            PQ(0:max_age,i+1,iq) = cumsum(pQs(0:max_age-1,iq), max_age)
-            WaterBalance(1:max_age-1, i) = WaterBalance(1:max_age-1, i) - dt &
-                   * (Q(i,iq) * diff(PQ(1:max_age,i+1,iq), max_age))
-            WaterBalance(0, i) = WaterBalance(0, i) - dt * Q(i,iq) * &
-                   (PQ(1,i+1,iq) - PQ(0,i+1,iq))
+            PQcum_ts(0:max_age,i+1,iq) = cumsum(pQ_ts(0:max_age-1,iq), max_age)
+            WaterBalance_ts(1:max_age-1, i) = WaterBalance_ts(1:max_age-1, i) - dt &
+                   * (Q_ts(i,iq) * diff(PQcum_ts(1:max_age,i+1,iq), max_age))
+            WaterBalance_ts(0, i) = WaterBalance_ts(0, i) - dt * Q_ts(i,iq) * &
+                   (PQcum_ts(1,i+1,iq) - PQcum_ts(0,i+1,iq))
           enddo
           do s=0,numsol-1
-            MSn_cum(:,s) = cumsum(mSn(:,s), M)
-            MS(:,i+1,s) = MSn_cum(0:M:n_substeps,s)
-            MR(:,i+1,s) = cumsum(mRs(:,s), max_age)
+            MScum_substep(:,s) = cumsum(mS_substep(:,s), M)
+            MScum_ts(:,i+1,s) = MScum_substep(0:M:n_substeps,s)
+            MRcum_ts(:,i+1,s) = cumsum(mR_ts(:,s), max_age)
             do iq=0,numflux-1
-              MQ(:,i+1,iq,s) = cumsum(mQs(:,iq,s),&
+              MQcum_ts(:,i+1,iq,s) = cumsum(mQ_ts(:,iq,s),&
                    max_age)
-              C_Q(i,iq,s) = C_Q(i,iq,s) + alpha(i,iq,s) * C_old(s) * (1 &
-                   - PQ(max_age, i+1, iq))
+              C_Q_ts(i,iq,s) = C_Q_ts(i,iq,s) + alpha_ts(i,iq,s) * C_old(s) * (1 &
+                   - PQcum_ts(max_age, i+1, iq))
             enddo
           enddo
           do s=0,numsol-1
-            SoluteBalance(1:max_age-1,i,s)=(&
-                   diff(MS(0:max_age-1,i,s), max_age) - &
-                   diff(MS(1:max_age,i+1,s), max_age) &
-                   + dt * diff(MR(1:max_age-1,i+1,s), max_age))
-            SoluteBalance(0,i,s) = (C_J(i,s) * J(i) * dt - MS(0,i+1,s) + &
-                   dt * (MR(0,i+1,s) - MR(0,i+1,s)))
+            SoluteBalance_ts(1:max_age-1,i,s)=(&
+                   diff(MScum_ts(0:max_age-1,i,s), max_age) - &
+                   diff(MScum_ts(1:max_age,i+1,s), max_age) &
+                   + dt * diff(MRcum_ts(1:max_age-1,i+1,s), max_age))
+            SoluteBalance_ts(0,i,s) = (C_J_ts(i,s) * J_ts(i) * dt - MScum_ts(0,i+1,s) + &
+                   dt * (MRcum_ts(0,i+1,s) - MRcum_ts(0,i+1,s)))
             do iq=0,numflux-1
-              SoluteBalance(0:max_age-1,i,s) = (SoluteBalance(0:max_age-1,i,s&
-                   ) - dt * diff(MQ(0:max_age-1,i+1,iq,s), max_age+1))
-              SoluteBalance(0,i,s) = (SoluteBalance(0,i,s) - dt * (MQ(0,&
-                   i +1,iq,s) - MQ(0,i+1,iq,s)))
+              SoluteBalance_ts(0:max_age-1,i,s) = (SoluteBalance_ts(0:max_age-1,i,s&
+                   ) - dt * diff(MQcum_ts(0:max_age-1,i+1,iq,s), max_age+1))
+              SoluteBalance_ts(0,i,s) = (SoluteBalance_ts(0,i,s) - dt * (MQcum_ts(0,&
+                   i +1,iq,s) - MQcum_ts(0,i+1,iq,s)))
             enddo
           enddo
         endif
@@ -351,86 +351,86 @@
       enddo
       end function cumsum
 
-      subroutine get_flux(i, sTt, STt_cum, pQt, PQt_cum, J, Q, rSAS_lookup&
-                 , P_list, mSt, mQt, mRt, alpha, k1, C_eq, n_substeps, &
+      subroutine get_flux(i, sT_temp, STcum_temp, pQ_temp, PQcum_temp, J_ts, Q_ts, rSAS_lookup&
+                 , P_list, mS_temp, mQ_temp, mR_temp, alpha_ts, k1_ts, C_eq_ts, n_substeps, &
                  numflux, numsol, max_age, timeseries_length, nP_list)
       implicit none
       integer, intent(in) :: i
       integer, intent(in) :: n_substeps, numflux, numsol, max_age, timeseries_length, nP_list
-      real(8), intent(in), dimension(0:timeseries_length-1) :: J
-      real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1) :: Q
+      real(8), intent(in), dimension(0:timeseries_length-1) :: J_ts
+      real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1) :: Q_ts
       real(8), intent(in), dimension(0:nP_list-1) :: P_list
       real(8), intent(in), dimension(0:nP_list-1, 0:timeseries_length-1, 0:numflux-1) :: rSAS_lookup
-      real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1,0:numsol-1) :: alpha
-      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: k1
-      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: C_eq
-      real(8), intent(inout), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQt_cum
-      real(8), intent(inout), dimension(0:max_age*n_substeps) :: STt_cum
-      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQt
-      real(8), intent(in), dimension(0:max_age*n_substeps-1) :: sTt
-      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQt
-      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mRt
-      real(8), intent(in), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSt
+      real(8), intent(in), dimension(0:timeseries_length-1,0:numflux-1,0:numsol-1) :: alpha_ts
+      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: k1_ts
+      real(8), intent(in), dimension(0:timeseries_length-1,0:numsol-1) :: C_eq_ts
+      real(8), intent(inout), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQcum_temp
+      real(8), intent(inout), dimension(0:max_age*n_substeps) :: STcum_temp
+      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQ_temp
+      real(8), intent(in), dimension(0:max_age*n_substeps-1) :: sT_temp
+      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQ_temp
+      real(8), intent(out), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mR_temp
+      real(8), intent(in), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mS_temp
       integer M, iq, s
       M = max_age * n_substeps
-      STt_cum = cumsum(sTt, M)
-      call f_debug(debug, 'sTt', sTt)
-      call f_debug(debug, 'STt_cum', STt_cum)
+      STcum_temp = cumsum(sT_temp, M)
+      call f_debug(debug, 'sT_temp', sT_temp)
+      call f_debug(debug, 'STcum_temp', STcum_temp)
       do s=0,numsol-1
-        call f_debug(debug, 'mSt', mSt(:,s))
+        call f_debug(debug, 'mS_temp', mS_temp(:,s))
       enddo
       do iq=0,numflux-1
-        call lookup(rSAS_lookup(:,i,iq), P_list, STt_cum, &
-                 PQt_cum(:,iq), nP_list, M+1)
-        pQt(:,iq) = diff(PQt_cum(:,iq), M+1)
-        call f_debug(debug, 'PQt_cum', PQt_cum(:,iq))
-        call f_debug(debug, 'pQt', pQt(:,iq))
+        call lookup(rSAS_lookup(:,i,iq), P_list, STcum_temp, &
+                 PQcum_temp(:,iq), nP_list, M+1)
+        pQ_temp(:,iq) = diff(PQcum_temp(:,iq), M+1)
+        call f_debug(debug, 'PQcum_temp', PQcum_temp(:,iq))
+        call f_debug(debug, 'pQ_temp', pQ_temp(:,iq))
         do s=0,numsol-1
-          where (sTt(:)>0)
-            mQt(:,iq,s) = mSt(:,s) / sTt(:) * alpha(i,iq,s) &
-                 * Q(i,iq) * pQt(:,iq)
+          where (sT_temp(:)>0)
+            mQ_temp(:,iq,s) = mS_temp(:,s) / sT_temp(:) * alpha_ts(i,iq,s) &
+                 * Q_ts(i,iq) * pQ_temp(:,iq)
           elsewhere
-            mQt(:,iq,s) = 0.
+            mQ_temp(:,iq,s) = 0.
           end where
         enddo
       enddo
       do s=0,numsol-1
-         mRt(:,s) = k1(i,s) * (C_eq(i,s) * sTt - mSt(:,s))
-         call f_debug(debug, 'mEt', mQt(:,1,s))
-         call f_debug(debug, 'mQt', mQt(:,0,s))
-         call f_debug(debug, 'mRt', mRt(:,s))
+         mR_temp(:,s) = k1_ts(i,s) * (C_eq_ts(i,s) * sT_temp - mS_temp(:,s))
+         call f_debug(debug, 'mEt', mQ_temp(:,1,s))
+         call f_debug(debug, 'mQ_temp', mQ_temp(:,0,s))
+         call f_debug(debug, 'mR_temp', mR_temp(:,s))
       enddo
       end subroutine get_flux
 
-      subroutine new_state(i, hr, sTp, sTt, pQt, J, Q, mSp, mSt, mQt, &
-                 mRt, C_J, n_substeps, numflux, numsol, max_age, &
+      subroutine new_state(i, hr, sT_prev, sT_temp, pQ_temp, J_ts, Q_ts, mS_prev, mS_temp, mQ_temp, &
+                 mR_temp, C_J_ts, n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list)
       integer, intent(in) :: n_substeps, numflux, numsol, max_age, &
                  timeseries_length, nP_list
       integer, intent(in) :: i
       real(8), intent(in) :: hr
-      real(8), intent(in), dimension(0:timeseries_length-1) :: J
-      real(8), intent(in), dimension(0:timeseries_length-1, 0:numflux-1) :: Q
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQt
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1) :: sTt
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1) :: sTp
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQt
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSt
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mSp
-      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mRt
-      real(8), intent(in), dimension(0:timeseries_length-1, 0:numsol-1) :: C_J
+      real(8), intent(in), dimension(0:timeseries_length-1) :: J_ts
+      real(8), intent(in), dimension(0:timeseries_length-1, 0:numflux-1) :: Q_ts
+      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numflux-1) :: pQ_temp
+      real(8), intent(inout), dimension(0:max_age*n_substeps-1) :: sT_temp
+      real(8), intent(inout), dimension(0:max_age*n_substeps-1) :: sT_prev
+      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numflux-1, 0:numsol-1) :: mQ_temp
+      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mS_temp
+      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mS_prev
+      real(8), intent(inout), dimension(0:max_age*n_substeps-1, 0:numsol-1) :: mR_temp
+      real(8), intent(in), dimension(0:timeseries_length-1, 0:numsol-1) :: C_J_ts
       M = max_age * n_substeps
-      sTt = sTp
+      sT_temp = sT_prev
       do iq=0,numflux-1
-        sTt = sTt - Q(i,iq) * pQt(:,iq) * hr
+        sT_temp = sT_temp - Q_ts(i,iq) * pQ_temp(:,iq) * hr
       enddo
-      sTt(0) = sTt(0) + J(i) * hr
+      sT_temp(0) = sT_temp(0) + J_ts(i) * hr
       do s=0,numsol-1
-        mSt(:,s) = mSp(:,s) + mRt(:,s) * hr
+        mS_temp(:,s) = mS_prev(:,s) + mR_temp(:,s) * hr
         do iq=0,numflux-1
-          mSt(:,s) = mSt(:,s) - mQt(:,iq,s) * hr
+          mS_temp(:,s) = mS_temp(:,s) - mQ_temp(:,iq,s) * hr
         enddo
-        mSt(0,s) = mSt(0,s) + J(i) * C_J(i,s) * hr
+        mS_temp(0,s) = mS_temp(0,s) + J_ts(i) * C_J_ts(i,s) * hr
       enddo
       end subroutine new_state
 
