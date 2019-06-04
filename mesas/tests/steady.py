@@ -14,15 +14,16 @@ import mesas.sas as sas
 #import rsas as sas
 import numpy as np
 import matplotlib.pyplot as plt
+plt.ion()
 makeplots = True
 # =====================================
 # Generate the input timeseries
 # =====================================
 # length of the dataset
-S_0 = 100.  # <-- volume of the uniformly sampled store
+S_0 = 10.  # <-- volume of the uniformly sampled store
 Q_0 = 1.0  # <-- steady-state flow rate
 T_0 = S_0 / Q_0
-N = 1000
+N = 30
 n_substeps = 5
 # Steady-state flow in and out for N timesteps
 J = np.ones(N) * Q_0

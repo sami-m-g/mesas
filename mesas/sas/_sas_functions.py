@@ -77,8 +77,7 @@ def create_function(SAS_type, params):
                      'power': _power_SAS,
                      'kumaraswami': _kumaraswami_SAS,
                      'invgauss': _invgauss_SAS,
-                     'triangle': _triangle_SAS,
-                     'lookuptable': _lookup_SAS}
+                     'triangle': _triangle_SAS}
     if SAS_type in function_dict.keys():
         return function_dict[SAS_type](params)
     elif hasattr(scipy.stats, SAS_type):
