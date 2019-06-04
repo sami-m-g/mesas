@@ -32,26 +32,26 @@ def _verbose(statement):
         print(statement)
 
 
-def create_function(rSAS_type, params):
-    """Initialize an rSAS function
+def create_function(SAS_type, params):
+    """Initialize an SAS function
 
     Args:
-        rSAS_type : str
-            A string indicating the requested rSAS functional form.
+        SAS_type : str
+            A string indicating the requested SAS functional form.
         params : n x k float64 ndarray
-            Parameters for the rSAS function. The number of columns and
-            their meaning depends on which rSAS type is chosen. For all the rSAS
+            Parameters for the SAS function. The number of columns and
+            their meaning depends on which SAS type is chosen. For all the
             functions implemented so far, each row corresponds with a timestep.
 
     Returns:
-        rSAS_fun : rSASFunctionClass
-            An rSAS function of the chosen type
+        SAS_fun : SASFunctionClass
+            An SAS function of the chosen type
 
     The created function object will have methods that vary between types. All
     must have a constructor ("__init__") and two methods cdf_all and cdf_i. See
-    the documentation for rSASFunctionClass for more information.
+    the documentation for SASFunctionClass for more information.
 
-    Available choices for rSAS_type, and a description of parameter array, are below.
+    Available choices for SAS_type, and a description of parameter array, are below.
     These all take one parameter set (row) per timestep:
 
     'uniform' : Uniform distribution over the range [a, b].
@@ -71,54 +71,54 @@ def create_function(rSAS_type, params):
             * ``Q_params[:, 0]`` = S_T
             * ``Q_params[:, 1]`` = Omega(S_T)
     """
-    function_dict = {'gamma': _gamma_rSAS,
-                     'exponential': _exponential_rSAS,
-                     'uniform': _uniform_rSAS,
-                     'power': _power_rSAS,
-                     'kumaraswami': _kumaraswami_rSAS,
-                     'invgauss': _invgauss_rSAS,
-                     'triangle': _triangle_rSAS,
-                     'lookuptable': _lookup_rSAS}
-    if rSAS_type in function_dict.keys():
-        return function_dict[rSAS_type](params)
-    elif hasattr(scipy.stats, rSAS_type):
-        return _stats_rSAS(rSAS_type, params)
+    function_dict = {'gamma': _gamma_SAS,
+                     'exponential': _exponential_SAS,
+                     'uniform': _uniform_SAS,
+                     'power': _power_SAS,
+                     'kumaraswami': _kumaraswami_SAS,
+                     'invgauss': _invgauss_SAS,
+                     'triangle': _triangle_SAS,
+                     'lookuptable': _lookup_SAS}
+    if SAS_type in function_dict.keys():
+        return function_dict[SAS_type](params)
+    elif hasattr(scipy.stats, SAS_type):
+        return _stats_SAS(SAS_type, params)
     else:
-        raise ValueError('No such rSAS function type')
+        raise ValueError('No such SAS function type')
 
 
-class rSASFunctionClass:
-    """Base class for constructing rSAS functions
+class SASFunctionClass:
+    """Base class for constructing SAS functions
 
-    All rSAS functions must override the following methods:
+    All SAS functions must override the following methods:
 
     __init__(self, params):
-        Initializes the rSAS function for a timeseries of parameters params.
+        Initializes the SAS function for a timeseries of parameters params.
         Usually each row of params corresponds to a timestep and each column is
         a parameter, but this is not strictly required as long as cdf_all and
         cdf_i do what you want them to.
-    rSAS_fun.cdf_all(ndarray ST)
+    SAS_fun.cdf_all(ndarray ST)
         returns the cumulative distribution function for an array ST (which
         must be the same length as the params matrix used to create the
         function). Each value of ST is evaluated using the parameter values
         on the respective row of params
-    rSAS_fun.cdf_i(ndarray ST, int i)
+    SAS_fun.cdf_i(ndarray ST, int i)
         returns the cumulative distribution function for an array ST (which
         can be of any size). Each value of ST is evaluated using the
         parameter values on row i.
     """
 
     def __init__(self, params):
-        raise NotImplementedError('__init__ not implemented in derived rSASFunctionClass')
+        raise NotImplementedError('__init__ not implemented in derived SASFunctionClass')
 
     def cdf_all(self, ST):
-        raise NotImplementedError('cdf_all not implemented in derived rSASFunctionClass')
+        raise NotImplementedError('cdf_all not implemented in derived SASFunctionClass')
 
     def cdf_i(self, ST, i):
-        raise NotImplementedError('cdf_i not implemented in derived rSASFunctionClass')
+        raise NotImplementedError('cdf_i not implemented in derived SASFunctionClass')
 
 
-class _power_rSAS(rSASFunctionClass):
+class _power_SAS(SASFunctionClass):
     def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:, 0]
@@ -152,7 +152,7 @@ class _power_rSAS(rSASFunctionClass):
                         np.nan) * self.scale[i] + self.ST_min[i]
 
 
-class _kumaraswami_rSAS(rSASFunctionClass):
+class _kumaraswami_SAS(SASFunctionClass):
     def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:, 0]
@@ -182,7 +182,7 @@ class _kumaraswami_rSAS(rSASFunctionClass):
                                  (1-(1-P)**(1/self.b[i]))**(1/self.a[i])*(self.ST_max[i] - self.ST_min[i]) + self.ST_min[i], self.ST_min[i]))
 
 
-class _uniform_rSAS(rSASFunctionClass):
+class _uniform_SAS(SASFunctionClass):
     def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:, 0]
@@ -199,7 +199,7 @@ class _uniform_rSAS(rSASFunctionClass):
         return np.where(P < 1, np.where(P > 0, P, 0.), 1.)/self.lam[i] + self.ST_min[i]
 
 
-class _triangle_rSAS(rSASFunctionClass):
+class _triangle_SAS(SASFunctionClass):
     def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:, 0]
@@ -248,7 +248,7 @@ class _triangle_rSAS(rSASFunctionClass):
                         )
 
 
-class _invgauss_rSAS(rSASFunctionClass):
+class _invgauss_SAS(SASFunctionClass):
     def __init__(self, params):
         params = params.copy()
         self.loc = params[:, 0]
@@ -261,10 +261,10 @@ class _invgauss_rSAS(rSASFunctionClass):
                 + np.exp(2/self.mu[i])*erfc((x + self.mu[i])/(np.sqrt(2*x)*self.mu[i])))/2.
 
 
-class _stats_rSAS(rSASFunctionClass):
-    def __init__(self, rSAS_type, params):
+class _stats_SAS(SASFunctionClass):
+    def __init__(self, SAS_type, params):
         params = params.copy()
-        self.dist_class = getattr(scipy.stats, rSAS_type)
+        self.dist_class = getattr(scipy.stats, SAS_type)
         self.loc = params[:, 0]
         self.scale = params[:, 1]
         N = params.shape[0]
@@ -281,7 +281,7 @@ class _stats_rSAS(rSASFunctionClass):
         return [self.dist[i].cdf(STi) for STi in ST]
 
 
-class _exponential_rSAS(rSASFunctionClass):
+class _exponential_SAS(SASFunctionClass):
     def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:, 0]
@@ -307,7 +307,7 @@ class _exponential_rSAS(rSASFunctionClass):
                         np.nan) + self.ST_min[i]
 
 
-class _gamma_rSAS(rSASFunctionClass):
+class _gamma_SAS(SASFunctionClass):
     def __init__(self, params):
         params = params.copy()
         self.ST_min = params[:, 0]
@@ -340,26 +340,26 @@ class invariant:
         return self.value
 
 
-class _lookup_rSAS(rSASFunctionClass):
-    def __init__(self, params):
-        params = params.copy()
-        self.S_T = params[:, 0]
-        self.Omega = params[:, 1]
-        self.ST_min = invariant(self.S_T[0])
-        self.ST_max = invariant(self.S_T[-1])
-        if not (self.Omega[0] == 0 and self.Omega[-1] == 1):
-            raise ValueError(
-                'The first and last value of S_T must correspond with probability 0 and 1 respectively')
-        self.interp1d = interp1d(self.S_T, self.Omega, kind='linear',
-                                 copy=False, bounds_error=True, assume_sorted=True)
-        self.interp1d_inv = interp1d(self.Omega, self.S_T, kind='linear',
-                                     copy=False, bounds_error=True, assume_sorted=True)
-
-    def cdf_all(self, ST):
-        return self.interp1d(np.where(ST < self.ST_max[0], np.where(ST > self.ST_min[0], ST, 0.), 1.))
-
-    def cdf_i(self, ST, i):
-        return self.interp1d(np.where(ST < self.ST_max[0], np.where(ST > self.ST_min[0], ST, 0.), 1.))
-
-    def invcdf_i(self, P, i):
-        return np.where(P >= self.Omega[0], np.where(P <= self.Omega[-1], self.interp1d_inv(P), self.ST_max[0]), self.ST_min[0])
+# class _lookup_SAS(SASFunctionClass):
+    # def __init__(self, params):
+        #params = params.copy()
+        #self.S_T = params[:, 0]
+        #self.Omega = params[:, 1]
+        #self.ST_min = invariant(self.S_T[0])
+        #self.ST_max = invariant(self.S_T[-1])
+        # if not (self.Omega[0] == 0 and self.Omega[-1] == 1):
+        # raise ValueError(
+        # 'The first and last value of S_T must correspond with probability 0 and 1 respectively')
+        # self.interp1d = interp1d(self.S_T, self.Omega, kind='linear',
+        # copy=False, bounds_error=True, assume_sorted=True)
+        # self.interp1d_inv = interp1d(self.Omega, self.S_T, kind='linear',
+        # copy=False, bounds_error=True, assume_sorted=True)
+#
+    # def cdf_all(self, ST):
+        # return self.interp1d(np.where(ST < self.ST_max[0], np.where(ST > self.ST_min[0], ST, 0.), 1.))
+#
+    # def cdf_i(self, ST, i):
+        # return self.interp1d(np.where(ST < self.ST_max[0], np.where(ST > self.ST_min[0], ST, 0.), 1.))
+#
+    # def invcdf_i(self, P, i):
+        # return np.where(P >= self.Omega[0], np.where(P <= self.Omega[-1], self.interp1d_inv(P), self.ST_max[0]), self.ST_min[0])

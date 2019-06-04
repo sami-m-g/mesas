@@ -21,9 +21,9 @@ from __future__ import division
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import rsas
+import mesas.sas as sas
 from scipy.optimize import fmin
-from _esther_utils import lkup_init, reg
+from _piecewise_utils import lookup_init, reg
 from scipy.interpolate import interp1d
 
 '''
@@ -39,6 +39,7 @@ C_Q = data['C_Q']  # the measured concentration, observation
 C_J = data['C_J']  # input concentration
 C_Q = C_Q.replace(0, np.nan)  # replace the error measurements with 0
 C_old = [7.7]
+N = len(C_Q)  # The number of observations
 
 
 '''
@@ -53,49 +54,14 @@ C_old = [7.7]
 # '''
 # [lkup, P_list] = lkup_init(N, numflux, npiece)
 
-'''
-    This part makes the lookup take and the CDF partition
-'''
-numflux = 2  # number of fluxes involved
-npieceQ = 3  # number of SAS pieces for both fluxes
-npieceE = 1
-N = len(C_Q)  # The number of observations
-'''
-Find the maximum pieces from npieceQ and npieceE and use it to make the lookup table
-'''
-[lkupQ, P_listQ] = lkup_init(N, 1, npieceQ)
-[lkupE, P_listE] = lkup_init(N, 1, npieceE)
-lkup = [lkupQ, lkupE]
-plist = [P_listQ, P_listE]
-
-# '''
-#     This part defines the rSAS function, Let's start with the values given by Harman, 2015
-# '''
-# # find ST, initial guess
-# ST = np.zeros((numflux, npiece+1))
-# ST[0][npieces[0]] = 3533
-# ST[1][npieces[1]] = 2267
-# for i in range(npiece - 1):
-#     ST[0][npieces[0] - i - 1] = np.random.uniform(0, ST[0][npieces[0] - i], 1)
-#     ST[1][npieces[1] - i - 1] = np.random.uniform(0, ST[0][npieces[1] - i], 1)
-
-'''
-    This part defines the rSAS function, Let's start with the values given by Harman, 2015
-'''
 np.random.seed(1)
-# find SQ and SE, initial guess
-SQ = np.zeros(npieceQ + 1)
-SQ[npieceQ] = 3533
-for i in range(npieceQ - 1):
-    SQ[npieceQ - i - 1] = np.random.uniform(0, SQ[npieceQ - i], 1)
-
-SE = np.zeros(npieceE + 1)
-SE[npieceE] = 2267
-for i in range(npieceE - 1):
-    SE[npieceE - i - 1] = np.random.uniform(0, SE[npieceE - i], 1)
-
-# the initial guess for params
-params0 = np.r_[np.log(np.diff(SQ)), np.log(np.diff(SE))]
+'''
+    Initialize the lookup tables
+'''
+npieceQ = 3  # number of piecewise elements
+npieceE = 1
+npiece = [npieceQ, npieceE]
+lookup_list, P_list, params_list = lookup_init(N, npiece)
 
 
 def _run(params, lkup, plist, J, Q, ET, C_J, C_old, C_Q):
