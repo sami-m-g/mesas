@@ -10,9 +10,11 @@ Theory and application to storage-dependent transport of chloride in a watershed
 Water Resour. Res., 51, doi:10.1002/2014WR015707.
 """
 
-import mesas.sas as sas
-#import rsas as sas
+from mesas import sas
+from sas_functions import Piecewise
+from sas_model import Model, SASTimeseries
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 plt.ion()
 makeplots = True
@@ -26,38 +28,39 @@ T_0 = S_0 / Q_0
 N = 30
 n_substeps = 5
 # Steady-state flow in and out for N timesteps
-J = np.ones(N) * Q_0
-Q = np.ones(N) * Q_0
+data_df = pd.DataFrame(index=range(N))
+data_df['J'] = np.ones(N) * Q_0
+data_df['Q'] = np.ones(N) * Q_0
 # A timeseries of concentrations
-C_J = np.ones(N)
-#C_J = -np.log(np.random.rand(N,1))
+data_df['tracer'] = np.ones(N)
 # =========================
-# Parameters needed by rsas
+# Parameters needed by SAS
 # =========================
-# The concentration of water older than the start of observations
-C_old = 0.
+solute_parameters = {
+    'tracer': {}
+}
 # =========================
-# Create the rsas functions
+# Create the SAS functions
 # =========================
 # Parameters for the rSAS function
 # The uniform distribution extends between S_T=a and S_T=b.
-Q_rSAS_fun_type = 'uniform'
-ST_min = np.ones(N) * 0.
-ST_max = np.ones(N) * S_0
-Q_rSAS_fun_parameters = np.c_[ST_min, ST_max]
-rSAS_fun_Q1 = sas.create_function(Q_rSAS_fun_type, Q_rSAS_fun_parameters)
-# =================
-# Initial condition
-# =================
-# Unknown initial age distribution, so just set this to zeros
-ST_init = np.zeros(N + 1)
+sas_fun_Q = Piecewise(npiece=5, ST_max=S_0)
+sas_ts = {
+    'Q': SASTimeseries(sas_fun_Q, N=N),
+}
 # =============
 # Run the model
 # =============
 # Run it
-outputs = sas.solve(J, [Q], [rSAS_fun_Q1], ST_init=ST_init,
-                    dt=1., n_substeps=n_substeps, C_J=C_J,
-                    C_old=[C_old], verbose=True, debug=False)
+model = Model(
+    data_df=data_df,
+    sas_ts=sas_ts,
+    solute_parameters=solute_parameters,
+    n_substeps=3,
+    verbose=True,
+)
+model.run()
+outputs = model.result
 # %%
 # Timestep-averaged outflow concentration
 # ROWS of C_Q are t - times
@@ -76,8 +79,9 @@ PQm = outputs['PQ'][:, :, 0]
 # Timestep-averaged outflow concentration
 # ROWS of C_Q are t - times
 # COLUMNS of PQ are q - fluxes
-# Use rsas.transport to convolve the input concentration with the TTD
-C_Qm2, C_mod_raw, observed_fraction = sas.transport(PQm, C_J, C_old)
+# Use SAS.transport to convolve the input concentration with the TTD
+C_Qm2, C_mod_raw, observed_fraction = sas.transport(
+    PQm, data_df['tracer'], model.solute_parameters['tracer']['C_old'])
 
 if makeplots:
     # ==================================
@@ -87,10 +91,10 @@ if makeplots:
     # The analytical solution for the age-ranked storage is
     T = np.arange(N+1)
     ST_exact = S_0 * (1 - np.exp(-T/T_0))
-    # plot this with the rsas estimate
+    # plot this with the SAS estimate
     fig = plt.figure(1)
     plt.clf()
-    plt.plot(ST[:, -1], 'b-', label='rsas model', lw=2)
+    plt.plot(ST[:, -1], 'b-', label='SAS model', lw=2)
     plt.plot(ST_exact, 'r-.', label='analytical solution', lw=2)
     plt.ylim((0, S_0))
     plt.legend(loc=0)
@@ -104,8 +108,8 @@ if makeplots:
     # Lets get the instantaneous value of the TTD at the end of each timestep
     print('Getting the instantaneous TTD')
     PQi = np.zeros((N+1, N+1))
-    PQi[:, 0] = rSAS_fun_Q1.cdf_i(ST[:, 0], 0)
-    PQi[:, 1:] = np.r_[[rSAS_fun_Q1.cdf_i(ST[:, i+1], i) for i in range(N)]].T
+    PQi[:, 0] = sas_ts['Q'](ST[:, 0], 0)
+    PQi[:, 1:] = np.r_[[sas_ts['Q'](ST[:, i+1], i) for i in range(N)]].T
     # Lets also get the exact TTD
     print('Getting the exact solution')
     n = 100
@@ -114,23 +118,24 @@ if makeplots:
     # Use the transit time distribution and input timeseries to estimate
     # the output timeseries for the exact and instantaneous cases
     print('Getting the concentrations')
-    C_Qi, C_mod_raw, observed_fraction = sas.transport(PQi, C_J, C_old)
+    C_Qi, C_mod_raw, observed_fraction = sas.transport(
+        PQi, data_df['tracer'], model.solute_parameters['tracer']['C_old'])
     C_Qei, C_mod_raw, observed_fraction = sas.transport(
-        PQe, C_J.repeat(n), C_old)
+        PQe, data_df['tracer'].repeat(n), model.solute_parameters['tracer']['C_old'])
     # This calculates an exact timestep-averaged value
     C_Qem = np.reshape(C_Qei, (N, n)).mean(axis=1)
     # Plot the results
     print('Plotting concentrations')
     fig = plt.figure(2)
     plt.clf()
-    plt.step(np.arange(N), C_Qem, 'r', ls='-',
+    plt.step(np.arange(N), C_Qem, 'r', linestyle='-',
              label='mean exact', lw=2, where='post')
-    plt.step(np.arange(N), C_Qm1, 'g', ls='--',
-             label='mean rsas internal', lw=2, where='post')
-    plt.step(np.arange(N), C_Qm2, 'b', ls=':',
-             label='mean rsas.transport', lw=2, where='post')
+    plt.step(np.arange(N), C_Qm1, 'g', linestyle='--',
+             label='mean SAS internal', lw=2, where='post')
+    plt.step(np.arange(N), C_Qm2, 'm', linestyle=':',
+             label='mean SAS.transport', lw=2, where='post')
     plt.plot((np.arange(N*n) + 1.)/n, C_Qei, 'r-', label='inst. exact', lw=1)
-    plt.plot(np.arange(N)+1, C_Qi, 'b:o', label='inst. rsas.transport', lw=1)
+    plt.plot(np.arange(N)+1, C_Qi, 'b:o', label='inst. SAS.transport', lw=1)
     plt.legend(loc=0)
     plt.ylim((0, 1))
     plt.ylabel('Concentration [-]')

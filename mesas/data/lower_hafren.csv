@@ -1,4 +1,4 @@
-timestep,datetime,J,C_J,Delta S,Q,Q_2,Q date_time,C_Qo_1,Q Si mg/l,ST_min,ST_min_2,ST_max,ST_max_2,scale,shape,Delta S new,C_Q_power_eqi,C_Q_power,C_Q_gamma
+timestep,datetime,J,Cl mg/l,Delta S,Q,ET,Q date_time,Q Cl mg/l,Q Si mg/l,ST_min,ST_min_2,ST_max,ST_max_2,scale,shape,Delta S new,C_Q_power_eqi,C_Q_power,C_Q_gamma
 0,5/3/83,0.25,1.643835616,2.407416242,3.404765363,3.279203885,5/10/83 12:00,,,0,0,inf,398,4675.943543,0.6856,,7.073360524,7.074058469,7.072370678
 1,5/4/83,0,0,0.115511906,3.032748603,2.572584759,5/10/83 12:00,,,0,0,inf,398,4909.717786,0.6856,,7.07091418,7.07225622,7.070260589
 2,5/5/83,6.25,1.643835616,-0.564680198,2.954061453,0.882162352,5/10/83 12:00,,,0,0,inf,398,4979.09738,0.6856,,7.008782827,7.026530082,7.037865382

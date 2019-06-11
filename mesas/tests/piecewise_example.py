@@ -1,191 +1,145 @@
-# Copyright [2019] [Esther Fei Xu]
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-# TODO: separate the functions into two
-# TODO: pieces for Q and E
-# TODO: run fmin
-# TODO: set the partition condition
-
-from __future__ import division
-import numpy as np
+from copy import deepcopy
+from sas_model import Model, SASTimeseries
+from sas_functions import Piecewise
 import pandas as pd
-import matplotlib.pyplot as plt
-import mesas.sas as sas
+import numpy as np
 from scipy.optimize import fmin
-from _piecewise_utils import lookup_init, reg
-from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
+plt.ion()
+np.random.seed(1)
 
 '''
-    This part import data and save variable names
+    Import data
 '''
 csvfile = '../data/lower_hafren.csv'
-
-data = pd.read_csv(csvfile, index_col=0, header=0, parse_dates=True)[:2000]
-J = data['J']
-Q = data['Q']
-ET = data['Q_2']
-C_Q = data['C_Q']  # the measured concentration, observation
-C_J = data['C_J']  # input concentration
-C_Q = C_Q.replace(0, np.nan)  # replace the error measurements with 0
-C_old = [7.7]
-N = len(C_Q)  # The number of observations
-
+data_df = pd.read_csv(csvfile, index_col=0, header=0, parse_dates=False)
+N = len(data_df)  # The number of observations
 
 '''
-    This part can be refined in the future for more flexable use
+    Initialize the model
 '''
-# numflux = 2  # number of fluxes involved
-# npieces = np.ones(numflux)  # number of SAS pieces for both fluxes
-# npiece = max(npieces) # takes the maximum pieces
-# N = len(C_Q) # The number of observations
-# '''
-# Find the maximum pieces from npieceQ and npieceE and use it to make the lookup table
-# '''
-# [lkup, P_list] = lkup_init(N, numflux, npiece)
-
-np.random.seed(1)
-'''
-    Initialize the lookup tables
-'''
-npieceQ = 3  # number of piecewise elements
-npieceE = 1
-npiece = [npieceQ, npieceE]
-lookup_list, P_list, params_list = lookup_init(N, npiece)
-
-
-def _run(params, lkup, plist, J, Q, ET, C_J, C_old, C_Q):
-    '''
-    Given ST and initialized lkup table and corresponding P lists, along with other inputs, run the model
-
-    :param lkup: initialized lkup table, to be updated
-    :param plist:
-    :param J: precip
-    :param Q: discharge
-    :param ET: evapotranspiration
-    :param C_J: concentration of precip
-    :param C_old: concentration of previous water
-    :return:  opt - output from the model, lkupn - updated lkup table based on given ST
-    '''
-
-    # params to SQ and SE
-
-    SQ = np.r_[0, np.cumsum(np.exp(params[:npieceQ]))]
-    SE = np.r_[0, np.cumsum(np.exp(params[npieceQ:npieceQ+npieceE]))]
-
-    N = len(C_J)
-    P_listQ = plist[0]
-    P_listE = plist[1]
-    # corresponding lkup table with regularization applied
-    lkupQ = np.zeros((npieceQ+101, N))
-    lkupE = np.zeros((npieceE+101, N))
-    for i in range(N):  # for all timesteps
-        lkupQ[:, i], P_listQ_reg = reg(SQ, P_listQ)
-        lkupE[:, i], P_listE_reg = reg(SE, P_listE)
-    lkupn = [lkupQ, lkupE]
-    P_listn = [P_listQ_reg, P_listE_reg]
-    P_list_union = np.union1d(P_listQ_reg, P_listE_reg)
-    lkup_union = np.zeros((len(P_list_union), N, numflux))
-    for i in range(N):  # for all timesteps
-        for q in range(numflux):
-            lkup_union[:, i, q] = interp1d(P_listn[q], lkupn[q][:, i])(P_list_union)
-    # todo: need to be fixed, "P_list must be a 1-D array"
-    outputs = rsas.solve(J, [Q, ET], lkup_union, P_list=P_list_union,
-                         C_J=C_J, verbose=False, C_old=C_old, n_substeps=1)
-    opt = outputs['C_Q'][:, 0, 0]
-
-    return opt
+# create the SAS functions
+# initially these are a single piece -- i.e. a uniform distribution
+sas_fun_Q_0 = Piecewise(npiece=1, ST_max=3533.)
+sas_fun_E = Piecewise(npiece=1, ST_max=2267.)
+# Associate the SAS functions with fluxes, and create timeseries of SAS functions
+sas_ts = {
+    'Q': SASTimeseries(sas_fun_Q_0, N=N),
+    'ET': SASTimeseries(sas_fun_E, N=N)
+}
+# Specify parameters of the solutes to be transported
+solute_parameters = {
+    'Cl mg/l': {'C_old': 7.11, 'alpha': {'Q': 1., 'ET': 0.}}
+}
+# Create the model
+mymodel = Model(
+    data_df=data_df,
+    sas_ts=sas_ts,
+    solute_parameters=solute_parameters,
+    n_substeps=3,
+    verbose=True,
+    debug=False,
+    full_outputs=False
+)
 
 
-def obj(params, *args):
-    # todo: how could I make sure that these params are nested?
-    opt = _run(params, *args)
+def run(params, model):
+    """Helper function to run the model with a new set of parameters
 
+    """
+    # update the SAS function timeseries with the new parameters
+    model.sas_ts['Q'].update_from_paramlist(params)
+    # run the model
+    model.run()
+    # extract the timeseries of predictions
+    pred = model.result['C_Q'][:, 0, 0]
+    return pred
+
+
+def objective_function(params, *args):
+    """Evaluates the objective function for a given set of parameters
+
+    """
+    # run the helper function
+    pred = run(params, *args)
     # define observations
-    obs_index = np.logical_not(np.isnan(C_Q))  # find out where the observation has values
-    opt = opt[obs_index]
-    obs = C_Q[obs_index]
-    err = np.sqrt(np.mean((obs - opt)**2))
-    print err, params
+    # find out where the observation has values
+    obs_index = np.logical_not(np.isnan(data_df['Q Cl mg/l']))
+    # select only those values
+    pred = pred[obs_index]
+    obs = data_df['Q Cl mg/l'].loc[obs_index]
+    # calculate the RMSE
+    err = np.sqrt(np.mean((obs - pred)**2))
+    print(err, params)
     return err
 
 
-params_opt = fmin(obj, params0, args=(lkup, plist, J, Q, ET, C_J, C_old, C_Q))
-C_Q_pred = _run(params_opt, lkup, plist, J, Q, ET, C_J, C_old, C_Q)
+'''
+    Model 0 -- one piece
+'''
+if False:
+    # Retrieve the current parameters as a list
+    params_0 = mymodel.sas_ts['Q'].get_paramlist()
+    # Use the built in optimizer to minimize the objective function
+    #params_0 = fmin(objective_function, params_0, args=(mymodel, ))
+    # get the prediction using the optimized parameters
+    C_Q_pred = run(params_0, mymodel)
 
+    # plot the result
+    plt.figure(0)
+    plt.clf()
+    plt.plot(data_df['Q Cl mg/l'], 'r.')
+    plt.plot(C_Q_pred, 'b')
+    plt.show()
 
 '''
-    We define the lkup table based on the given SQ and SE
+    Model 1 -- two pieces
 '''
+if False:
+    mymodel.results = None
+    sas_fun_Q_1 = Piecewise(npiece=2, ST_max=3533.)
+    mymodel.set_sas_ts('Q', SASTimeseries(sas_fun_Q_1, N=N))
 
+    # Retrieve the current parameters as a list
+    params_1 = mymodel.sas_ts['Q'].get_paramlist()
+    # Use the built in optimizer to minimize the objective function
+    #params_1 = fmin(objective_function, params_1, args=(mymodel, ))
+    # get the prediction using the optimized parameters
+    C_Q_pred = run(params_1, mymodel)
 
-''' Define the objective function as minimum SSE between outputs and observations'''
+    # plot the result
+    plt.figure(1)
+    plt.clf()
+    plt.plot(data_df['Q Cl mg/l'], 'ro')
+    plt.plot(C_Q_pred, 'b')
+    plt.show()
 
+'''
+    Model 2 -- two pieces, two states
+'''
+if True:
+    mymodel.results = None
+    # Create two SAS functions, one for high flows, one for low
+    sas_fun_Q_3_0 = Piecewise(npiece=2, ST_max=3533.)
+    sas_fun_Q_3_1 = Piecewise(npiece=2, ST_max=3533.)
+    # Define a scalar that corresponds with the 'state' of the system
+    state_ts = np.where(data_df['Q'] > data_df['Q'].median(), 1., 0.)
+    # set the SAS function to switch between these SAS functions
+    mymodel.set_sas_ts(
+        'Q', SASTimeseries({0.: sas_fun_Q_3_0,
+                            1.: sas_fun_Q_3_1},
+                           state_ts=state_ts))
 
-# notice that these parameters should be listed in sequences
+    # Retrieve the current parameters as a list
+    params_2 = mymodel.sas_ts['Q'].get_paramlist()
+    # Use the built in optimizer to minimize the objective function
+    params_2 = fmin(objective_function, params_2, args=(mymodel, ))
+    # get the prediction using the optimized parameters
+    C_Q_pred = run(params_2, mymodel)
 
-
-# # Initialization
-# NSE = np.zeros(N-1) # NSE metric
-#
-# # Observation
-# obs = np.array(C_Q)
-# obs_index = obs > 0 # find out where the observation has values
-# obs = obs[obs_index]
-# obs_mean = obs.mean()
-
-
-# for n in range(N-1): # since we have N of observations, we can ultimately divide N-1 pieces
-#     # Step 1: define the lookup table
-#     if n == 0:
-#         for i in range(npiece+1):
-#             lkup[i, :, 0] = S_Q * i/(npiece)
-#             lkup[i, :, 1] = S_E * i/(npiece)
-#     else:
-#
-#         for i in range(n-1):
-#             j = randint(0, npiece)
-#
-#
-#
-#
-#
-#
-#     # Step 2: stochastical model run
-#     outputs = rsas.solve(J, [Q, ET], lkup, P_list= P_list, C_J=C_J, verbose=True, C_old=C_old)
-#
-#     # Step 3: using three methods to find model performance
-#     opt = outputs['C_Q'][:,0,0][obs_index]
-#
-#
-#     # Step 4: find the SSE
-#     SSE =
-#
-#
-#
-#     # Step 5: Decide if end the loop
-#
-#
-#     print ("This is loop {}".format(n+1))
-#
-#
-#
-# outfile = '/home/esther/PycharmProjects/rsas/rsas/lower_hafren_2000 runs_w_3_params.csv'
-#
-# d = {'Q1': para_a1,'Q2': para_a2,'Q3': para_a3, 'ET1': para_b1,'ET2': para_b2,'ET3': para_b3, 'C_old': para_c, 'NSE': NSE, 'MAE': MAE, 'RMSE': RMSE}
-# df = pd.DataFrame(data=d)
-# df.to_csv(outfile)
-#
-# print("done with the process!!! file saved to {}".format(outfile))
-#
-#
+    # plot the result
+    plt.figure(2)
+    plt.clf()
+    plt.plot(data_df['Q Cl mg/l'], 'ro')
+    plt.plot(C_Q_pred, 'b')
+    plt.show()
