@@ -1,8 +1,10 @@
 import numpy as np
 from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 
 
 class Piecewise:
+
     def __init__(self, params=None, npiece=1, fix_ST_max=False, ST_max=1., fix_ST_min=True, ST_min=0.):
         self.fix_ST_min = fix_ST_min
         self.fix_ST_max = fix_ST_max
@@ -61,8 +63,10 @@ class Piecewise:
         return ST
 
     def __call__(self, ST):
-        return self.interp1d(np.where(ST <= self.ST_max,
-                                      np.where(ST >= self.ST_min, ST, 0.), 1.))
+        ST_ravel = ST.ravel()
+        return self.interp1d(np.where(ST_ravel <= self.ST_max,
+                                      np.where(ST_ravel >= self.ST_min, ST_ravel, 0.), 1.)
+                             ).reshape(ST.shape)
 
     def __repr__(self):
         repr = ''
@@ -71,6 +75,11 @@ class Piecewise:
         for i in range(self.npiece+2):
             repr += '{ST:<8.4}  {P:<8.7} \n'.format(ST=self.ST[i], P=self.P[i])
         return repr
+
+    def plot(self, ax=None, **kwargs):
+        if ax is None:
+            fig, ax = plt.subplots()
+        return ax.plot(self.ST, self.P, **kwargs)
 
 #    def regularize(self):
 #        reg_frac = 0.05

@@ -10,7 +10,7 @@
       real(8), intent(in), dimension(0:timeseries_length-1) :: J_ts
       real(8), intent(in), dimension(0:timeseries_length-1, 0:numflux-1) :: Q_ts
       real(8), intent(in), dimension(0:nP_total-1, 0:timeseries_length-1) :: SAS_lookup
-      real(8), intent(in), dimension(0:nP_total-1) :: P_list
+      real(8), intent(in), dimension(0:nP_total-1, 0:timeseries_length-1) :: P_list
       real(8), intent(in), dimension(0:max_age) :: STcum_init_ts
       real(8), intent(in) :: dt
       logical, intent(in) :: verbose, debug, full_outputs
@@ -36,6 +36,8 @@
       integer :: k, i
       real(8) :: h, P_old
       integer, dimension(0:numflux) :: iP_list
+      real(8), dimension(0:nP_total-1) :: SAS_lookup_i
+      real(8), dimension(0:nP_total-1) :: P_list_i
       real(8), dimension(0:max_age*n_substeps) :: STcum_init
       real(8), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQcum_init
       real(8), dimension(0:max_age*n_substeps, 0:numflux-1) :: PQcum_temp
@@ -125,7 +127,7 @@
       enddo
       STcum_init = cumsum(sT_end, M)
       do iq=0,numflux-1
-        call lookup(SAS_lookup(iP_list(iq):iP_list(iq+1)-1,0), P_list(iP_list(iq):iP_list(iq+1)-1), &
+        call lookup(SAS_lookup(iP_list(iq):iP_list(iq+1)-1,0), P_list(iP_list(iq):iP_list(iq+1)-1,0), &
                     STcum_init, PQcum_init(:,iq), nP_list(iq), M+1)
       enddo
       STcum_ts(1:max_age,0) = STcum_init(n_substeps:M:n_substeps)
@@ -141,6 +143,8 @@
         pQ_ts(:, :) = 0.
         mQ_ts(:, :, :) = 0.
         mR_ts(:, :) = 0.
+        SAS_lookup_i = SAS_lookup(:,i)
+        P_list_i = P_list(:,i)
         do k=0,n_substeps-1
           call f_debug('Timestep, Substep', (/ i*one8, k*one8/))
           sT_start(1:M-1) = sT_end(0:M-2)
@@ -375,7 +379,7 @@
         call f_debug('mS_temp', mS_temp(:,s))
       enddo
       do iq=0,numflux-1
-        call lookup(SAS_lookup(iP_list(iq):iP_list(iq+1)-1,i), P_list(iP_list(iq):iP_list(iq+1)-1), STcum_temp, &
+        call lookup(SAS_lookup_i(iP_list(iq):iP_list(iq+1)-1), P_list_i(iP_list(iq):iP_list(iq+1)-1), STcum_temp, &
                  PQcum_temp(:,iq), nP_list(iq), M+1)
         pQ_temp(:,iq) = diff(PQcum_temp(:,iq), M+1)
         call f_debug('PQcum_temp', PQcum_temp(:,iq))

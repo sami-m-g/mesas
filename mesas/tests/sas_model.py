@@ -2,11 +2,10 @@ import numpy as np
 from f_solve import f_solve
 from copy import deepcopy
 dtype = np.float64
-__name__ = 'sas_model'
 
 
 class Model:
-    def __init__(self, data_df, sas_ts, solute_parameters=None, **kwargs):
+    def __init__(self, data_df, sas_blends, solute_parameters=None, **kwargs):
         # defaults
         self._default_options = {
             'dt': 1,
@@ -22,7 +21,7 @@ class Model:
         # do input Checking
         self.data_df = data_df
         self.set_options(**kwargs)
-        self.sas_ts = sas_ts
+        self.sas_blends = sas_blends
         # defaults for solute transport
         self._default_parameters = {
             'CS_init': 0.,
@@ -39,6 +38,9 @@ class Model:
 
     @data_df.setter
     def data_df(self, new_data_df):
+        self.set_data_df(new_data_df)
+
+    def set_data_df(self, new_data_df):
         self._data_df = new_data_df
         self._timeseries_length = len(self._data_df)
 
@@ -66,17 +68,17 @@ class Model:
         self._max_age = self._options['max_age']
 
     @property
-    def sas_ts(self):
-        return self._sas_ts
+    def sas_blends(self):
+        return self._sas_blends
 
-    @sas_ts.setter
-    def sas_ts(self, new_sas_ts):
-        self._sas_ts = new_sas_ts
-        self._numflux = len(self._sas_ts)
-        self._fluxorder = self._sas_ts.keys()
+    @sas_blends.setter
+    def sas_blends(self, new_sas_blends):
+        self._sas_blends = new_sas_blends
+        self._numflux = len(self._sas_blends)
+        self._fluxorder = self._sas_blends.keys()
 
-    def set_sas_ts(self, flux, sas_ts):
-        self._sas_ts[flux] = sas_ts
+    def set_sas_blend(self, flux, sas_blends):
+        self._sas_blends[flux] = sas_blends
 
     @property
     def solute_parameters(self):
@@ -129,10 +131,10 @@ class Model:
         return C_J, CS_init, C_old, alpha, k1, C_eq
 
     def _create_sas_lookup(self):
-        nP_list = np.array([len(self.sas_ts[flux].P) for flux in self._fluxorder])
+        nP_list = np.array([len(self.sas_blends[flux].P) for flux in self._fluxorder])
         nP_total = np.sum(nP_list)
-        P_list = np.concatenate([self.sas_ts[flux].P for flux in self._fluxorder])
-        SAS_lookup = np.concatenate([self.sas_ts[flux].ST for flux in self._fluxorder], axis=0)
+        P_list = np.concatenate([self.sas_blends[flux].P for flux in self._fluxorder], axis=0)
+        SAS_lookup = np.concatenate([self.sas_blends[flux].ST for flux in self._fluxorder], axis=0)
         return SAS_lookup, P_list, nP_list, nP_total
 
     def run(self):
@@ -145,6 +147,8 @@ class Model:
         #
         # SAS lookup table
         SAS_lookup, P_list, nP_list, nP_total = self._create_sas_lookup()
+        SAS_lookup = np.asfortranarray(SAS_lookup)
+        P_list = np.asfortranarray(P_list)
         #
         # Solutes
         C_J, CS_init, C_old, alpha, k1, C_eq = self._create_solute_inputs()
@@ -174,82 +178,3 @@ class Model:
             self.result.update({'ST': ST, 'PQ': PQ, 'WaterBalance': WaterBalance})
             if numsol > 0:
                 self.result.update({'MS': MS, 'MQ': MQ, 'MR': MR, 'SoluteBalance': SoluteBalance})
-
-
-class SASTimeseries:
-
-    def __init__(self, sas_fun, N=None, state_ts=None):
-        if (state_ts is None):
-            self.state_ts = np.zeros(N)
-            self.N = N
-        else:
-            self.state_ts = state_ts
-            self.N = len(self.state_ts)
-        self.statelist = np.unique(self.state_ts)
-        self.numof_states = len(self.statelist)
-        self.state = {}
-        if not isinstance(sas_fun, dict):
-            if self.numof_states == 1:
-                sas_fun = {self.statelist[0]: sas_fun}
-        for s in self.statelist:
-            thesei = np.nonzero(self.state_ts == s)[0]
-            self.state[s] = _State(s, sas_fun[s], index=thesei)
-        self._construct_ts()
-
-    def _construct_ts(self):
-        self.P = np.sort(np.unique(np.concatenate(
-            [self.state[s].sas_fun.P for s in self.statelist])))
-        self.ST = np.zeros((len(self.P), self.N))
-        for s, state in self.state.items():
-            ST = state.sas_fun.inv(self.P)
-            self.ST[:, state.index] = np.broadcast_to(ST, (state.N, len(self.P))).T
-
-    def __call__(self, ST, i):
-        return self.state[self.state_ts[i]].sas_fun(ST)
-
-    def inv(self, P, i):
-        return self.state[self.state_ts[i]].sas_fun.inv(P)
-
-    def __repr__(self):
-        repr = ''
-        for s in self.statelist:
-            repr += self.state[s].__repr__()
-            repr += ''+'\n'
-        return repr
-
-    def get_P_list(self):
-        return np.r_[[self.state[s].sas_fun.P for s in self.statelist]]
-
-    def update_from_P_list(self, P_list):
-        starti = 0
-        for s in self.statelist:
-            nP = len(self.state[s].sas_fun.P)-3
-            self.states[s].sas_fun.P[2: -1] = P_list[starti: starti+nP]
-            starti += nP
-        self._construct_ts()
-
-    def get_paramlist(self):
-        return np.concatenate([self.state[s].sas_fun.params for s in self.statelist])
-
-    def update_from_paramlist(self, paramlist):
-        starti = 0
-        for s in self.statelist:
-            nparams = len(self.state[s].sas_fun.params)
-            self.state[s].sas_fun.params = paramlist[starti: starti+nparams]
-            starti += nparams
-        self._construct_ts()
-
-
-class _State:
-    def __init__(self, state, sas_fun, index=None):
-        self.state = state
-        self.sas_fun = sas_fun
-        self.index = index
-        self.N = len(index)
-
-    def __repr__(self):
-        repr = ''
-        repr += 'state = {}'.format(self.state)+'\n'
-        repr += ''+'\n'
-        repr += self.sas_fun.__repr__()
-        return repr
