@@ -3,7 +3,7 @@ from sas_blender import Weighted, Fixed, StateSwitch
 from sas_functions import Piecewise
 import pandas as pd
 import numpy as np
-from scipy.optimize import fmin
+#from scipy.optimize import fmin
 import matplotlib.pyplot as plt
 plt.ion()
 np.random.seed(1)
@@ -73,7 +73,7 @@ sas_blends = {
 # Specify parameters of the solutes to be transported
 solute_parameters = {
     'Cl mg/l': {
-        'C_old': 7.11/1.1,                      # Concentration for water of unknown age
+        'C_old': 7.11/1.1,                  # Concentration for water of unknown age
         'alpha': {'Q': 1., 'ET': 0.}}       # partitioning coeff. Accounts for lack of Cl in ET
 }
 # Create the model
@@ -143,7 +143,7 @@ if True:
     params_2 = mymodel.sas_blends['Q'].get_paramlist()
     #
     # Use the built in optimizer to minimize the objective function
-    params_2 = fmin(objective_function, params_2, args=(mymodel, ))
+    #params_2 = fmin(objective_function, params_2, args=(mymodel, ))
     # Or use these parameters I prepared earlier:
     params_2 = [819., 9902.]
     #
@@ -151,7 +151,7 @@ if True:
     C_Q_pred = run(params_2, mymodel)
 
     # plot the result
-    plt.figure(0, figsize=[10, 6])
+    plt.figure(1, figsize=[10, 6])
     plt.clf()
     ax1 = plt.subplot2grid((1, 2), (0, 0))
     mymodel.sas_blends['Q'].plot(ax=ax1)
@@ -173,7 +173,7 @@ if True:
     # Create two SAS functions, one for high flows, one for low
     sas_fun_Q_3_low = Piecewise(npiece=2, ST_max=3533.)
     sas_fun_Q_3_high = Piecewise(npiece=2, ST_max=3533.)
-    # Define a scalar that corresponds with the 'state' of the system
+    # Define a category timeseries that gives the 'state' of the system
     state_ts = np.where(data_df['Q'] > data_df['Q'].median(), 'high', 'low')
     # set the SAS function to switch between these SAS functions
     mymodel.set_sas_blend(
@@ -193,7 +193,7 @@ if True:
     C_Q_pred = run(params_3, mymodel)
 
     # plot the result
-    plt.figure(0, figsize=[10, 6])
+    plt.figure(2, figsize=[10, 6])
     plt.clf()
     ax1 = plt.subplot2grid((1, 2), (0, 0))
     mymodel.sas_blends['Q'].plot(ax=ax1)
@@ -212,7 +212,7 @@ if True:
     sas_fun_Q_4_max = Piecewise(npiece=2, ST_max=3533.)
     # Define a scalar that corresponds with the 'state' of the system
     weights_df = pd.DataFrame(index=data_df.index)
-    weights_df['max'] = data_df['Q'].rank(pct=True)
+    weights_df['max'] = (data_df['Q'].rank(pct=True))
     weights_df['min'] = 1 - weights_df['max']
     # set the SAS function to switch between these SAS functions
     mymodel.set_sas_blend(
@@ -232,7 +232,7 @@ if True:
     C_Q_pred = run(params_4, mymodel)
 
     # plot the result
-    plt.figure(0, figsize=[10, 6])
+    plt.figure(3, figsize=[10, 6])
     plt.clf()
     ax1 = plt.subplot2grid((1, 2), (0, 0))
     mymodel.sas_blends['Q'].plot(ax=ax1)

@@ -32,6 +32,7 @@ class Piecewise:
         else:
             self.npiece = len(params)
             self.P = np.r_[0, np.linspace(0, 1, self.npiece+1, endpoint=True)]
+            # self.ST =
             self.params = params
 
     @property
