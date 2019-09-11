@@ -1,12 +1,17 @@
+import copy
+from copy import deepcopy
+
 import numpy as np
 from f_solve import f_solve
-from copy import deepcopy
+
 dtype = np.float64
 
 
 class Model:
     def __init__(self, data_df, sas_blends, solute_parameters=None, **kwargs):
         # defaults
+        self.result = {}
+        self.jacobian = {}
         self._default_options = {
             'dt': 1,
             'verbose': False,
@@ -28,9 +33,28 @@ class Model:
             'C_old': 0.,
             'k1': 0.,
             'C_eq': 0.,
-            'alpha': dict((flux, 1.) for flux in self._fluxorder)
+            'alpha': dict((flux, 1.) for flux in self._fluxorder),
+            'observations': {}
         }
         self.solute_parameters = solute_parameters
+
+    def __repr__(self):
+        repr = '\n'
+        for flux, sas_blend in self.sas_blends.items():
+            repr += sas_blend.__repr__()
+            repr += '' + '\n'
+        return repr
+
+    def copy_without_results(self):
+        return Model(copy.deepcopy(self._data_df),
+                     copy.deepcopy(self._sas_blends),
+                     copy.deepcopy(self._solute_parameters),
+                     **copy.deepcopy(self._options))
+
+    def subdivided_copy(self, flux, label, segment):
+        new_model = self.copy_without_results()
+        new_model.sas_blends[flux] = new_model.sas_blends[flux].subdivided_copy(label, segment)
+        return new_model
 
     @property
     def data_df(self):
@@ -62,9 +86,9 @@ class Model:
         if self._options['max_age'] is None:
             self._options['max_age'] = self._timeseries_length
         if self._options['ST_init'] is None:
-            self._options['ST_init'] = np.zeros(self._options['max_age']+1)
+            self._options['ST_init'] = np.zeros(self._options['max_age'] + 1)
         else:
-            self._options['max_age'] = len(self._options['ST_init'])-1
+            self._options['max_age'] = len(self._options['ST_init']) - 1
         self._max_age = self._options['max_age']
 
     @property
@@ -77,8 +101,34 @@ class Model:
         self._numflux = len(self._sas_blends)
         self._fluxorder = self._sas_blends.keys()
 
-    def set_sas_blend(self, flux, sas_blends):
-        self._sas_blends[flux] = sas_blends
+    def set_sas_blend(self, flux, sas_blend):
+        self._sas_blends[flux] = sas_blend
+        self._sas_blends[flux]._blend()
+
+    def set_component(self, flux, component):
+        label = component.label
+        self._sas_blends[flux].components[label] = component
+        self._sas_blends[flux]._blend()
+
+    def set_sas_fun(self, flux, label, sas_fun):
+        self._sas_blends[flux].components[label].sas_fun = sas_fun
+        self._sas_blends[flux]._blend()
+
+    def get_component_labels(self):
+        component_labels = {}
+        for flux in self._fluxorder:
+            component_labels[flux] = list(self._sas_blends[flux].components.keys())
+        return component_labels
+
+    def get_segment_list(self):
+        return np.concatenate([self.sas_blends[flux].get_segment_list() for flux in self._fluxorder])
+
+    def update_from_segment_list(self, segment_list):
+        starti = 0
+        for flux in self._fluxorder:
+            nparams = len(self.sas_blends[flux].get_segment_list())
+            self.sas_blends[flux].update_from_segment_list(segment_list[starti: starti + nparams])
+            starti += nparams
 
     @property
     def solute_parameters(self):
@@ -118,6 +168,7 @@ class Model:
                     return self.data_df[param].values
                 else:
                     return param * np.ones(N)
+
             for isol, sol in enumerate(self._solorder):
                 C_J[:, isol] = self.data_df[sol].values
                 C_old[isol] = self.solute_parameters[sol]['C_old']
@@ -167,14 +218,70 @@ class Model:
             J, Q, SAS_lookup, P_list, ST_init, dt,
             verbose, debug, full_outputs,
             CS_init, C_J, alpha, k1, C_eq, C_old,
-            n_substeps,  nP_list, numflux, numsol, max_age, timeseries_length, nP_total)
+            n_substeps, nP_list, numflux, numsol, max_age, timeseries_length, nP_total)
         ST, PQ, WaterBalance, MS, MQ, MR, C_Q, SoluteBalance = fresult
 
         if numsol > 0:
             self.result = {'C_Q': C_Q}
-        else:
-            self.result = {}
         if full_outputs:
             self.result.update({'ST': ST, 'PQ': PQ, 'WaterBalance': WaterBalance})
             if numsol > 0:
                 self.result.update({'MS': MS, 'MQ': MQ, 'MR': MR, 'SoluteBalance': SoluteBalance})
+
+    def get_jacobian(self, **kwargs):
+        J = None
+        self.jacobian = {}
+        for isol, sol in enumerate(self._solorder):
+            if 'observations' in self.solute_parameters[sol]:
+                self.jacobian[sol] = {}
+                for iflux, flux in enumerate(self._fluxorder):
+                    if flux in self.solute_parameters[sol]['observations']:
+                        MS = np.squeeze(self.result['MS'][:, :, isol])
+                        ST = self.result['ST']
+                        PQ = self.result['PQ'][:, :, iflux]
+                        C_old = self.solute_parameters[sol]['C_old']
+                        alpha = self.solute_parameters[sol]['alpha'][flux]
+                        J_seg = self.sas_blends[flux].get_jacobian(ST, MS, C_old, alpha=alpha, **kwargs)
+                        J_old = 1 - np.diag(PQ)[1:]
+                        J_old_sol = np.zeros((self._timeseries_length, self._numsol))
+                        J_old_sol[:, list(self._solorder).index(sol)] = J_old
+                        J_sol = np.c_[J_seg, J_old_sol]
+                        if J is None:
+                            J = J_sol
+                        else:
+                            J = np.concatenate(J, J_sol, axis=0)
+                        self.jacobian[sol][flux] = {}
+                        self.jacobian[sol][flux]['seg'] = J_seg
+                        self.jacobian[sol][flux]['C_old'] = J_old
+        return J
+
+    def get_residuals(self):
+        ri = None
+        for isol, sol in enumerate(self._solorder):
+            if 'observations' in self.solute_parameters[sol]:
+                for iflux, flux in enumerate(self._fluxorder):
+                    if flux in self.solute_parameters[sol]['observations']:
+                        obs = self.solute_parameters[sol]['observations'][flux]
+                        C_obs = self.data_df[obs]
+                        iflux = list(self._fluxorder).index(flux)
+                        isol = list(self._solorder).index(sol)
+                        this_ri = self.result['C_Q'][:, iflux, isol] - C_obs.values
+                        if ri is None:
+                            ri = this_ri
+                        else:
+                            ri = np.concatenate(ri, this_ri, axis=0)
+                        self.data_df[f'residual {flux}, {sol}, {obs}'] = this_ri
+        return ri
+
+    # def get_residual_parts(self, flux, sol, trainingdata, **kwargs):
+    # iflux = list(self._fluxorder).index(flux)
+    # isol = list(self._solorder).index(sol)
+    # C_obs = self.data_df[trainingdata]
+    # MS = np.squeeze(self.result['MS'][:, :, isol])
+    # ST = self.result['ST']
+    # PQ = self.result['PQ'][:, :, iflux]
+    # C_old = self.solute_parameters[sol]['C_old']
+    # alpha = self.solute_parameters[sol]['alpha'][flux]
+    # r_seg = self.sas_blends[flux].get_residual_parts(C_obs, ST, MS, alpha=alpha, **kwargs)
+    # r_old = (C_old - C_obs) * (1 - np.diag(PQ)[1:])
+    # return r_seg, r_old

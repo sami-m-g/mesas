@@ -1,10 +1,14 @@
-from sas_model import Model
-from sas_blender import Weighted, Fixed, StateSwitch
-from sas_functions import Piecewise
-import pandas as pd
-import numpy as np
+rom
+sas_model
 #from scipy.optimize import fmin
+# from scipy.optimize import fmin
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sas_blender import Weighted, Fixed
+from sas_functions import Piecewise
+from sas_model import Model
+
 plt.ion()
 np.random.seed(1)
 
@@ -14,12 +18,12 @@ np.random.seed(1)
 
 
 def run(params, model):
-    """Helper function to run the model with a new set of parameters
+    """Helper function to run the old_model with a new set of parameters
 
     """
     # update the SAS function timeseries with the new parameters
-    model.sas_blends['Q'].update_from_paramlist(params)
-    # run the model
+    model.sas_blends['Q'].update_from_segment_list(params)
+    # run the old_model
     model.run()
     # extract the timeseries of predictions
     pred = model.result['C_Q'][:, 0, 0]
@@ -48,7 +52,7 @@ def objective_function(params, *args):
     Import some data
 
     The column labels in the dataframe are important, and must correspond with
-    relevant labels provided when initializing the model
+    relevant labels provided when initializing the old_model
 '''
 csvfile = '../data/lower_hafren.csv'
 data_df = pd.read_csv(csvfile, index_col=0, header=0, parse_dates=False)
@@ -57,14 +61,14 @@ data_df['Cl mg/l'] = data_df['Cl mg/l'] * 1.1
 N = len(data_df)  # The number of observations
 
 '''
-    Initialize a simple version of the model
+    Initialize a simple version of the old_model
 '''
 # create two SAS functions, one for each flux
 # initially these are a single piece -- i.e. a uniform distribution
 sas_fun_Q_1 = Piecewise(npiece=1, ST_max=3533.)
 sas_fun_E = Piecewise(npiece=1, ST_max=2267.)
-# Before being used in the model, we need to say how the sas function changes in time
-# This is handled by the blender classes defined in sas_blender.py
+# Before being used in the old_model, we need to say how the sas function changes in time
+# This is handled by the blender classes defined in blender.py
 # for now, we will use the 'Fixed' blender
 sas_blends = {
     'Q': Fixed(sas_fun_Q_1, N=N),
@@ -76,7 +80,7 @@ solute_parameters = {
         'C_old': 7.11/1.1,                  # Concentration for water of unknown age
         'alpha': {'Q': 1., 'ET': 0.}}       # partitioning coeff. Accounts for lack of Cl in ET
 }
-# Create the model
+# Create the old_model
 mymodel = Model(
     data_df=data_df,
     sas_blends=sas_blends,
@@ -89,20 +93,20 @@ mymodel = Model(
 )
 
 '''
-    Below we will modify and run this base model for a few different cases.
+    Below we will modify and run this base old_model for a few different cases.
     We will only modify and optimize the SAS function for the discharge flux 'Q'
 '''
 
 '''
     Case 1 -- Fixed, single piece for Q
 '''
-if True:
+if False:
     # Retrieve the current parameters as a list.
     # The method .get_paramlist() collates the parameters of all the component
     # sas functions in the blend into a single list. A sister method
-    # .update_from_paramlist(params) can update all the component functions
+    # .update_from_paramlist(segment_list) can update all the component functions
     # from a similar list
-    params_1 = mymodel.sas_blends['Q'].get_paramlist()
+    params_1 = mymodel.sas_blends['Q'].get_segment_list()
     #
     # Use the built in optimizer to minimize the objective function
     # (uncomment this line to run the optimization)
@@ -126,7 +130,7 @@ if True:
 
     Here we assume the SAS function for Q (discharge) has two piecewise linear segments
 '''
-if True:
+if False:
     # Clear the previous results
     mymodel.results = None
     #
@@ -135,12 +139,12 @@ if True:
     # are selected randomly, starting from the largest before ST_max
     sas_fun_Q_2 = Piecewise(npiece=2, ST_max=3533.)
     #
-    # Add this new SAS function to the model using the .set_sas_blend() method.
+    # Add this new SAS function to the old_model using the .set_sas_blend() method.
     # This leaves the component function and blend for ET unmodified.
     mymodel.set_sas_blend('Q', Fixed(sas_fun_Q_2, N=N))
     #
     # Retrieve the current parameters as a list
-    params_2 = mymodel.sas_blends['Q'].get_paramlist()
+    params_2 = mymodel.sas_blends['Q'].get_segment_list()
     #
     # Use the built in optimizer to minimize the objective function
     #params_2 = fmin(objective_function, params_2, args=(mymodel, ))
@@ -168,7 +172,7 @@ if True:
     value of Q. Each component function for Q (discharge) has two piecewise linear
     segments, as before.
 '''
-if True:
+if False:
     mymodel.results = None
     # Create two SAS functions, one for high flows, one for low
     sas_fun_Q_3_low = Piecewise(npiece=2, ST_max=3533.)
@@ -182,7 +186,7 @@ if True:
                          state_ts=state_ts))
     #
     # Retrieve the current parameters as a list
-    params_3 = mymodel.sas_blends['Q'].get_paramlist()
+    params_3 = mymodel.sas_blends['Q'].get_segment_list()
     #
     # Use the built in optimizer to minimize the objective function
     #params_3 = fmin(objective_function, params_3, args=(mymodel, ))
@@ -221,20 +225,22 @@ if True:
                       weights_df=weights_df))
     #
     # Retrieve the current parameters as a list
-    params_4 = mymodel.sas_blends['Q'].get_paramlist()
+    params_4 = mymodel.sas_blends['Q'].get_segment_list()
     #
     # Use the built in optimizer to minimize the objective function
-    # Or use these parameters I prepared earlier:
+    # params_4 = fmin(objective_function, params_4, args=(mymodel, ))
+    # Or use these parameters I prepared earlier
     params_4 = [1.52787214e+03, 6.11900453e+06, 4.39158178e+02, 1.93276464e+03]
-    #params_4 = fmin(objective_function, params_4, args=(mymodel, ))
     #
     # get the prediction using the optimized parameters
     C_Q_pred = run(params_4, mymodel)
 
     # plot the result
+
     plt.figure(3, figsize=[10, 6])
     plt.clf()
     ax1 = plt.subplot2grid((1, 2), (0, 0))
+    plt.xscale('log')
     mymodel.sas_blends['Q'].plot(ax=ax1)
     ax2 = plt.subplot2grid((1, 2), (0, 1))
     plt.plot(data_df['Q Cl mg/l'], 'r.')

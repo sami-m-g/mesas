@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from timeit import Timer
-import mesas.sas as sas
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+
+import mesas.sas as sas
+
 makeplot = False
 # Initializes the random number generator so we always get the same result
 np.random.seed(0)

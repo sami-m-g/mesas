@@ -1,8 +1,10 @@
+import copy
+from collections import OrderedDict
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
-from collections import OrderedDict
-import matplotlib.pyplot as plt
 
 
 class Weighted:
@@ -11,9 +13,14 @@ class Weighted:
         self.weights_df = weights_df
         self.N = len(self.weights_df)
         self.components = OrderedDict(
-            (label, _Component(label, sas_fun_dict[label], weights_df[label]))
+            (label, Component(label, sas_fun_dict[label], weights_df[label]))
             for label in sas_fun_dict.keys())
         self._blend()
+
+    def subdivided_copy(self, label, segment):
+        new_blend = copy.deepcopy(self)
+        new_blend.components[label].sas_fun = self.components[label].sas_fun.subdivided_copy(segment)
+        return new_blend
 
     def _blend(self):
         _ST = np.sort(np.unique(np.concatenate(
@@ -40,14 +47,24 @@ class Weighted:
         return self._interp1d_inv[i](P)
 
     def __repr__(self):
-        repr = ''
+        repr = '\n'
         for label, component in self.components.items():
             repr += component.__repr__()
             repr += ''+'\n'
         return repr
 
+    def update(self, P_list, segment_list):
+        starti = 0
+        assert len(P_list) == len(segment_list)
+        for label, component in self.components.items():
+            nparams = nP = len(component.sas_fun.P) - 3
+            component.sas_fun.P[2: -1] = P_list[starti: starti + nP]
+            component.sas_fun.segment_list = segment_list[starti: starti + nparams]
+            starti += nP
+        self._blend()
+
     def get_P_list(self):
-        return np.r_[[component.sas_fun.P for label, component in self.components.items()]]
+        return np.concatenate([component.sas_fun.P for label, component in self.components.items()])
 
     def update_from_P_list(self, P_list):
         starti = 0
@@ -57,21 +74,21 @@ class Weighted:
             starti += nP
         self._blend()
 
-    def get_paramlist(self):
-        return np.concatenate([component.sas_fun.params for label, component in self.components.items()])
+    def get_segment_list(self):
+        return np.concatenate([component.sas_fun.segment_list for label, component in self.components.items()])
 
-    def update_from_paramlist(self, paramlist):
+    def update_from_segment_list(self, segment_list):
         starti = 0
         for label, component in self.components.items():
-            nparams = len(component.sas_fun.params)
-            component.sas_fun.params = paramlist[starti: starti+nparams]
+            nparams = len(component.sas_fun.segment_list)
+            component.sas_fun.segment_list = segment_list[starti: starti + nparams]
             starti += nparams
         self._blend()
 
-    def plot(self, ax=None):
+    def plot(self, ax=None, **kwargs):
         if ax is None:
             fig, ax = plt.subplots()
-        componentlines = dict([(label, component.plot(ax=ax, zorder=10))
+        componentlines = dict([(label, component.plot(ax=ax, **kwargs))
                                for label, component in self.components.items()])
         # timelines = [ax.plot(self.ST[:, i], self.P[:, i], color='0.3', alpha=0.5, zorder=5)
         #             for i in range(self.N)]
@@ -81,8 +98,18 @@ class Weighted:
         # return componentlines, timelines
         return componentlines
 
+    def get_jacobian(self, *args, **kwargs):
+        cat_me = [component.sas_fun.get_jacobian(*args, **kwargs).T * component.weights.values
+                  for label, component in self.components.items()]
+        return np.concatenate(cat_me, axis=0).T
 
-class _Component:
+    def get_residual_parts(self, *args, **kwargs):
+        cat_me = [component.sas_fun.get_residual_parts(*args, **kwargs).T * component.weights.values
+                  for label, component in self.components.items()]
+        return np.concatenate(cat_me, axis=0).T
+
+
+class Component:
     def __init__(self, label, sas_fun, weights):
         self.label = label
         self.sas_fun = sas_fun

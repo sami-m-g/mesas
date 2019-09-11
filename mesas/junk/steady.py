@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Storage selection (SAS) functions: example with one flux out at steady state
 
-Runs the rSAS model for a synthetic dataset with one flux in and out
+Runs the rSAS old_model for a synthetic dataset with one flux in and out
 and steady state flow
 
 Theory is presented in:
@@ -10,12 +10,14 @@ Theory and application to storage-dependent transport of chloride in a watershed
 Water Resour. Res., 51, doi:10.1002/2014WR015707.
 """
 
-from mesas import sas
-from sas_functions import Piecewise
-from sas_model import Model, SASTimeseries
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from sas_functions import Piecewise
+from sas_model import Model, SASTimeseries
+
+from mesas import sas
+
 plt.ion()
 makeplots = True
 # =====================================
@@ -49,7 +51,7 @@ sas_ts = {
     'Q': SASTimeseries(sas_fun_Q, N=N),
 }
 # =============
-# Run the model
+# Run the old_model
 # =============
 # Run it
 model = Model(
@@ -94,7 +96,7 @@ if makeplots:
     # plot this with the SAS estimate
     fig = plt.figure(1)
     plt.clf()
-    plt.plot(ST[:, -1], 'b-', label='SAS model', lw=2)
+    plt.plot(ST[:, -1], 'b-', label='SAS old_model', lw=2)
     plt.plot(ST_exact, 'r-.', label='analytical solution', lw=2)
     plt.ylim((0, S_0))
     plt.legend(loc=0)
