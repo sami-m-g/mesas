@@ -94,7 +94,7 @@ class Weighted:
         self._interp1d_inv = list(range(self.N))
         self._interp1d = list(range(self.N))
         for i in range(self.N):
-            ST_min = self.ST[1, i]
+            ST_min = self.ST[0, i]
             ST_max = self.ST[-1, i]
             self._interp1d_inv[i] = interp1d(self.P[:, i], self.ST[:, i],
                                              fill_value=(ST_min, ST_max),
@@ -149,8 +149,8 @@ class Weighted:
         """Modify the component sas functions using a modified P_list"""
         starti = 0
         for label, component in self.components.items():
-            nP = len(component.sas_fun.P)-3
-            component.sas_fun.P[2: -1] = P_list[starti: starti+nP]
+            nP = len(component.sas_fun.P)
+            component.sas_fun.P = P_list[starti: starti + nP]
             starti += nP
         self._blend()
 
@@ -174,8 +174,8 @@ class Weighted:
         starti = 0
         assert len(P_list) == len(segment_list)
         for label, component in self.components.items():
-            nparams = nP = len(component.sas_fun.P) - 3
-            component.sas_fun.P[2: -1] = P_list[starti: starti + nP]
+            nparams = nP = len(component.sas_fun.P)
+            component.sas_fun.P = P_list[starti: starti + nP]
             component.sas_fun.segment_list = segment_list[starti: starti + nparams]
             starti += nP
         self._blend()

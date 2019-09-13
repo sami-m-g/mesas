@@ -91,10 +91,11 @@ class Piecewise:
         elif ST is not None:
 
             # Use the given ST values
-            assert ST[0] == 0
-            assert len(ST) > 2
+            assert ST[0] >= 0
+            assert np.all(np.diff(ST) > 0)
+            assert len(ST) > 1
             self._ST = np.array(ST, dtype=np.float)
-            self.nsegment = len(ST) - 2
+            self.nsegment = len(ST) - 1
             self._segment_list = self._convert_ST_to_segment_list(self._ST)
 
         else:
@@ -104,7 +105,7 @@ class Piecewise:
             # and called using an optional keyword, rather than triggered by default
 
             self.nsegment = nsegment
-            self._ST = np.zeros(self.nsegment + 2)
+            self._ST = np.zeros(self.nsegment + 1)
 
             ST_scaled = np.zeros(self.nsegment + 1)
             ST_scaled[-1] = 1.
@@ -112,22 +113,23 @@ class Piecewise:
                 ST_scaled[self.nsegment - i - 1] = np.random.uniform(
                     0, ST_scaled[self.nsegment - i], 1)
 
-            self._ST[1:] = self.ST_min + (self.ST_max - self.ST_min) * ST_scaled
+            self._ST[:] = self.ST_min + (self.ST_max - self.ST_min) * ST_scaled
             self._segment_list = self._convert_ST_to_segment_list(self._ST)
 
         # Make a list of probabilities P
         if P is not None:
 
             # Use the supplied values
-            assert P[0] == P[1] == 0
+            assert P[0] == 0
             assert P[-1] == 1
+            assert np.all(np.diff(P) > 0)
             assert len(P) == len(self._ST)
             self._P = np.r_[P]
 
         else:
 
             # Make P equally-spaced
-            self._P = np.r_[0, np.linspace(0, 1, self.nsegment + 1, endpoint=True)]
+            self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
 
         # call this to make the interpolation functions
         self._make_interpolators()
@@ -156,10 +158,14 @@ class Piecewise:
 
     @ST.setter
     def ST(self, new_ST):
-        assert new_ST[0] == 0
-        assert len(new_ST) > 2
+        assert new_ST[0] >= 0
+        try:
+            assert np.all(np.diff(new_ST) > 0)
+        except:
+            print(new_ST)
+        assert len(new_ST) > 1
         self._ST = new_ST
-        self.ST_min = self._ST[1]
+        self.ST_min = self._ST[0]
         self.ST_max = self._ST[-1]
         self._segment_list = self._convert_ST_to_segment_list(self._ST)
         self._make_interpolators()
@@ -170,7 +176,7 @@ class Piecewise:
 
     @P.setter
     def P(self, new_P):
-        assert new_P[0] == new_P[1] == 0
+        assert new_P[0] == 0
         assert new_P[-1] == 1
         assert len(new_P) == len(self._ST)
         self._P = new_P
@@ -187,11 +193,11 @@ class Piecewise:
 
     def _convert_segment_list_to_ST(self, seglst):
         """converts a segment_list array into an array of ST endpoints"""
-        return np.r_[[0], np.cumsum(seglst)]
+        return np.cumsum(seglst)
 
     def _convert_ST_to_segment_list(self, ST):
         """converts a segment_list array into an array of ST endpoints"""
-        return np.r_[self._ST[1], np.diff(ST[1:])]
+        return np.r_[self._ST[0], np.diff(ST)]
 
     def subdivided_copy(self, segment, split_frac=0.5):
         """Returns a new Piecewise object instance with one segment divided into two
@@ -200,15 +206,14 @@ class Piecewise:
         :param split_frac: (Optional) The fraction of the segment where the split is made. Default is 0.5
         """
         assert segment < self.nsegment
-        P1 = self.P[segment + 1]
-        P2 = self.P[segment + 2]
-        ST1 = self.ST[segment + 1]
-        ST2 = self.ST[segment + 2]
-        segment_list = self.segment_list
+        P1 = self.P[segment]
+        P2 = self.P[segment + 1]
+        ST1 = self.ST[segment]
+        ST2 = self.ST[segment + 1]
         P_new = P1 + split_frac * (P2 - P1)
         ST_new = ST1 + split_frac * (ST2 - ST1)
-        P = np.insert(self.P, segment + 2, P_new)
-        ST = np.insert(self.ST, segment + 2, ST_new)
+        P = np.insert(self.P, segment + 1, P_new)
+        ST = np.insert(self.ST, segment + 1, ST_new)
         return Piecewise(ST=ST, P=P)
 
     def inv(self, P):
@@ -238,7 +243,7 @@ class Piecewise:
         repr = ''
         repr += 'ST        P' + '\n'
         repr += '--------  --------' + '\n'
-        for i in range(self.nsegment + 2):
+        for i in range(self.nsegment + 1):
             repr += '{ST:<8.4}  {P:<8.7} \n'.format(ST=self.ST[i], P=self.P[i])
         return repr
 
@@ -286,8 +291,8 @@ class Piecewise:
         J_S = np.zeros((Nt, Ns + 1))
 
         # pull out the sas function parameters, and get some derivatives and differences
-        Omegaj = self.P[1:]
-        Sj = self.ST[1:]
+        Omegaj = self.P
+        Sj = self.ST
         dOmegaj = np.diff(Omegaj)
         dSj = np.diff(Sj)
         omegaj = dOmegaj / dSj
@@ -418,11 +423,10 @@ class Piecewise:
         r_seg_i = np.zeros((Nt, Ns))
 
         # pull out the sas function parameters, and get some derivatives and differences
-        Omegaj = self.P[1:]
-        Sj = self.ST[1:]
+        Omegaj = self.P
+        Sj = self.ST
         dOmegaj = np.diff(Omegaj)
         dSj = np.diff(Sj)
-        omegaj = dOmegaj / dSj
 
         # The diagonals of these represent the volume and solute mass in the system whose age is known.
         # Everything older is assumed to have concentration C_old

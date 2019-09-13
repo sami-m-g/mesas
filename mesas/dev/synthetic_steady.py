@@ -33,7 +33,7 @@ from mesas.sas.model import Model
 # this makes the plots we create interactive
 plt.ion()
 # Set the random seed
-np.random.seed(2)
+np.random.seed(1)
 
 # These are the column headers of important input timeseries
 influx_name = 'J'  # volume/time input of water
@@ -120,9 +120,9 @@ data_df, reference_model = create_synthetic_data(
 
 # Create a new sas model
 # This model will be trained to reproduce the observations generated above
-# This creates the piecewise constant SAS function with one segment from (0,0) to (1000, 1)
+# This creates the piecewise constant SAS function with one segment from (0,0) to (300, 1)
 # It is our initial guess of the shape of the sas function
-my_sas_fun_Q = Piecewise(segment_list=[0, 1000])
+my_sas_fun_Q = Piecewise(segment_list=[0., 300.])
 
 # A sas blend is an object that can be queried to get the sas function at each timestep.
 # Here we assume the sas function is fixed in time for as many timesteps as the input timeseries
@@ -192,5 +192,5 @@ def incres_plot_fun(old_model, new_model, mse_dict, Ns, segment):
 # Run the recursive_split algorithm
 rs_model = recursive_split(mymodel,
                            incres_plot_fun=incres_plot_fun,
-                           alpha_step=0.5,
+                           alpha_step=0.25,
                            max_delta=np.log(1.5))

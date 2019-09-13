@@ -67,7 +67,7 @@ def increase_resolution(initial_model, initial_mse, new_components, segment, inc
     :return:
     """
 
-    _verbose(f'\n\n***********************\nStarting {inspect.stack()[0][3]}')
+    _verbose(f'\n***********************\nStarting {inspect.stack()[0][3]}')
     _verbose(f'Testing increased SAS resolution in segment {segment}')
 
     # This keeps track of how many new components we found
@@ -90,7 +90,7 @@ def increase_resolution(initial_model, initial_mse, new_components, segment, inc
             new_mse = mse_list[-1]
             _verbose(f'Initial mse = {initial_mse}')
             _verbose(f'New mse     = {new_mse}')
-            if new_mse / initial_mse < 0.9:
+            if new_mse / initial_mse < 0.95:
                 _verbose(f'Subdivision accepted for {flux}, {label}')
 
                 # Add to the record of new components, and increment the counterj
@@ -190,7 +190,7 @@ def fit_model(model, learn_plot_fun=None, maxiter=20, **kwargs):
     for iter in range(maxiter):
 
         # Call the function that actually does the optimization
-        new_model = step(models[-1], **kwargs)
+        new_model, new_mse = step(models[-1], mse[-1], **kwargs)
 
         # Clear out the results of the last model to save memory
         if iter > 0:
@@ -207,45 +207,37 @@ def fit_model(model, learn_plot_fun=None, maxiter=20, **kwargs):
     return models, mse
 
 
-def step(model, alpha_step=1, max_delta=None, step_plot_fun=None, **kwargs):
+def step(model, mse, alpha_step=1, max_delta=None, LM_lambda=0, step_plot_fun=None, **kwargs):
     """
     Takes a step in parameter space
 
     :param model: Model to start with
+    :param mse: starting mean square error
     :param step_plot_fun: optional plotting function
     :param kwargs: additional keyword arguments to be passed to the algorithm
     :return: a new model with modified parameters and results
     """
 
-    # Calculate how big the step should be
-    delta, gn_info = calc_gauss_newton_step(model)
-
-    # Apply some limitations on the step size that improve convergence
-    # The fist reduces all steps by a factor
-    delta = alpha_step * delta
-
-    # The second limits the maximum size of step in any direction
-    if max_delta is not None:
-        delta = np.where(np.abs(delta) > max_delta, max_delta * np.sign(delta), delta)
-
     # Take the step
-    new_model = apply_step(model, delta, **kwargs)
-
-    # Run the new model
-    new_model.run()
+    new_model, new_mse, gn_info = apply_step(model,
+                                             alpha_step=alpha_step,
+                                             max_delta=max_delta,
+                                             LM_lambda=LM_lambda,
+                                             **kwargs)
 
     # Optionally, make some plots
     if step_plot_fun is not None:
         step_plot_fun(model, new_model, gn_info)
 
-    return new_model
+    return new_model, new_mse
 
 
-def calc_gauss_newton_step(model):
+def calc_gauss_newton_step(model, LM_lambda=0):
     """
     Uses a gauss-newton method to choose a step in parameter space
 
     :param model: sas model
+    :param LM_lambda: Levenberg–Marquardt algorithm lambda
     :return: an array of delta values
     """
 
@@ -278,7 +270,7 @@ def calc_gauss_newton_step(model):
 
     # Calculate the optimum step
     delta = np.zeros(Np)
-    delta[p_not_flat_gradient] = -np.dot(inv(H), gradient[p_not_flat_gradient])
+    delta[p_not_flat_gradient] = -np.dot(inv(H + LM_lambda * np.eye(len(H))), gradient[p_not_flat_gradient])
 
     # Calculate some additional data that can be used for plotting
     # The gradient term applied to each individual residual:
@@ -291,21 +283,35 @@ def calc_gauss_newton_step(model):
     return delta, {
         'H': H,
         'delta': delta,
+        'LM_lambda': LM_lambda,
         'delta_ip': delta_ip,
         'gradient': gradient,
         'gradient_ip': gradient_ip,
     }
 
 
-def apply_step(model, delta, include_C_old=True, **kwargs):
+def apply_step(model, alpha_step=1, max_delta=None, LM_lambda=0, include_C_old=True, **kwargs):
     """
     Applies a delta to a model, returning a new model with modified parameters
 
     :param model: a sas model
     :param delta: an array of deltas (changes to log-transformed `segment_list`s)
+    :param max_delta:
+    :param alpha_step:
     :param include_C_old: if True (default), the value of C_old will be modified. Otherwise it is left as-is
     :return: a sas model with modified parameters
     """
+
+    # Calculate how big the step should be
+    delta, gn_info = calc_gauss_newton_step(model, LM_lambda)
+
+    # Apply some limitations on the step size that improve convergence
+    # The fist reduces all steps by a factor
+    delta = alpha_step * delta
+
+    # The second limits the maximum size of step in any direction
+    if max_delta is not None:
+        delta = np.where(np.abs(delta) > max_delta, max_delta * np.sign(delta), delta)
 
     # Get the old segment list
     segment_list_old = model.get_segment_list()
@@ -326,4 +332,8 @@ def apply_step(model, delta, include_C_old=True, **kwargs):
             new_C_old = old_C_old + delta[-model._numsol + isol]
             new_model.solute_parameters[sol]['C_old'] = new_C_old
 
-    return new_model
+    # Run the new model
+    new_model.run()
+    new_mse = np.mean(model.get_residuals() ** 2)
+
+    return new_model, new_mse, gn_info
