@@ -86,7 +86,7 @@ class Piecewise:
             # Use the given segment_list
             self.nsegment = len(segment_list) - 1
             self._segment_list = np.array(segment_list, dtype=np.float)
-            self._ST = self._convert_segment_list_to_ST()
+            self._ST = self._convert_segment_list_to_ST(self._segment_list)
 
         elif ST is not None:
 
@@ -95,6 +95,7 @@ class Piecewise:
             assert len(ST) > 2
             self._ST = np.array(ST, dtype=np.float)
             self.nsegment = len(ST) - 2
+            self._segment_list = self._convert_ST_to_segment_list(self._ST)
 
         else:
 
@@ -112,7 +113,7 @@ class Piecewise:
                     0, ST_scaled[self.nsegment - i], 1)
 
             self._ST[1:] = self.ST_min + (self.ST_max - self.ST_min) * ST_scaled
-            self.segment_list = np.diff(self._ST)
+            self._segment_list = self._convert_ST_to_segment_list(self._ST)
 
         # Make a list of probabilities P
         if P is not None:
@@ -160,7 +161,7 @@ class Piecewise:
         self._ST = new_ST
         self.ST_min = self._ST[1]
         self.ST_max = self._ST[-1]
-        self._segment_list = np.diff(self._ST)
+        self._segment_list = self._convert_ST_to_segment_list(self._ST)
         self._make_interpolators()
 
     @property
@@ -182,11 +183,15 @@ class Piecewise:
     @segment_list.setter
     def segment_list(self, new_segment_list):
         self._segment_list = new_segment_list
-        self.ST = self._convert_segment_list_to_ST()
+        self.ST = self._convert_segment_list_to_ST(self._segment_list)
 
-    def _convert_segment_list_to_ST(self):
+    def _convert_segment_list_to_ST(self, seglst):
         """converts a segment_list array into an array of ST endpoints"""
-        return np.r_[[0], np.cumsum(self._segment_list)]
+        return np.r_[[0], np.cumsum(seglst)]
+
+    def _convert_ST_to_segment_list(self, ST):
+        """converts a segment_list array into an array of ST endpoints"""
+        return np.r_[self._ST[1], np.diff(ST[1:])]
 
     def subdivided_copy(self, segment, split_frac=0.5):
         """Returns a new Piecewise object instance with one segment divided into two
@@ -204,7 +209,7 @@ class Piecewise:
         ST_new = ST1 + split_frac * (ST2 - ST1)
         P = np.insert(self.P, segment + 2, P_new)
         ST = np.insert(self.ST, segment + 2, ST_new)
-        return Piecewise(ST=ST_new, P=P_new)
+        return Piecewise(ST=ST, P=P)
 
     def inv(self, P):
         """

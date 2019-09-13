@@ -84,13 +84,12 @@ def increase_resolution(initial_model, initial_mse, new_components, segment, inc
 
             model_list, mse_list = fit_model(initial_model.subdivided_copy(flux, label, segment), **kwargs)
 
-            _verbose(f'Initial mse = {initial_mse}')
-            _verbose(f'New mse     = {new_mse}')
-
             # The current criteria used for deciding whether to accept the subdivision is simple:
             # Just check whether the model improvement is greater than some threshold
             # This can definitely be improved
             new_mse = mse_list[-1]
+            _verbose(f'Initial mse = {initial_mse}')
+            _verbose(f'New mse     = {new_mse}')
             if new_mse / initial_mse < 0.9:
                 _verbose(f'Subdivision accepted for {flux}, {label}')
 
