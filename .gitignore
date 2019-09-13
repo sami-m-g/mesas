@@ -4,6 +4,5 @@ dist/
 *.pyc
 *.swo
 *.swp
-.ropeproject
-/rsas/.ropeproject
 /mesas/junk/
+/doc/_build/

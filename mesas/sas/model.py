@@ -1,3 +1,10 @@
+"""
+
+    Module Models
+    =============
+
+    Text here
+"""
 import copy
 from copy import deepcopy
 
@@ -8,9 +15,16 @@ dtype = np.float64
 
 
 class Model:
+    '''
+    Class for building and running SAS models
+
+    To use mesas, an instance of this class must be constructed, populated with
+    parameters (held in the dicts `sas_blends` and optionally `solute_parameters`),j
+    associated with a dataset (`data_df`) and run using the `run` method.
+    '''
     def __init__(self, data_df, sas_blends, solute_parameters=None, **kwargs):
         # defaults
-        self.result = {}
+        self.result = None
         self.jacobian = {}
         self._default_options = {
             'dt': 1,
@@ -55,6 +69,49 @@ class Model:
         new_model = self.copy_without_results()
         new_model.sas_blends[flux] = new_model.sas_blends[flux].subdivided_copy(label, segment)
         return new_model
+
+    @property
+    def results(self):
+        """Results of running the sas model with the current parameters
+
+        Returns a dict with the following keys:
+            'ST' : m+1 x n+1 numpy float64 2D array
+                Array of age-ranked storage for n times, m ages. (full_outputs=True only)
+            'PQ' : m+1 x n+1 x q numpy float64 2D array
+                List of time-varying cumulative transit time distributions for n times,
+                m ages, and q fluxes. (full_outputs=True only)
+            'WaterBalance' : m x n numpy float64 2D array
+                Should always be within tolerances of zero, unless something is very
+                wrong. (full_outputs=True only)
+            'C_Q' : n x q x s float64 ndarray
+                If C_J is supplied, C_Q is the timeseries of outflow concentration
+            'MS' : m+1 x n+1 x s float64 ndarray
+                Array of age-ranked solute mass for n times, m ages, and s solutes.
+                (full_outputs=True only)
+            'MQ' : m+1 x n+1 x q x s float64 ndarray
+                Array of age-ranked solute mass flux for n times, m ages, q fluxes and s
+                solutes. (full_outputs=True only)
+            'MR' : m+1 x n+1 x s float64 ndarray
+                Array of age-ranked solute reaction flux for n times, m ages, and s
+                solutes. (full_outputs=True only)
+            'SoluteBalance' : m x n x s float64 ndarray
+                Should always be within tolerances of zero, unless something is very
+                wrong. (full_outputs=True only)
+
+        For each of the arrays in the full outputs each row represents an age, and each
+        column is a timestep. For n timesteps and m ages, ST will have dimensions
+        (n+1) x (m+1), with the first row representing age T = 0 and the first
+        column derived from the initial condition.
+        """
+        if self._results is None:
+            raise AttributeError(
+                "results are only defined once the model is run. Use .run() method to generate results ")
+        else:
+            return self._results
+
+    @results.setter
+    def results(self, results):
+        raise AttributeError("Model results are read-only. Use .run() method to generate results ")
 
     @property
     def data_df(self):
