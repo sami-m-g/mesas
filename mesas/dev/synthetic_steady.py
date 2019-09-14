@@ -45,7 +45,7 @@ obs_name = 'C_Q obs_name'  # mass/volume of solute outputs <-- this is the data 
 plot_ST_max = 800
 
 
-def create_synthetic_data(N, influx, gamma_scale, gamma_shape, sampling_interval, C_mean, C_sigma):
+def create_synthetic_data(N, influx, gamma_scale, gamma_shape, sampling_interval, C_mean, C_sigma, C_noise):
     '''
     Creates a synthetic dataset 
     
@@ -101,6 +101,8 @@ def create_synthetic_data(N, influx, gamma_scale, gamma_shape, sampling_interval
     # Create a timeseries of periodic `samples` spaced by NaNs
     C_train = np.zeros(N) * np.NaN
     C_train[::sampling_interval] = synth_truth_model.result['C_Q'][:, 0, 0][::sampling_interval]
+    # Add noise to represent measurement error
+    C_train += C_noise * np.random.randn(N)
     # add this to the dataframe
     synth_data_df[obs_name] = C_train
     #
@@ -115,7 +117,8 @@ data_df, reference_model = create_synthetic_data(
     influx=2300 / 365.,
     sampling_interval=1,
     C_mean=10.05,
-    C_sigma=1.
+    C_sigma=1.,
+    C_noise=0.01
 )
 
 # Create a new sas model
@@ -173,11 +176,11 @@ def incres_plot_fun(old_model, new_model, mse_dict, Ns, segment):
     ax2 = plt.subplot2grid((3, 4), (0, 2), colspan=2)
     plots.plot_timeseries_update(old_model, new_model, outflux_name, sol_name, ax2)
     #
-    ax3 = plt.subplot2grid((3, 4), (2, 2), colspan=2)
-    plots.plot_MSE_improvement(mse_dict, ax3)
+    # ax3 = plt.subplot2grid((3, 4), (2, 2), colspan=2)
+    # plots.plot_MSE_improvement(mse_dict, ax3)
     C_train = old_model.data_df[obs_name]
     vartrain = np.nanvar(C_train)
-    ax3.set_ylim((vartrain / 100000., vartrain * 3))
+    #ax3.set_ylim((vartrain / 100000., vartrain * 3))
     #
     ax4 = plt.subplot2grid((3, 4), (1, 2), colspan=2)
     plots.plot_residuals_timeseries(old_model, new_model, outflux_name, sol_name, ax4)

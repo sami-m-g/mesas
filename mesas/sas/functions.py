@@ -339,7 +339,11 @@ class Piecewise:
                 Tjl = np.digitize(Sj[:seg_maxcalc + 1], ST[:time_index + 1, time_index], right=True) - 1
                 Tjr = np.digitize(Sj[:seg_maxcalc + 1], ST[:time_index + 1, time_index], right=False) - 1
                 Tjl[Tjl < 0] = 0
-                Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
+                Tjr[Tjr == Nt] = Tjl[Tjr == Nt]
+                try:
+                    Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
+                except:
+                    Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
 
                 # Calculate the bulk-averaged concentration in each segment
                 # Age-ranked mass at each segment endpoint

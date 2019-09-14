@@ -330,6 +330,21 @@ class Model:
                         self.data_df[f'residual {flux}, {sol}, {obs}'] = this_ri
         return ri
 
+    def get_obs_index(self):
+        index = None
+        for isol, sol in enumerate(self._solorder):
+            if 'observations' in self.solute_parameters[sol]:
+                for iflux, flux in enumerate(self._fluxorder):
+                    if flux in self.solute_parameters[sol]['observations']:
+                        obs = self.solute_parameters[sol]['observations'][flux]
+                        C_obs = self.data_df[obs]
+                        this_index = ~np.isnan(C_obs.values)
+                        if index is None:
+                            index = this_index
+                        else:
+                            index = np.concatenate(index, this_index, axis=0)
+        return np.nonzero(index)[0]
+
     # def get_residual_parts(self, flux, sol, trainingdata, **kwargs):
     # iflux = list(self._fluxorder).index(flux)
     # isol = list(self._solorder).index(sol)

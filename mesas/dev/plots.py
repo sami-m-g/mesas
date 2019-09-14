@@ -9,8 +9,8 @@ def plot_SAS_update(old_model, new_model, reference_model, plot_ST_max, ax1):
             old_component, new_component = [m.sas_blends[flux].components[label] for m in [old_model, new_model]]
             old_component.sas_fun.plot(ax=ax1, color='b', label='previous ' + label, alpha=0.5, marker='o')
             new_component.sas_fun.plot(ax=ax1, color='b', ls='-', label='new ' + label, lw=2, marker='o')
-            old_ST, new_ST = [c.sas_fun.ST[1:] for c in [old_component, new_component]]
-            old_Omega, new_Omega = [c.sas_fun.P[1:] for c in [old_component, new_component]]
+            old_ST, new_ST = [c.sas_fun.ST for c in [old_component, new_component]]
+            old_Omega, new_Omega = [c.sas_fun.P for c in [old_component, new_component]]
             old_ST_interp = np.interp(new_Omega, old_Omega, old_ST)
             old_Omega_interp = new_Omega
             ax1.quiver(old_ST_interp, old_Omega_interp, new_ST - old_ST_interp, new_Omega - old_Omega_interp,
