@@ -162,19 +162,34 @@ def increase_resolution(initial_model, initial_mse, new_components, segment, inc
 
 
 def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, **kwargs):
+    """
+    Fit the sas function to the data using a least-squares regression optimization
+
+    :param model:
+    :param include_C_old:
+    :param learn_plot_fun:
+    :param index:
+    :param kwargs:
+    :return:
+    """
+
     if index is None:
         index = model.get_obs_index()
 
     new_model = model.copy_without_results()
 
+    # Use the current values as the initial estimate
     segment_list = model.get_segment_list()
     # Assume that any segments of zero length are the first segment
+    # and exclude these from the estimate of x0
     # TODO: check that zero_segments are indeed ST_min
     non_zero_segments = segment_list > 0
     x0 = np.log(segment_list[non_zero_segments])
     nseg_x0 = len(x0)
     if include_C_old:
         x0 = np.r_[x0, [model.solute_parameters[sol]['C_old'] for sol in model._solorder]]
+
+    # Construct an index into the the columns returned by get_jacobian() that we wish to keep
     keep_jac_columns = np.ones(len(segment_list) + model._numsol) == 1
     keep_jac_columns[:len(segment_list)] = non_zero_segments
 
@@ -190,22 +205,26 @@ def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, **kwar
                 new_model.solute_parameters[sol]['C_old'] = x[-model._numsol + isol]
 
     def f(x):
+        """return residuals given parameters x"""
+
         update_parameters(x)
         new_model.run()
+
         # optionally do some plotting
         if learn_plot_fun is not None:
             learn_plot_fun(new_model)
+
         return new_model.get_residuals()[index]
 
     def jac(x):
+        """return the jacobian given parameters x"""
+
         update_parameters(x)
         new_model.run()
-        try:
-            J = new_model.get_jacobian(index=index)
-        except:
-            J = new_model.get_jacobian(index=index)
-        return J[:, keep_jac_columns]
 
+        return new_model.get_jacobian(index=index)[:, keep_jac_columns]
+
+    # use the scipy.optimize.least_square package
     OptimizeResult = least_squares(fun=f,
                                    x0=x0,
                                    jac=jac,
@@ -217,178 +236,3 @@ def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, **kwar
 
     return new_model, new_mse
 
-# def fit_model(model, learn_plot_fun=None, maxiter=20, use_scipy=False, **kwargs):
-#    """
-#    Fits the sas model to the data
-#
-#    At the moment we are using a Newton-Gauss algorithm that takes advantage of the fact that we can
-#    calculate an approximate 'time-localized' Jacobian of the model residuals
-#
-#    :param model: The model to fit to observations
-#    :param learn_plot_fun: An optional function to do some plotting at each iteration of the fit
-#    :param maxiter: optional maximum number of iterations
-#    :param kwargs: additional keyword arguments to be passed to `step`
-#    :return: a list of models and a list of their mean square error (mse)
-#    """
-#
-#    if use_scipy:
-#        return fit_model_scipy(model, learn_plot_fun=None, **kwargs):
-#
-#    _verbose(f'Starting {inspect.stack()[0][3]}')
-#
-#    # Run the model and initialize the output lists
-#    model.run()
-#    models = [model]
-#    mse = [np.mean(model.get_residuals() ** 2)]
-#
-#    # loop over the iteration steps
-#    for iter in range(maxiter):
-#
-#        # Call the function that actually does the optimization
-#        new_model, new_mse = step(models[-1], mse[-1], **kwargs)
-#
-#        # Clear out the results of the last model to save memory
-#        if iter > 0:
-#            models[-1].result = None
-#
-#        # Add the results to the lists
-#        models.append(new_model)
-#        mse.append(np.mean(new_model.get_residuals() ** 2))
-#
-#    # optionally do some plotting
-#    if learn_plot_fun is not None:
-#        learn_plot_fun(models, mse)
-#
-#    return models, mse
-#
-#
-# def step(model, mse, alpha_step=1, max_delta=None, LM_lambda=0, step_plot_fun=None, **kwargs):
-#    """
-#    Takes a step in parameter space
-#
-#    :param model: Model to start with
-#    :param mse: starting mean square error
-#    :param step_plot_fun: optional plotting function
-#    :param kwargs: additional keyword arguments to be passed to the algorithm
-#    :return: a new model with modified parameters and results
-#    """
-#
-#    # Take the step
-#    new_model, new_mse, gn_info = apply_step(model,
-#                                             alpha_step=alpha_step,
-#                                             max_delta=max_delta,
-#                                             LM_lambda=LM_lambda,
-#                                             **kwargs)
-#
-#    # Optionally, make some plots
-#    if step_plot_fun is not None:
-#        step_plot_fun(model, new_model, gn_info)
-#
-#    return new_model, new_mse
-#
-#
-# def calc_gauss_newton_step(model, LM_lambda=0):
-#    """
-#    Uses a gauss-newton method to choose a step in parameter space
-#
-#    :param model: sas model
-#    :param LM_lambda: Levenberg–Marquardt algorithm lambda
-#    :return: an array of delta values
-#    """
-#
-#    # extract the timeseries of model residuals
-#    ri = model.get_residuals()
-#    # this timeseries will be NaN except for timesteps with valid observations
-#    index = np.nonzero(~np.isnan(ri))[0]
-#    # replace the NaNs with zeros
-#    ri[np.isnan(ri)] = 0
-#
-#    # Calculate the jacobian of the residuals with respect to parameters.
-#    # Note that the parameters are assumed to be log-transformed `segment_list`s
-#    # We pass in the index of valid observations to save time
-#    J = model.get_jacobian(index=index)
-#
-#    Nt, Np = J.shape
-#
-#    # Gauss-Newton Algorithm
-#
-#    # Calculate the gradient of the mean square error
-#    gradient = 2 * np.dot(J.T, ri)
-#    # This should be unnecessary:
-#    gradient[np.isnan(gradient)] = 0
-#
-#    # Find the parameters that have non-zero gradients
-#    p_not_flat_gradient = gradient != 0
-#
-#    # Calculate an approximate Hessian matrix
-#    H = 2 * np.dot(J[:, p_not_flat_gradient].T, J[:, p_not_flat_gradient])
-#
-#    # Calculate the optimum step
-#    delta = np.zeros(Np)
-#    delta[p_not_flat_gradient] = -np.dot(inv(H + LM_lambda * np.eye(len(H))), gradient[p_not_flat_gradient])
-#
-#    # Calculate some additional data that can be used for plotting
-#    # The gradient term applied to each individual residual:
-#    gradient_ip = np.zeros((Nt, Np))
-#    gradient_ip[:, p_not_flat_gradient] = 2 * (J[:, p_not_flat_gradient].T * ri).T
-#    # The Hessian applied to each individual residual-gradient
-#    delta_ip = np.zeros((Nt, Np))
-#    delta_ip[:, p_not_flat_gradient] = -np.dot(inv(H), gradient_ip[:, p_not_flat_gradient].T).T
-#
-#    return delta, {
-#        'H': H,
-#        'delta': delta,
-#        'LM_lambda': LM_lambda,
-#        'delta_ip': delta_ip,
-#        'gradient': gradient,
-#        'gradient_ip': gradient_ip,
-#    }
-#
-#
-# def apply_step(model, alpha_step=1, max_delta=None, LM_lambda=0, include_C_old=True, **kwargs):
-#    """
-#    Applies a delta to a model, returning a new model with modified parameters
-#
-#    :param model: a sas model
-#    :param delta: an array of deltas (changes to log-transformed `segment_list`s)
-#    :param max_delta:
-#    :param alpha_step:
-#    :param include_C_old: if True (default), the value of C_old will be modified. Otherwise it is left as-is
-#    :return: a sas model with modified parameters
-#    """
-#
-#    # Calculate how big the step should be
-#    delta, gn_info = calc_gauss_newton_step(model, LM_lambda)
-#
-#    # Apply some limitations on the step size that improve convergence
-#    # The fist reduces all steps by a factor
-#    delta = alpha_step * delta
-#
-#    # The second limits the maximum size of step in any direction
-#    if max_delta is not None:
-#        delta = np.where(np.abs(delta) > max_delta, max_delta * np.sign(delta), delta)
-#
-#    # Get the old segment list
-#    segment_list_old = model.get_segment_list()
-#
-#    # Apply the delta
-#    segment_list_new = segment_list_old * np.exp(delta[:-1])
-#
-#    # Make a copy of the model without the results
-#    new_model = model.copy_without_results()
-#
-#    # apply the new segment list to the model
-#    new_model.update_from_segment_list(segment_list_new)
-#
-#    # optionally apply the delta to the C_old parameter
-#    if include_C_old:
-#        for isol, sol in enumerate(model._solorder):
-#            old_C_old = model.solute_parameters[sol]['C_old']
-#            new_C_old = old_C_old + delta[-model._numsol + isol]
-#            new_model.solute_parameters[sol]['C_old'] = new_C_old
-#
-#    # Run the new model
-#    new_model.run()
-#    new_mse = np.mean(model.get_residuals() ** 2)
-#
-#    return new_model, new_mse, gn_info
