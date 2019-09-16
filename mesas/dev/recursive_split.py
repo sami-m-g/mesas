@@ -51,12 +51,153 @@ def run(model, components_to_learn=None, verbose=True, **kwargs):
     better_initial_model, better_initial_mse = fit_model(initial_model, index=index, **kwargs)
 
     # run the algorithm
-    return increase_resolution(better_initial_model, better_initial_mse, new_components, 0, index=index, **kwargs)
+    return increase_resolution_scanning(better_initial_model, better_initial_mse, new_components, segment=0,
+                                        index=index, **kwargs)
 
 
-def increase_resolution(initial_model, initial_mse, new_components, segment, incres_plot_fun=None, index=None,
+def lookfor_new_components(initial_model, initial_mse, new_components, segment_dict, index=None, **kwargs):
+    # This keeps track of how many new components we found
+    new_components_count = 0
+    # This will keep track of convergence information provided by fit_model in case we want to use it for plotting
+    mse_dict = {}
+
+    # loop over the components we want to improve, testing whether subdividing each individually leads to
+    # substantial change in the fit
+    for flux in new_components.keys():
+        for label in new_components[flux].keys():
+
+            if type(segment_dict) is dict:
+                segment = segment_dict[flux][label]
+            else:
+                segment = segment_dict
+
+            if segment < initial_model.sas_blends[flux].components[label].sas_fun.nsegment:
+
+                new_model, new_mse = fit_model(initial_model.subdivided_copy(flux, label, segment), index=index,
+                                               **kwargs)
+
+                # The current criteria used for deciding whether to accept the subdivision is simple:
+                # Just check whether the model improvement is greater than some threshold
+                # This can definitely be improved
+                _verbose(f'Initial mse = {initial_mse}')
+                _verbose(f'New mse     = {new_mse}')
+                if new_mse / initial_mse < 0.99:
+                    _verbose(f'Subdivision accepted for {flux}, {label}')
+
+                    # Add to the record of new components, and increment the counter
+                    new_components[flux][label] = new_model.sas_blends[flux].components[label]
+                    new_components_count += 1
+
+                else:
+                    _verbose(f'Subdivision rejected for {flux}, {label}')
+
+                    # Record the rejection by setting the dict entry to None
+                    new_components[flux][label] = None
+
+                # Keep a record of the mse for plotting
+                mse_dict[f'{flux}, {label}'] = new_mse
+
+    return new_model, new_mse, new_components, new_components_count, mse_dict
+
+
+def incorporate_new_components(initial_model, new_components, index=None, **kwargs):
+    new_model = initial_model.copy_without_results()
+
+    for flux in new_components.keys():
+        for label in new_components[flux].keys():
+
+            if new_components[flux][label] is not None:
+                new_model.set_component(flux, new_components[flux][label])
+
+    return fit_model(new_model, index=index, **kwargs)
+
+
+def increase_resolution_scanning(initial_model, initial_mse, new_components, maxscan=100, incres_plot_fun=None,
+                                 index=None,
+                                 **kwargs):
+    """Increases sas function resolution by splitting a piecewise linear segment (scanning method)
+
+    :param initial_model: The model we want to try increasing the resolution of
+    :param initial_mse: How well it currently fits the data
+    :param new_components: A dict that keeps track of which components we are trying to refine
+    :param segment: The index of the segment we are currently refining
+    :param incres_plot_fun: An optional function that can produce some plots along the way
+    :param kwargs: Additional arguments to be passed to the fit_model function
+    :return:
+    """
+
+    _verbose(f'\n***********************\nStarting {inspect.stack()[0][3]}')
+
+    any_segments_subdivided = False
+
+    for scan in range(maxscan):
+        _verbose(f'\nStarting scan #{scan + 1}')
+
+        # How many segments do we have to scan?
+        max_segment = 0
+        check_segment_dict = {}
+        for flux in new_components.keys():
+            check_segment_dict[flux] = {}
+            for label in new_components[flux].keys():
+                if max_segment < initial_model.sas_blends[flux].components[label].sas_fun.nsegment:
+                    max_segment = initial_model.sas_blends[flux].components[label].sas_fun.nsegment
+                # start with segment 0
+                check_segment_dict[flux][label] = 0
+
+        for segment in range(max_segment):
+            _verbose(f'Testing increased SAS resolution in segment {segment}')
+
+            new_model, new_mse, new_components, new_components_count, mse_dict = lookfor_new_components(
+                initial_model, initial_mse,
+                new_components, check_segment_dict,
+                index=None, **kwargs)
+
+            # if we accepted refined components we want to add them into the model
+            # before moving on to the next segment or scan
+            if new_components_count > 0:
+
+                any_segments_subdivided = True
+
+                # If we found more than one new component, we need to include all of them, then re-run
+                # fit_model so that their interactions can be accounted for
+                if new_components_count > 1:
+                    new_model, new_mse = incorporate_new_components(initial_model, new_components, index=index,
+                                                                    **kwargs)
+
+                _verbose('New model is:')
+                _verbose(new_model)
+
+                # Optionally, make some plots
+                if incres_plot_fun is not None:
+                    incres_plot_fun(initial_model, new_model, mse_dict, scan, segment)
+
+                initial_model = new_model
+                initial_mse = new_mse
+
+            # Increment the segment counter
+            for flux in check_segment_dict.keys():
+                for label in check_segment_dict[flux].keys():
+                    if new_components[flux][label] is not None:
+                        check_segment_dict[flux][label] += 1
+                    if check_segment_dict[flux][label] < initial_model.sas_blends[flux].components[
+                        label].sas_fun.nsegment:
+                        check_segment_dict[flux][label] += 1
+
+        if any_segments_subdivided:
+            any_segments_subdivided = False
+            _verbose(f'Scan {scan + 1} complete')
+        else:
+            # If not, we are done. Return the model we've found,
+            _verbose('Finished increasing old_model resolution')
+            return new_model
+
+    _verbose(f'Maximum number of scans reached ({maxscan})')
+    return new_model
+
+
+def increase_resolution_leftfirst(initial_model, initial_mse, new_components, segment, incres_plot_fun=None, index=None,
                         **kwargs):
-    """Increases the resolution of a sas function by splitting a piecewise linear segment
+    """Increases sas function resolution by splitting a piecewise linear segment (left-first method)
 
     :param initial_model: The model we want to try increasing the resolution of
     :param initial_mse: How well it currently fits the data
@@ -70,54 +211,22 @@ def increase_resolution(initial_model, initial_mse, new_components, segment, inc
     _verbose(f'\n***********************\nStarting {inspect.stack()[0][3]}')
     _verbose(f'Testing increased SAS resolution in segment {segment}')
 
-    # This keeps track of how many new components we found
-    new_components_count = 0
-    # This will keep track of convergence information provided by fit_model in case we want to use it for plotting
-    mse_dict = {}
     # total number of segments. Used for plotting (actually for naming the saved figure files)
     Ns = len(initial_model.get_segment_list())
 
-    # loop over the components we want to improve, testing whether subdividing each individually leads to
-    # substantial change in the fit
-    for flux in new_components.keys():
-        for label in new_components[flux].keys():
+    new_model, new_mse, new_components, new_components_count, mse_dict = lookfor_new_components(
+        initial_model, initial_mse,
+        new_components, segment,
+        index=None, **kwargs)
 
-            new_model, new_mse = fit_model(initial_model.subdivided_copy(flux, label, segment), index=index, **kwargs)
-
-            # The current criteria used for deciding whether to accept the subdivision is simple:
-            # Just check whether the model improvement is greater than some threshold
-            # This can definitely be improved
-            _verbose(f'Initial mse = {initial_mse}')
-            _verbose(f'New mse     = {new_mse}')
-            if new_mse / initial_mse < 0.99:
-                _verbose(f'Subdivision accepted for {flux}, {label}')
-
-                # Add to the record of new components, and increment the counter
-                new_components[flux][label] = new_model.sas_blends[flux].components[label]
-                new_components_count += 1
-
-            else:
-                _verbose(f'Subdivision rejected for {flux}, {label}')
-
-                # Record the rejection by setting the dict entry to None
-                new_components[flux][label] = None
-
-            # Keep a record of the mse for plotting
-            mse_dict[f'{flux}, {label}'] = new_mse
-
-    # if we accepted refined components we want to add them into the model and then recursively
-    # try subdividing them too
+    # if we accepted refined components we want to add them into the model
+    # and then recursively try subdividing them too
     if new_components_count > 0:
 
         # If we found more than one new component, we need to include all of them, then re-run
         # fit_model so that their interactions can be accounted for
         if new_components_count > 1:
-            new_model = initial_model.copy_without_results()
-            for flux in new_components.keys():
-                for label in new_components[flux].keys():
-                    if new_components[flux][label] is not None:
-                        new_model.set_component(flux, new_components[flux][label])
-            new_model, new_mse = fit_model(new_model, index=index, **kwargs)
+            new_model, new_mse = incorporate_new_components(initial_model, new_components, index=index, **kwargs)
 
         _verbose('New model is:')
         _verbose(new_model)
@@ -127,8 +236,8 @@ def increase_resolution(initial_model, initial_mse, new_components, segment, inc
             incres_plot_fun(initial_model, new_model, mse_dict, Ns, segment)
 
         # Recursively try subdividing the first of the two new segments
-        return increase_resolution(new_model, new_mse, new_components, segment,
-                                   incres_plot_fun=incres_plot_fun, index=index, **kwargs)
+        return increase_resolution_leftfirst(new_model, new_mse, new_components, segment,
+                                             incres_plot_fun=incres_plot_fun, index=index, **kwargs)
 
     # If we didn't accept any new subdivisions, we need to move on
     else:
@@ -152,8 +261,8 @@ def increase_resolution(initial_model, initial_mse, new_components, segment, inc
 
             # If so, recursively call this function on the next segment
             _verbose(f'Moving to segment {segment + 1}')
-            return increase_resolution(initial_model, initial_mse, new_components, segment + 1,
-                                       incres_plot_fun=incres_plot_fun, index=index, **kwargs)
+            return increase_resolution_leftfirst(initial_model, initial_mse, new_components, segment + 1,
+                                                 incres_plot_fun=incres_plot_fun, index=index, **kwargs)
         else:
 
             # If not, we are done. Return the model we've found,
