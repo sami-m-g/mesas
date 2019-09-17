@@ -9,6 +9,8 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, STcum_init_ts, dt, &
     implicit none
 
     ! Start by declaring and initializing all the variables we will be using
+    integer, intent(in) :: n_substeps, numflux, numsol, max_age, &
+            timeseries_length, nP_total
     real(8), intent(in), dimension(0:timeseries_length - 1) :: J_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1) :: Q_ts
     real(8), intent(in), dimension(0:nP_total - 1, 0:timeseries_length - 1) :: SAS_lookup
@@ -23,8 +25,6 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, STcum_init_ts, dt, &
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: k1_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: C_eq_ts
     real(8), intent(in), dimension(0:numsol - 1) :: C_old
-    integer, intent(in) :: n_substeps, numflux, numsol, max_age, &
-            timeseries_length, nP_total
     integer, intent(in), dimension(0:numflux - 1) :: nP_list
     real(8), intent(out), dimension(0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: C_Q_ts
     real(8), intent(out), dimension(0:max_age, 0:timeseries_length) :: STcum_ts
@@ -400,7 +400,7 @@ contains
         real(8), intent(in), dimension(0:na - 1) :: xa
         real(8), intent(in), dimension(0:na - 1) :: ya
         real(8), intent(in), dimension(0:n - 1) :: x
-        real(8), intent(out), dimension(0:n - 1) :: y
+        real(8), intent(inout), dimension(0:n - 1) :: y
         integer :: i, j, i0
         real(8) :: dif, grad
         logical :: foundit
