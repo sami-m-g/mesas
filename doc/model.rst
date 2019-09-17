@@ -1,11 +1,10 @@
-Blender
-==========
+The SAS Model class
+===============
 
-Blender will be documented here.
+Model will be documented here.
 
+mesas.sas.model module
+----------------------
 
-mesas.sas.blender module
-----------------------------
-
-.. automodule:: mesas.sas.blender
+.. automodule:: mesas.sas.model
     :members:

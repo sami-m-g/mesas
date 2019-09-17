@@ -194,6 +194,4 @@ def incres_plot_fun(old_model, new_model, mse_dict, Ns, segment):
 
 # Run the recursive_split algorithm
 rs_model = recursive_split(mymodel,
-                           incres_plot_fun=incres_plot_fun,
-                           alpha_step=0.25,
-                           max_delta=np.log(1.5))
+                           incres_plot_fun=incres_plot_fun)

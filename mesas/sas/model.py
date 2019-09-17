@@ -6,6 +6,7 @@
     Text here
 """
 import copy
+from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
@@ -22,7 +23,8 @@ class Model:
     parameters (held in the dicts `sas_blends` and optionally `solute_parameters`),j
     associated with a dataset (`data_df`) and run using the `run` method.
     '''
-    def __init__(self, data_df, sas_blends, solute_parameters=None, **kwargs):
+
+    def __init__(self, data_df, sas_blends, solute_parameters=None, components_to_learn=None, **kwargs):
         # defaults
         self.result = None
         self.jacobian = {}
@@ -39,7 +41,7 @@ class Model:
         self._options = self._default_options
         # do input Checking
         self.data_df = data_df
-        self.set_options(**kwargs)
+        self.options = kwargs
         self.sas_blends = sas_blends
         # defaults for solute transport
         self._default_parameters = {
@@ -51,8 +53,13 @@ class Model:
             'observations': {}
         }
         self.solute_parameters = solute_parameters
+        if components_to_learn is None:
+            self.components_to_learn = self.get_component_labels()
+        else:
+            self.components_to_learn = components_to_learn
 
     def __repr__(self):
+        """Creates a repr for the model"""
         repr = '\n'
         for flux, sas_blend in self.sas_blends.items():
             repr += sas_blend.__repr__()
@@ -60,14 +67,29 @@ class Model:
         return repr
 
     def copy_without_results(self):
+        """creates a copy of the model without the results"""
         return Model(copy.deepcopy(self._data_df),
                      copy.deepcopy(self._sas_blends),
                      copy.deepcopy(self._solute_parameters),
+                     copy.deepcopy(self._components_to_learn),
                      **copy.deepcopy(self._options))
 
     def subdivided_copy(self, flux, label, segment):
+        """
+        Creates a copy of the model with one segment of a sas function subdivided in two
+
+        :param flux: name of the flux
+        :param label: name of the component
+        :param segment: segment (numbered from 0 for the youngest)
+        :return:
+        """
+
+        # make a copy
         new_model = self.copy_without_results()
+
+        # subdivide the component
         new_model.sas_blends[flux] = new_model.sas_blends[flux].subdivided_copy(label, segment)
+
         return new_model
 
     @property
@@ -115,26 +137,35 @@ class Model:
 
     @property
     def data_df(self):
+        """pandas dataframe holding the model inputs"""
         return self._data_df
 
     @data_df.setter
     def data_df(self, new_data_df):
-        self.set_data_df(new_data_df)
-
-    def set_data_df(self, new_data_df):
         self._data_df = new_data_df
         self._timeseries_length = len(self._data_df)
 
     @property
     def options(self):
+        """Options for running the model
+
+        To modify, assign a dictionary of valid key-value pairs
+
+        Default options are
+
+            'dt': 1
+            'verbose': False
+            'debug': False
+            'full_outputs': True
+            'n_substeps': 1
+            'max_age': None
+            'ST_init': None
+            'influx': 'J'
+        """
         return self._options
 
     @options.setter
     def options(self, new_options):
-        self._options = self._default_options
-        self.set_options(**new_options)
-
-    def set_options(self, **new_options):
         invalid_options = [optkey for optkey in new_options.keys()
                            if optkey not in self._default_options.keys()]
         if any(invalid_options):
@@ -177,18 +208,74 @@ class Model:
             component_labels[flux] = list(self._sas_blends[flux].components.keys())
         return component_labels
 
+    @property
+    def components_to_learn(self):
+        """
+        A dictionary of lists giving the component labels that you want to train with MESAS
+
+        The components in this dictionary can be set by assigning a dictionary. For example, this would
+        include only the 'min' and 'max' components of the sas blender associated with the 'Q' flux.
+
+            >>> model.components_to_learn = {'Q':['min', 'max']}
+
+        The parameters associated with these components can be obtained as a 1-D array with:
+
+            >>> seglist = model.get_segment_list()
+
+        and modified using:
+
+            >>> model.update_from_segment_list(seglst)
+
+        :return:
+        """
+        return self._components_to_learn
+
+    @components_to_learn.setter
+    def components_to_learn(self, label_dict):
+        self._components_to_learn = OrderedDict((flux,
+                                                 [label for label in self._sas_blends[flux]._componentorder if
+                                                  label in label_dict[flux]]
+                                                 ) for flux in self._fluxorder if flux in label_dict.keys())
+        self._comp2learn_fluxorder = list(self._components_to_learn.keys())
+        for flux in self._comp2learn_fluxorder:
+            self._sas_blends[flux]._comp2learn_componentorder = self._components_to_learn[flux]
+
+
     def get_segment_list(self):
-        return np.concatenate([self.sas_blends[flux].get_segment_list() for flux in self._fluxorder])
+        """
+        Returns a concatenated list of segments from self.components_to_learn
+        """
+        return np.concatenate([self.sas_blends[flux].get_segment_list() for flux in self._comp2learn_fluxorder])
 
     def update_from_segment_list(self, segment_list):
+        """
+        Modifies the components in self.components_to_learn from a concatenated list of segments
+        """
         starti = 0
-        for flux in self._fluxorder:
+        for flux in self._comp2learn_fluxorder:
             nparams = len(self.sas_blends[flux].get_segment_list())
             self.sas_blends[flux].update_from_segment_list(segment_list[starti: starti + nparams])
             starti += nparams
 
     @property
     def solute_parameters(self):
+        """Parameters describing solute behavior
+
+        This is a dictionary whose keys correspond to columns in data_df. Each entry in the dictionary
+        is itself a dict with the following default key:value pairs
+
+            'CS_init': 0.   # initial concentration in the system
+            'C_old': 0.   # old water concentration
+            'k1': 0.   # reaction rate constant
+            'C_eq': 0.   # equilibrium concentration
+            'alpha': {'Q': 1., ...}   # Partitioning coefficient for flux 'Q'
+            'observations': {'Q': 'obs C in Q', ...}   # column name in data_df of observations
+
+        note that 'alpha' and 'observations' are both dictionaries with keys corresponding to the names of fluxes
+
+        }
+
+        """
         return self._solute_parameters
 
     @solute_parameters.setter
@@ -285,22 +372,28 @@ class Model:
             if numsol > 0:
                 self.result.update({'MS': MS, 'MQ': MQ, 'MR': MR, 'SoluteBalance': SoluteBalance})
 
-    def get_jacobian(self, **kwargs):
+    def get_jacobian(self, index=None, **kwargs):
         J = None
+        if index is None:
+            index = np.arange(self.N)
         self.jacobian = {}
         for isol, sol in enumerate(self._solorder):
             if 'observations' in self.solute_parameters[sol]:
                 self.jacobian[sol] = {}
-                for iflux, flux in enumerate(self._fluxorder):
+                for iflux, flux in enumerate(self._comp2learn_fluxorder):
                     if flux in self.solute_parameters[sol]['observations']:
                         MS = np.squeeze(self.result['MS'][:, :, isol])
                         ST = self.result['ST']
                         PQ = self.result['PQ'][:, :, iflux]
                         C_old = self.solute_parameters[sol]['C_old']
                         alpha = self.solute_parameters[sol]['alpha'][flux]
-                        J_seg = self.sas_blends[flux].get_jacobian(ST, MS, C_old, alpha=alpha, **kwargs)
-                        J_old = 1 - np.diag(PQ)[1:]
-                        J_old_sol = np.zeros((self._timeseries_length, self._numsol))
+                        J_seg = self.sas_blends[flux].get_jacobian(ST, MS, C_old, alpha=alpha, index=index, **kwargs)
+                        J_old = np.zeros(len(index))
+                        observed_index = index[index < self._max_age]
+                        unobserved_index = index[index >= self._max_age]
+                        J_old[:len(observed_index)] = 1 - np.diag(PQ)[1:][observed_index]
+                        J_old[len(observed_index):] = 1 - PQ[-1, unobserved_index]
+                        J_old_sol = np.zeros((len(index), self._numsol))
                         J_old_sol[:, list(self._solorder).index(sol)] = J_old
                         J_sol = np.c_[J_seg, J_old_sol]
                         if J is None:
@@ -316,7 +409,7 @@ class Model:
         ri = None
         for isol, sol in enumerate(self._solorder):
             if 'observations' in self.solute_parameters[sol]:
-                for iflux, flux in enumerate(self._fluxorder):
+                for iflux, flux in enumerate(self._comp2learn_fluxorder):
                     if flux in self.solute_parameters[sol]['observations']:
                         obs = self.solute_parameters[sol]['observations'][flux]
                         C_obs = self.data_df[obs]
@@ -334,7 +427,7 @@ class Model:
         index = None
         for isol, sol in enumerate(self._solorder):
             if 'observations' in self.solute_parameters[sol]:
-                for iflux, flux in enumerate(self._fluxorder):
+                for iflux, flux in enumerate(self._comp2learn_fluxorder):
                     if flux in self.solute_parameters[sol]['observations']:
                         obs = self.solute_parameters[sol]['observations'][flux]
                         C_obs = self.data_df[obs]

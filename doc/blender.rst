@@ -1,11 +1,10 @@
-Functions
-==========
+SAS Blenders
+============
 
-Functions will be documented here.
+Blenders will be documented here.
 
-
-mesas.sas.functions module
+mesas.sas.blender module
 ----------------------------
 
-.. automodule:: mesas.sas.functions
+.. automodule:: mesas.sas.blender
     :members:

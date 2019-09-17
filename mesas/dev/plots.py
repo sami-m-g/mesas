@@ -19,8 +19,7 @@ def plot_SAS_update(old_model, new_model, reference_model, plot_ST_max, ax1):
     ax1.plot([ST[-1, -1], ST[-1, -1]], [0, 1], 'k:')
     ax1.set_ylabel('$\Omega(S_T,t)$')
     ax1.set_xlabel('$S_T$')
-    if plot_ST_max in globals():
-        ax1.set_xlim((0, plot_ST_max))
+    ax1.set_xlim((0, plot_ST_max))
 
 
 def plot_timeseries_update(old_model, new_model, flux, sol, ax2):

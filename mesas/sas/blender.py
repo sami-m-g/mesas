@@ -63,6 +63,8 @@ class Weighted:
         self.components = OrderedDict(
             (label, Component(label, sas_fun_dict[label], weights_df[label]))
             for label in sas_fun_dict.keys())
+        self._componentorder = list(self.components.keys())
+        self._comp2learn_componentorder = self._componentorder
 
         # Trigger the method to create interpolators
         self._blend()
@@ -137,18 +139,20 @@ class Weighted:
         """
         Returns a list of the probabilities at each segment end in each component sas function
         """
-        return np.concatenate([component.sas_fun.P for label, component in self.components.items()])
+        return np.concatenate([self.components[label].sas_fun.P for label in self._comp2learn_componentorder])
 
     def get_segment_list(self):
         """
         Returns a list of the segment lengths in each component sas function
         """
-        return np.concatenate([component.sas_fun.segment_list for label, component in self.components.items()])
+        return np.concatenate(
+            [self.components[label].sas_fun.segment_list for label in self._comp2learn_componentorder])
 
     def update_from_P_list(self, P_list):
         """Modify the component sas functions using a modified P_list"""
         starti = 0
-        for label, component in self.components.items():
+        for label in self._comp2learn_componentorder:
+            component = self.components[label]
             nP = len(component.sas_fun.P)
             component.sas_fun.P = P_list[starti: starti + nP]
             starti += nP
@@ -157,7 +161,8 @@ class Weighted:
     def update_from_segment_list(self, segment_list):
         """Modify the component sas functions using a modified segment_list"""
         starti = 0
-        for label, component in self.components.items():
+        for label in self._comp2learn_componentorder:
+            component = self.components[label]
             nparams = len(component.sas_fun.segment_list)
             component.sas_fun.segment_list = segment_list[starti: starti + nparams]
             starti += nparams
@@ -173,7 +178,8 @@ class Weighted:
         """
         starti = 0
         assert len(P_list) == len(segment_list)
-        for label, component in self.components.items():
+        for label in self._comp2learn_componentorder:
+            component = self.components[label]
             nparams = nP = len(component.sas_fun.P)
             component.sas_fun.P = P_list[starti: starti + nP]
             component.sas_fun.segment_list = segment_list[starti: starti + nparams]
@@ -191,21 +197,27 @@ class Weighted:
         ax.legend(frameon=False)
         return componentlines
 
-    def get_jacobian(self, *args, **kwargs):
+    def get_jacobian(self, *args, index=None, **kwargs):
         """
         Get the jacobian of each component sas function
 
         Calls the get_jacobian method of each component sas function.
         Components are concatenated columnwise and returned as a single numpy array.
         """
-        cat_me = [component.sas_fun.get_jacobian(*args, **kwargs).T * component.weights.values
-                  for label, component in self.components.items()]
+        if index is None:
+            index = np.arange(self.N)
+        cat_me = [self.components[label].sas_fun.get_jacobian(*args, index=index, **kwargs).T *
+                  self.components[label].weights.values[index]
+                  for label in self._comp2learn_componentorder]
         return np.concatenate(cat_me, axis=0).T
 
-    def get_residual_parts(self, *args, **kwargs):
+    def get_residual_parts(self, *args, index=None, **kwargs):
         """Call the get_residual_parts function on each component sas function and concatenate the results"""
-        cat_me = [component.sas_fun.get_residual_parts(*args, **kwargs).T * component.weights.values
-                  for label, component in self.components.items()]
+        if index is None:
+            index = np.arange(self.N)
+        cat_me = [self.components[label].sas_fun.get_residual_parts(*args, index=index, **kwargs).T *
+                  self.components[label].weights.values[index]
+                  for label in self._comp2learn_componentorder]
         return np.concatenate(cat_me, axis=0).T
 
 

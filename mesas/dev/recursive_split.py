@@ -45,6 +45,8 @@ def run(model, components_to_learn=None, verbose=True, **kwargs):
     for flux in components_to_learn.keys():
         new_components[flux] = dict((label, None) for label in components_to_learn[flux])
 
+    initial_model.components_to_learn = components_to_learn
+
     index = initial_model.get_obs_index()
 
     # Fit the initial model to the observed data
@@ -61,6 +63,9 @@ def lookfor_new_components(initial_model, initial_mse, new_components, segment_d
     # This will keep track of convergence information provided by fit_model in case we want to use it for plotting
     mse_dict = {}
 
+    # These are retained in case they save us having to run the model again
+    last_accepted_model, last_accepted_mse = None, None
+
     # loop over the components we want to improve, testing whether subdividing each individually leads to
     # substantial change in the fit
     for flux in new_components.keys():
@@ -72,6 +77,7 @@ def lookfor_new_components(initial_model, initial_mse, new_components, segment_d
                 segment = segment_dict
 
             if segment < initial_model.sas_blends[flux].components[label].sas_fun.nsegment:
+                _verbose(f'Testing component {flux}, {label}')
 
                 new_model, new_mse = fit_model(initial_model.subdivided_copy(flux, label, segment), index=index,
                                                **kwargs)
@@ -81,12 +87,13 @@ def lookfor_new_components(initial_model, initial_mse, new_components, segment_d
                 # This can definitely be improved
                 _verbose(f'Initial mse = {initial_mse}')
                 _verbose(f'New mse     = {new_mse}')
-                if new_mse / initial_mse < 0.99:
-                    _verbose(f'Subdivision accepted for {flux}, {label}')
+                if (1 - new_mse / initial_mse) > 1E-8:
+                    _verbose(f'Subdivision accepted for {flux}, {label} segment {segment}')
 
                     # Add to the record of new components, and increment the counter
                     new_components[flux][label] = new_model.sas_blends[flux].components[label]
                     new_components_count += 1
+                    last_accepted_model, last_accepted_mse = new_model, new_mse
 
                 else:
                     _verbose(f'Subdivision rejected for {flux}, {label}')
@@ -97,10 +104,19 @@ def lookfor_new_components(initial_model, initial_mse, new_components, segment_d
                 # Keep a record of the mse for plotting
                 mse_dict[f'{flux}, {label}'] = new_mse
 
-    return new_model, new_mse, new_components, new_components_count, mse_dict
+    return last_accepted_model, last_accepted_mse, new_components, new_components_count, mse_dict
 
 
-def incorporate_new_components(initial_model, new_components, index=None, **kwargs):
+def incorporate_new_components(initial_model, new_components):
+    """
+    Adds components into a model from a dictionary
+
+    :param initial_model:
+    :param new_components:
+    :param index:
+    :param kwargs:
+    :return:
+    """
     new_model = initial_model.copy_without_results()
 
     for flux in new_components.keys():
@@ -109,7 +125,7 @@ def incorporate_new_components(initial_model, new_components, index=None, **kwar
             if new_components[flux][label] is not None:
                 new_model.set_component(flux, new_components[flux][label])
 
-    return fit_model(new_model, index=index, **kwargs)
+    return new_model
 
 
 def increase_resolution_scanning(initial_model, initial_mse, new_components, maxscan=100, incres_plot_fun=None,
@@ -147,7 +163,7 @@ def increase_resolution_scanning(initial_model, initial_mse, new_components, max
         for segment in range(max_segment):
             _verbose(f'Testing increased SAS resolution in segment {segment}')
 
-            new_model, new_mse, new_components, new_components_count, mse_dict = lookfor_new_components(
+            last_accepted_model, last_accepted_mse, new_components, new_components_count, mse_dict = lookfor_new_components(
                 initial_model, initial_mse,
                 new_components, check_segment_dict,
                 index=None, **kwargs)
@@ -161,8 +177,10 @@ def increase_resolution_scanning(initial_model, initial_mse, new_components, max
                 # If we found more than one new component, we need to include all of them, then re-run
                 # fit_model so that their interactions can be accounted for
                 if new_components_count > 1:
-                    new_model, new_mse = incorporate_new_components(initial_model, new_components, index=index,
-                                                                    **kwargs)
+                    new_model, new_mse = fit_model(incorporate_new_components(initial_model, new_components),
+                                                   index=index, **kwargs)
+                else:
+                    new_model, new_mse = last_accepted_model, last_accepted_mse
 
                 _verbose('New model is:')
                 _verbose(new_model)
@@ -214,7 +232,7 @@ def increase_resolution_leftfirst(initial_model, initial_mse, new_components, se
     # total number of segments. Used for plotting (actually for naming the saved figure files)
     Ns = len(initial_model.get_segment_list())
 
-    new_model, new_mse, new_components, new_components_count, mse_dict = lookfor_new_components(
+    last_accepted_model, last_accepted_mse, new_components, new_components_count, mse_dict = lookfor_new_components(
         initial_model, initial_mse,
         new_components, segment,
         index=None, **kwargs)
@@ -226,7 +244,10 @@ def increase_resolution_leftfirst(initial_model, initial_mse, new_components, se
         # If we found more than one new component, we need to include all of them, then re-run
         # fit_model so that their interactions can be accounted for
         if new_components_count > 1:
-            new_model, new_mse = incorporate_new_components(initial_model, new_components, index=index, **kwargs)
+            new_model, new_mse = fit_model(incorporate_new_components(initial_model, new_components),
+                                           index=index, **kwargs)
+        else:
+            new_model, new_mse = last_accepted_model, last_accepted_mse
 
         _verbose('New model is:')
         _verbose(new_model)
@@ -294,9 +315,16 @@ def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, **kwar
     # TODO: check that zero_segments are indeed ST_min
     non_zero_segments = segment_list > 0
     x0 = np.log(segment_list[non_zero_segments])
+    xmin = np.ones_like(x0) * (-np.inf)
+    xmax = np.ones_like(x0) * np.log(1000000.)
+    if any((x0 < xmin) | (x0 > xmax)):
+        print(np.exp(x0))
     nseg_x0 = len(x0)
     if include_C_old:
         x0 = np.r_[x0, [model.solute_parameters[sol]['C_old'] for sol in model._solorder]]
+        xmin = np.r_[xmin, [-np.inf for sol in model._solorder]]
+        xmax = np.r_[xmax, [np.inf for sol in model._solorder]]
+
 
     # Construct an index into the the columns returned by get_jacobian() that we wish to keep
     keep_jac_columns = np.ones(len(segment_list) + model._numsol) == 1
@@ -337,7 +365,8 @@ def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, **kwar
     OptimizeResult = least_squares(fun=f,
                                    x0=x0,
                                    jac=jac,
-                                   verbose=2)
+                                   verbose=2,
+                                   bounds=(xmin, xmax))
 
     xopt = OptimizeResult.x
     update_parameters(xopt)

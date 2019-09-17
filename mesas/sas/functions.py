@@ -2,14 +2,14 @@
     Module functions
     ================
     This module defines classes representing SAS functions.
-    Currently there is only one class specified: `Piecewise`. However this
+    Currently there is only one class specified: :class:`Piecewise`. However this
     is a very flexible way of specifying a function.
 
     Calling an instance of the class supplied with values of ST (as an array, list, or number) evaluates
-    the CDF, and returns corresponding cumulative probabilities. The `inv` method takes probabilities and
+    the CDF, and returns corresponding cumulative probabilities. The :func:`Piecewise.inv` method takes probabilities and
     returns values of ST.
 
-    See the class docstring for more information.
+    See the class docstring for more information..
 
 """
 import matplotlib.pyplot as plt
@@ -159,10 +159,7 @@ class Piecewise:
     @ST.setter
     def ST(self, new_ST):
         assert new_ST[0] >= 0
-        try:
-            assert np.all(np.diff(new_ST) > 0)
-        except:
-            print(new_ST)
+        assert np.all(np.diff(new_ST) > 0)
         assert len(new_ST) > 1
         self._ST = new_ST
         self.ST_min = self._ST[0]
@@ -287,8 +284,9 @@ class Piecewise:
 
         # Create an array to store the result
         Nt = ST.shape[1] - 1
+        Ni = len(index)
         Ns = self.nsegment
-        J_S = np.zeros((Nt, Ns + 1))
+        J_S = np.zeros((Ni, Ns + 1))
 
         # pull out the sas function parameters, and get some derivatives and differences
         Omegaj = self.P
@@ -297,10 +295,10 @@ class Piecewise:
         dSj = np.diff(Sj)
         omegaj = dOmegaj / dSj
 
-        # The diagonals of these represent the volume and solute mass in the system whose age is known.
+        # These represent the volume and solute mass in the system whose age is known.
         # Everything older is assumed to have concentration C_old
-        S_maxcalc = np.diag(ST)
-        M_maxcalc = np.diag(MS)
+        S_maxcalc = ST[-1, :]
+        M_maxcalc = MS[-1, :]
 
         # Get some differences along the age dimension
         dST = np.diff(ST, axis=0)
@@ -312,7 +310,7 @@ class Piecewise:
         CS[np.isnan(CS)] = 0
 
         # Loop over the times
-        for start_index in index:
+        for i, start_index in enumerate(index):
 
             # We are going to do this twice: once for the start and once for the end of each timestep
             # we will average them together at the end
@@ -357,11 +355,11 @@ class Piecewise:
                 if seg_maxcalc > 0:
 
                     # derivative w.r.t. ST_min
-                    J_S[start_index, 0] += alpha * (Csj[0] - Cpj[0]) * omegaj[0]
+                    J_S[i, 0] += alpha * (Csj[0] - Cpj[0]) * omegaj[0]
 
                     # derivative w.r.t. the endpoints that have completely full segments on both sides
                     if seg_maxcalc > 1:
-                        J_S[start_index, 1:seg_maxcalc] += alpha * (
+                        J_S[i, 1:seg_maxcalc] += alpha * (
                                 Csj[1:seg_maxcalc] * omegaj[1:seg_maxcalc]
                                 - Csj[0:seg_maxcalc - 1] * omegaj[0:seg_maxcalc - 1]
                                 - Cpj[1:seg_maxcalc] * (omegaj[1:seg_maxcalc] - omegaj[0:seg_maxcalc - 1])
@@ -372,13 +370,13 @@ class Piecewise:
                     # Is it greater than ST_min?
                     if S_maxcalc[time_index] > Sj[0]:
                         # Get the derivative w.r.t the left end of the segment
-                        J_S[start_index, seg_maxcalc] += omegaj[seg_maxcalc] * (
+                        J_S[i, seg_maxcalc] += omegaj[seg_maxcalc] * (
                                 alpha * (
                                 (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc] - Cpj[seg_maxcalc])
                                 + (C_old * (Sj[1 + seg_maxcalc] - S_maxcalc[time_index])) / dSj[seg_maxcalc]
                         )
                         # Get the derivative w.r.t the right end of the segment
-                        J_S[start_index, seg_maxcalc + 1] += omegaj[seg_maxcalc] * (
+                        J_S[i, seg_maxcalc + 1] += omegaj[seg_maxcalc] * (
                                 -alpha * (
                                 (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc])
                                 + (C_old * (S_maxcalc[time_index] - Sj[seg_maxcalc])) / dSj[seg_maxcalc]
@@ -387,7 +385,7 @@ class Piecewise:
                 else:
 
                     # Effect of varying ST_max
-                    J_S[start_index, Ns] += -alpha * (Csj[Ns - 1] - Cpj[Ns]) * omegaj[Ns - 1]
+                    J_S[i, Ns] += -alpha * (Csj[Ns - 1] - Cpj[Ns]) * omegaj[Ns - 1]
 
         # Average the start and end of the timestep
         J_S = J_S / 2
@@ -423,8 +421,9 @@ class Piecewise:
 
         # Create an array to store the result
         Nt = ST.shape[1] - 1
+        Ni = len(index)
         Ns = self.nsegment
-        r_seg_i = np.zeros((Nt, Ns))
+        r_seg_i = np.zeros((Ni, Ns))
 
         # pull out the sas function parameters, and get some derivatives and differences
         Omegaj = self.P
@@ -432,10 +431,10 @@ class Piecewise:
         dOmegaj = np.diff(Omegaj)
         dSj = np.diff(Sj)
 
-        # The diagonals of these represent the volume and solute mass in the system whose age is known.
+        # These represent the volume and solute mass in the system whose age is known.
         # Everything older is assumed to have concentration C_old
-        S_maxcalc = np.diag(ST)
-        M_maxcalc = np.diag(MS)
+        S_maxcalc = ST[-1, :]
+        M_maxcalc = MS[-1, :]
 
         # Get some differences along the age dimension
         dST = np.diff(ST, axis=0)
@@ -447,7 +446,7 @@ class Piecewise:
         CS[np.isnan(CS)] = 0
 
         # Loop over the times
-        for start_index in index:
+        for i, start_index in enumerate(index):
 
             # Pull out the observed concentration we want to compare with
             C_train_this = C_train[start_index]
@@ -480,15 +479,15 @@ class Piecewise:
 
                     # Is at least one segment completely full of water of known age?
                     if seg_maxcalc > 0:
-                        r_seg_i[start_index, :seg_maxcalc] += (alpha * Csj[:seg_maxcalc] - C_train_this) * dOmegaj[
+                        r_seg_i[i, :seg_maxcalc] += (alpha * Csj[:seg_maxcalc] - C_train_this) * dOmegaj[
                                                                                                            :seg_maxcalc]
                     # Is the maximum known ST less than ST_max?
                     if seg_maxcalc < Ns:
                         Omegam = self(S_maxcalc[time_index])
-                        r_seg_i[start_index, seg_maxcalc] += (alpha * (M_maxcalc[time_index] - Mj[seg_maxcalc])
-                                                              / (S_maxcalc[time_index] - Sj[seg_maxcalc])
-                                                              - C_train_this) \
-                                                             * (Omegam - Omegaj[seg_maxcalc])
+                        r_seg_i[i, seg_maxcalc] += (alpha * (M_maxcalc[time_index] - Mj[seg_maxcalc])
+                                                    / (S_maxcalc[time_index] - Sj[seg_maxcalc])
+                                                    - C_train_this) \
+                                                   * (Omegam - Omegaj[seg_maxcalc])
 
         # Average the start and end of the timestep
         r_seg_i = r_seg_i / 2
