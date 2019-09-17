@@ -291,7 +291,7 @@ def increase_resolution_leftfirst(initial_model, initial_mse, new_components, se
             return initial_model
 
 
-def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, **kwargs):
+def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, jacobian_mode='analytical', **kwargs):
     """
     Fit the sas function to the data using a least-squares regression optimization
 
@@ -362,11 +362,18 @@ def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, **kwar
         return new_model.get_jacobian(index=index)[:, keep_jac_columns]
 
     # use the scipy.optimize.least_square package
-    OptimizeResult = least_squares(fun=f,
-                                   x0=x0,
-                                   jac=jac,
-                                   verbose=2,
-                                   bounds=(xmin, xmax))
+    if jacobian_mode == 'analytical':
+        OptimizeResult = least_squares(fun=f,
+                                       x0=x0,
+                                       jac=jac,
+                                       verbose=2,
+                                       bounds=(xmin, xmax))
+    elif jacobian_mode == 'numerical':
+        OptimizeResult = least_squares(fun=f,
+                                       x0=x0,
+                                       verbose=2,
+                                       bounds=(xmin, xmax))
+
 
     xopt = OptimizeResult.x
     update_parameters(xopt)

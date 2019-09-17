@@ -7,6 +7,8 @@
 """
 # First we import some things
 
+import pickle
+
 # library imports
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,22 +39,26 @@ obs_name = 'Q Cl mg/l'  # mass/volume of solute outputs <-- this is the data we 
 reference_model = None
 
 csvfile = '../data/lower_hafren.csv'
-data_df = pd.read_csv(csvfile, index_col=0, header=0, parse_dates=False)  # [:1000]
+data_df = pd.read_csv(csvfile, index_col=0, header=0, parse_dates=False)[:5721]
+index = np.nonzero(np.isnan(data_df[obs_name]))[0]
+index = index[index > 2070]
+index = index[index < 5721]
+
 # Increase the input flux to account for occult precipitation
 N = len(data_df)  # The number of observations
 
 # Parameter used when plotting SAS functions. Sets the x-axis limits
-plot_ST_max = 3000
+plot_ST_max = 2000
 
 # Create a new sas model
 # Our initial guess of the shape of the sas function
 weights_df = pd.DataFrame(index=data_df.index)
 weights_df['max'] = (data_df['Q'].rank(pct=True))
 weights_df['min'] = 1 - weights_df['max']
-# sas_fun_Q_min = Piecewise(ST=[0., 10000., 20000.], P=[0, 0.5, 1.0])
-# sas_fun_Q_max = Piecewise(ST=[0, 117.8, 362.0, 1.612E+3], P=[0, 0.25, 0.5, 1.0])
-sas_fun_Q_min = Piecewise(segment_list=[0., 8000.])
-sas_fun_Q_max = Piecewise(segment_list=[0., 200.])
+sas_fun_Q_min = Piecewise(ST=[0., 1.637e+04], P=[0, 1.0])
+sas_fun_Q_max = Piecewise(ST=[0, 48.81, 122.5, 228.2, 373.1, 1.729E+3], P=[0, 0.125, 0.25, 0.375, 0.5, 1.0])
+# sas_fun_Q_min = Piecewise(segment_list=[0., 8000.])
+# sas_fun_Q_max = Piecewise(segment_list=[0., 200.])
 sas_fun_E = Piecewise(nsegment=1, ST_max=398.)
 my_sas_blends = {
     'Q': Weighted({'max': sas_fun_Q_max,
@@ -96,29 +102,42 @@ def incres_plot_fun(old_model, new_model, mse_dict, Ns, segment):
     '''
     fig1 = plt.figure(figsize=[16, 8])
     #
-    ax1 = plt.subplot2grid((3, 4), (0, 0), rowspan=3, colspan=2)
+    ax1 = plt.subplot2grid((3, 4), (0, 0), rowspan=2, colspan=4)
     plots.plot_SAS_update(old_model, new_model, reference_model, plot_ST_max, ax1)
     #
-    ax2 = plt.subplot2grid((3, 4), (0, 2), colspan=2)
+    ax2 = plt.subplot2grid((3, 4), (2, 0), colspan=4)
     plots.plot_timeseries_update(old_model, new_model, outflux_name, sol_name, ax2)
     #
     # ax3 = plt.subplot2grid((3, 4), (2, 2), colspan=2)
     # plots.plot_MSE_improvement(mse_dict, ax3)
-    C_train = old_model.data_df[obs_name]
-    vartrain = np.nanvar(C_train)
+    # C_train = old_model.data_df[obs_name]
+    # vartrain = np.nanvar(C_train)
     # ax3.set_ylim((vartrain / 100000., vartrain * 3))
     #
-    ax4 = plt.subplot2grid((3, 4), (1, 2), colspan=2)
-    plots.plot_residuals_timeseries(old_model, new_model, outflux_name, sol_name, ax4)
-    ax4.set_ylim((vartrain / 100000., vartrain * 3))
+    # ax4 = plt.subplot2grid((3, 4), (1, 2), colspan=2)
+    # plots.plot_residuals_timeseries(old_model, new_model, outflux_name, sol_name, ax4)
+    #ax4.set_ylim((vartrain / 100000., vartrain * 3))
     #
     plt.show()
     plt.tight_layout()
-    figname = f'../junk/plots/LH_{Ns}_{segment}.png'
+    figname = f'../junk/plots/LH_cal_{Ns}_{segment}.png'
     plt.savefig(figname)
+    with open('../junk/LH_{Ns}_{segment}.pickle', 'wb') as f:
+        pickle.dump(new_model, f, pickle.HIGHEST_PROTOCOL)
 
 
 # Run the recursive_split algorithm
-rs_model = recursive_split(mymodel,
-                           incres_plot_fun=incres_plot_fun,
-                           components_to_learn={'Q': ['max', 'min']})
+rs1_model = recursive_split(mymodel,
+                            incres_plot_fun=incres_plot_fun,
+                            components_to_learn={'Q': ['max', 'min']})
+
+rs1_model.results = None
+with open('LH_rs1.pickle', 'wb') as f:
+    pickle.dump(rs1_model, f, pickle.HIGHEST_PROTOCOL)
+
+rs2_model = recursive_split(rs1_model,
+                            incres_plot_fun=incres_plot_fun,
+                            jacobian_mode='numerical',
+                            components_to_learn={'Q': ['max', 'min'], 'ET': ['Fixed']})
+with open('LH_rs2.pickle', 'wb') as f:
+    pickle.dump(rs2_model, f, pickle.HIGHEST_PROTOCOL)
