@@ -13,6 +13,8 @@
 """
 # First we import some things
 
+import pickle
+
 # library imports
 import matplotlib.pyplot as plt
 import numpy as np
@@ -190,6 +192,8 @@ def incres_plot_fun(old_model, new_model, mse_dict, Ns, segment):
     plt.tight_layout()
     figname = f'../junk/plots/synth_{Ns}_{segment}.png'
     plt.savefig(figname)
+    with open(f'../junk/synth_{Ns}_{segment}.pickle', 'wb') as f:
+        pickle.dump(new_model.copy_without_results(), f, pickle.HIGHEST_PROTOCOL)
 
 
 # Run the recursive_split algorithm

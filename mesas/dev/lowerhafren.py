@@ -122,7 +122,7 @@ def incres_plot_fun(old_model, new_model, mse_dict, Ns, segment):
     plt.tight_layout()
     figname = f'../junk/plots/LH_cal_{Ns}_{segment}.png'
     plt.savefig(figname)
-    with open('../junk/LH_{Ns}_{segment}.pickle', 'wb') as f:
+    with open(f'../junk/LH_{Ns}_{segment}.pickle', 'wb') as f:
         pickle.dump(new_model, f, pickle.HIGHEST_PROTOCOL)
 
 

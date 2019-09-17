@@ -187,7 +187,7 @@ class Model:
     def sas_blends(self, new_sas_blends):
         self._sas_blends = new_sas_blends
         self._numflux = len(self._sas_blends)
-        self._fluxorder = self._sas_blends.keys()
+        self._fluxorder = list(self._sas_blends.keys())
 
     def set_sas_blend(self, flux, sas_blend):
         self._sas_blends[flux] = sas_blend
@@ -288,7 +288,7 @@ class Model:
                 self._solute_parameters[sol] = deepcopy(self._default_parameters)
                 self.set_solute_parameters(sol, params)
             self._numsol = len(self._solute_parameters)
-            self._solorder = self._solute_parameters.keys()
+            self._solorder = list(self._solute_parameters.keys())
         else:
             self._numsol = 0
 

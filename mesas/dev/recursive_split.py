@@ -12,7 +12,7 @@ def _verbose(string):
         print(string)
 
 
-def run(model, components_to_learn=None, verbose=True, **kwargs):
+def run(model, verbose=True, **kwargs):
     """
     Estimates a SAS function that reproduces observations using a piecewise constant pdf
 
@@ -39,13 +39,9 @@ def run(model, components_to_learn=None, verbose=True, **kwargs):
     # NOTE: a component is an object that packages together a sas function and a timeseries of its weight
     # along with a label identifying it. It allows us to specify a time-varying SAS function as a
     # weighted sum of fixed SAS functions
-    if components_to_learn is None:
-        components_to_learn = model.get_component_labels()
     new_components = {}
-    for flux in components_to_learn.keys():
-        new_components[flux] = dict((label, None) for label in components_to_learn[flux])
-
-    initial_model.components_to_learn = components_to_learn
+    for flux in initial_model.components_to_learn.keys():
+        new_components[flux] = dict((label, None) for label in initial_model.components_to_learn[flux])
 
     index = initial_model.get_obs_index()
 
