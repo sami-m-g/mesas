@@ -190,12 +190,21 @@ def incres_plot_fun(old_model, new_model, mse_dict, Ns, segment):
     #
     plt.show()
     plt.tight_layout()
-    figname = f'../junk/plots/synth_{Ns}_{segment}.png'
+    figname = f'../junk/plots/synth_{mode}_{Ns}_{segment}.png'
     plt.savefig(figname)
-    with open(f'../junk/synth_{Ns}_{segment}.pickle', 'wb') as f:
+    with open(f'../junk/synth_{mode}_{Ns}_{segment}.pickle', 'wb') as f:
         pickle.dump(new_model.copy_without_results(), f, pickle.HIGHEST_PROTOCOL)
 
 
+
 # Run the recursive_split algorithm
-rs_model = recursive_split(mymodel,
+mode = 'analytical'
+rs1_model = recursive_split(mymodel,
+                            jacobian_mode=mode,
+                            incres_plot_fun=incres_plot_fun)
+
+mode = 'numerical'
+print('\n\nStarting numerical jacobian\n\n')
+rs2_model = recursive_split(rs1_model,
+                            jacobian_mode=mode,
                            incres_plot_fun=incres_plot_fun)

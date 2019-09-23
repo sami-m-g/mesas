@@ -53,7 +53,8 @@ def run(model, verbose=True, **kwargs):
                                         index=index, **kwargs)
 
 
-def lookfor_new_components(initial_model, initial_mse, new_components, segment_dict, index=None, **kwargs):
+def lookfor_new_components(initial_model, initial_mse, new_components, segment_dict, split_tolerance=1E-8, index=None,
+                           **kwargs):
     # This keeps track of how many new components we found
     new_components_count = 0
     # This will keep track of convergence information provided by fit_model in case we want to use it for plotting
@@ -83,7 +84,7 @@ def lookfor_new_components(initial_model, initial_mse, new_components, segment_d
                 # This can definitely be improved
                 _verbose(f'Initial mse = {initial_mse}')
                 _verbose(f'New mse     = {new_mse}')
-                if (1 - new_mse / initial_mse) > 1E-8:
+                if (1 - new_mse / initial_mse) > split_tolerance:
                     _verbose(f'Subdivision accepted for {flux}, {label} segment {segment}')
 
                     # Add to the record of new components, and increment the counter
@@ -202,7 +203,7 @@ def increase_resolution_scanning(initial_model, initial_mse, new_components, max
             _verbose(f'Scan {scan + 1} complete')
         else:
             # If not, we are done. Return the model we've found,
-            _verbose('Finished increasing old_model resolution')
+            _verbose('Finished increasing model resolution')
             return new_model
 
     _verbose(f'Maximum number of scans reached ({maxscan})')
@@ -283,7 +284,7 @@ def increase_resolution_leftfirst(initial_model, initial_mse, new_components, se
         else:
 
             # If not, we are done. Return the model we've found,
-            _verbose('Finished increasing old_model resolution')
+            _verbose('Finished increasing model resolution')
             return initial_model
 
 
@@ -311,7 +312,7 @@ def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, jacobi
     # TODO: check that zero_segments are indeed ST_min
     non_zero_segments = segment_list > 0
     x0 = np.log(segment_list[non_zero_segments])
-    xmin = np.ones_like(x0) * (-np.inf)
+    xmin = np.ones_like(x0) * np.log(1 / 1000000.)
     xmax = np.ones_like(x0) * np.log(1000000.)
     if any((x0 < xmin) | (x0 > xmax)):
         print(np.exp(x0))

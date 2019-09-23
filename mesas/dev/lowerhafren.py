@@ -81,12 +81,13 @@ mymodel = Model(
     data_df=data_df,
     sas_blends=my_sas_blends,
     solute_parameters=solute_parameters,
+    components_to_learn={'Q': ['max', 'min']},
     n_substeps=4,  # substeps increase numerical accuracy
     verbose=False,  # print information about calculation progress
     debug=False,  # print (lots of) information
     full_outputs=True,  # calculate and return mass balance information (slow)
     influx='J',  # label of the water influx data in data_df
-    max_age=365 * 7  # this limits the memory of the past retained in the model, but reduces computational load
+    max_age=365 * 1  # this limits the memory of the past retained in the model, but reduces computational load
 )
 
 
@@ -120,24 +121,32 @@ def incres_plot_fun(old_model, new_model, mse_dict, Ns, segment):
     #
     plt.show()
     plt.tight_layout()
-    figname = f'../junk/plots/LH_cal_{Ns}_{segment}.png'
+    figname = f'../junk/plots/LH_{mode}_{Ns}_{segment}.png'
     plt.savefig(figname)
-    with open(f'../junk/LH_{Ns}_{segment}.pickle', 'wb') as f:
-        pickle.dump(new_model, f, pickle.HIGHEST_PROTOCOL)
+    with open(f'../junk/LH_{mode}_{Ns}_{segment}.pickle', 'wb') as f:
+        pickle.dump(new_model.copy_without_results(), f, pickle.HIGHEST_PROTOCOL)
 
 
-# Run the recursive_split algorithm
-rs1_model = recursive_split(mymodel,
-                            incres_plot_fun=incres_plot_fun,
-                            components_to_learn={'Q': ['max', 'min']})
+## Run the recursive_split algorithm
+# mode = 'analytical'
+# rs1_model = recursive_split(mymodel,
+# incres_plot_fun=incres_plot_fun,
+# jacobian_mode=mode,
+# )
+#
+# rs1_model.results = None
+# with open('LH_rs1.pickle', 'wb') as f:
+# pickle.dump(rs1_model, f, pickle.HIGHEST_PROTOCOL)
+with open('LH_rs1.pickle', 'rb') as f:
+    rs1_model = pickle.load(f)
 
-rs1_model.results = None
-with open('LH_rs1.pickle', 'wb') as f:
-    pickle.dump(rs1_model, f, pickle.HIGHEST_PROTOCOL)
-
+rs1_model.options = {'max_age': 365 * 10}
+rs1_model.components_to_learn = {'Q': ['max', 'min'], 'ET': ['Fixed']}
+mode = 'numerical'
 rs2_model = recursive_split(rs1_model,
                             incres_plot_fun=incres_plot_fun,
-                            jacobian_mode='numerical',
+                            jacobian_mode=mode,
                             components_to_learn={'Q': ['max', 'min'], 'ET': ['Fixed']})
+
 with open('LH_rs2.pickle', 'wb') as f:
     pickle.dump(rs2_model, f, pickle.HIGHEST_PROTOCOL)
