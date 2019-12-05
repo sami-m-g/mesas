@@ -26,17 +26,20 @@ class Model:
 
     def __init__(self, data_df, sas_blends, solute_parameters=None, components_to_learn=None, **kwargs):
         # defaults
-        self.result = None
+        self._result = None
         self.jacobian = {}
         self._default_options = {
             'dt': 1,
             'verbose': False,
             'debug': False,
+            'warning': True,
             'full_outputs': True,
             'n_substeps': 1,
             'max_age': None,
             'ST_init': None,
             'influx': 'J',
+            'ST_smallest_segment': 1./100,
+            'ST_largest_segment': 1000000.,
         }
         self._options = self._default_options
         # do input Checking
@@ -60,10 +63,10 @@ class Model:
 
     def __repr__(self):
         """Creates a repr for the model"""
-        repr = '\n'
+        repr = ''
         for flux, sas_blend in self.sas_blends.items():
+            repr += f'flux = {flux}\n'
             repr += sas_blend.__repr__()
-            repr += '' + '\n'
         return repr
 
     def copy_without_results(self):
@@ -93,7 +96,7 @@ class Model:
         return new_model
 
     @property
-    def results(self):
+    def result(self):
         """Results of running the sas model with the current parameters
 
         Returns a dict with the following keys:
@@ -125,14 +128,14 @@ class Model:
         (n+1) x (m+1), with the first row representing age T = 0 and the first
         column derived from the initial condition.
         """
-        if self._results is None:
+        if self._result is None:
             raise AttributeError(
                 "results are only defined once the model is run. Use .run() method to generate results ")
         else:
-            return self._results
+            return self._result
 
-    @results.setter
-    def results(self, results):
+    @result.setter
+    def result(self, result):
         raise AttributeError("Model results are read-only. Use .run() method to generate results ")
 
     @property
@@ -156,11 +159,14 @@ class Model:
             'dt': 1
             'verbose': False
             'debug': False
+            'warning': True
             'full_outputs': True
             'n_substeps': 1
             'max_age': None
             'ST_init': None
             'influx': 'J'
+            'ST_smallest_segment': 1./100
+            'ST_largest_segment': 1000000.
         """
         return self._options
 
@@ -191,16 +197,16 @@ class Model:
 
     def set_sas_blend(self, flux, sas_blend):
         self._sas_blends[flux] = sas_blend
-        self._sas_blends[flux]._blend()
+        self._sas_blends[flux].blend()
 
     def set_component(self, flux, component):
         label = component.label
         self._sas_blends[flux].components[label] = component
-        self._sas_blends[flux]._blend()
+        self._sas_blends[flux].blend()
 
     def set_sas_fun(self, flux, label, sas_fun):
         self._sas_blends[flux].components[label].sas_fun = sas_fun
-        self._sas_blends[flux]._blend()
+        self._sas_blends[flux].blend()
 
     def get_component_labels(self):
         component_labels = {}
@@ -353,6 +359,7 @@ class Model:
         dt = self.options['dt']
         verbose = self.options['verbose']
         debug = self.options['debug']
+        warning = self.options['warning']
         full_outputs = self.options['full_outputs']
         n_substeps = self.options['n_substeps']
         max_age = self.options['max_age']
@@ -360,17 +367,19 @@ class Model:
         # call the Fortran code
         fresult = f_solve(
             J, Q, SAS_lookup, P_list, ST_init, dt,
-            verbose, debug, full_outputs,
+            verbose, debug, warning, full_outputs,
             CS_init, C_J, alpha, k1, C_eq, C_old,
             n_substeps, nP_list, numflux, numsol, max_age, timeseries_length, nP_total)
         ST, PQ, WaterBalance, MS, MQ, MR, C_Q, SoluteBalance = fresult
 
         if numsol > 0:
-            self.result = {'C_Q': C_Q}
+            self._result = {'C_Q': C_Q}
+        else:
+            self._result = {}
         if full_outputs:
-            self.result.update({'ST': ST, 'PQ': PQ, 'WaterBalance': WaterBalance})
+            self._result.update({'ST': ST, 'PQ': PQ, 'WaterBalance': WaterBalance})
             if numsol > 0:
-                self.result.update({'MS': MS, 'MQ': MQ, 'MR': MR, 'SoluteBalance': SoluteBalance})
+                self._result.update({'MS': MS, 'MQ': MQ, 'MR': MR, 'SoluteBalance': SoluteBalance})
 
     def get_jacobian(self, index=None, **kwargs):
         J = None

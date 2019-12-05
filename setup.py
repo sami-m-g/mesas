@@ -18,10 +18,10 @@ config = {
     'download_url': '',
     'author_email': 'charman1@jhu.edu',
     'version': '0.11',
-    'packages': ['mesas', 'mesas.sas', 'mesas.estimation', 'mesas.utils'],
+    'packages': ['mesas', 'mesas.sas', 'mesas.me', 'mesas.utils'],
     'package_dir': {'mesas': 'mesas',
                     'mesas.sas': util.convert_path('mesas/sas'),
-                    'mesas.estimation': util.convert_path('mesas/estimation'),
+                    'mesas.me': util.convert_path('mesas/me'),
                     'mesas.utils': util.convert_path('mesas/utils')
                     },
     'scripts': [],

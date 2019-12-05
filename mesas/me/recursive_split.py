@@ -2,17 +2,19 @@ import inspect
 
 import numpy as np
 from scipy.optimize import least_squares
+from sklearn.model_selection import KFold
 
 VERBOSE = True
 
+ITERATION = None
 
-def _verbose(string):
+def _verbose(string, **kwargs):
     """prints progress updates"""
     if VERBOSE:
-        print(string)
+        print(string, **kwargs)
 
 
-def run(model, verbose=True, **kwargs):
+def run(model, verbose=True, search_mode='leftfirst', **kwargs):
     """
     Estimates a SAS function that reproduces observations using a piecewise constant pdf
 
@@ -32,7 +34,7 @@ def run(model, verbose=True, **kwargs):
     initial_model = model.copy_without_results()
 
     _verbose('Initial model is:')
-    _verbose(initial_model.sas_blends)
+    _verbose(model)
 
     # Create a dictionary that will hold new components (sas functions) as we find them.
     # It will also serve to keep track of which components to keep subdividing (if there is more than 1
@@ -46,14 +48,28 @@ def run(model, verbose=True, **kwargs):
     index = initial_model.get_obs_index()
 
     # Fit the initial model to the observed data
-    better_initial_model, better_initial_mse = fit_model(initial_model, index=index, **kwargs)
+    _verbose('-- Refining the initial model. ', end='')
+    better_initial_model, _ = fit_model(initial_model, index=index, **kwargs)
+
+    better_initial_mse = cross_validation_mse(better_initial_model, index=index, **kwargs)
+
+    kwargs['incres_fun'](better_initial_model, 'initial')
 
     # run the algorithm
-    return increase_resolution_scanning(better_initial_model, better_initial_mse, new_components, segment=0,
-                                        index=index, **kwargs)
+    global ITERATION
+    ITERATION= 0
+    if search_mode=='scanning':
+        return increase_resolution_scanning(better_initial_model, better_initial_mse, new_components, segment=0,
+                                            index=index, **kwargs)
+    elif search_mode=='leftfirst':
+        return increase_resolution_leftfirst(better_initial_model, better_initial_mse, new_components, segment=0,
+                                             index=index, **kwargs)
+    else:
+        print('Never be here')
 
 
-def lookfor_new_components(initial_model, initial_mse, new_components, segment_dict, split_tolerance=1E-8, index=None,
+
+def lookfor_new_components(initial_model, initial_mse, new_components, segment_dict, id_str, incres_fun=None, index=None,
                            **kwargs):
     # This keeps track of how many new components we found
     new_components_count = 0
@@ -73,18 +89,39 @@ def lookfor_new_components(initial_model, initial_mse, new_components, segment_d
             else:
                 segment = segment_dict
 
-            if segment < initial_model.sas_blends[flux].components[label].sas_fun.nsegment:
-                _verbose(f'Testing component {flux}, {label}')
+            nsegment = initial_model.sas_blends[flux].components[label].sas_fun.nsegment
+            if segment < nsegment:
+                _verbose(f'Subdividing {flux} {label} segment {segment}')
 
-                new_model, new_mse = fit_model(initial_model.subdivided_copy(flux, label, segment), index=index,
-                                               **kwargs)
+                new_model = initial_model.subdivided_copy(flux, label, segment)
+                segment_list = new_model.get_segment_list()
+                if np.any(segment_list[segment_list > 0] < new_model.options['ST_smallest_segment']):
+                    _verbose("New segment too small! Try reducing model.options['ST_smallest_segment']")
+                    subdivision_accepted = False
+                    new_mse = None
+                else:
+                    _verbose('-- Initial fit of the candidate model ', end='')
+                    new_model, new_mse = fit_model(new_model, index=index, **kwargs)
 
-                # The current criteria used for deciding whether to accept the subdivision is simple:
-                # Just check whether the model improvement is greater than some threshold
-                # This can definitely be improved
-                _verbose(f'Initial mse = {initial_mse}')
-                _verbose(f'New mse     = {new_mse}')
-                if (1 - new_mse / initial_mse) > split_tolerance:
+                    # The current criteria used for deciding whether to accept the subdivision is simple:
+                    # Just check whether the model improvement is greater than some threshold
+                    # This can definitely be improved
+                    # subdivision_accepted = (1 - new_mse / initial_mse) > split_tolerance
+
+                    # Use k-fold cross validation to see if the split leads to an improvement in the model
+                    new_mse = cross_validation_mse(new_model, index=index, **kwargs)
+                    _verbose('Candidate model = ')
+                    _verbose(new_model)
+                    subdivision_accepted = new_mse < initial_mse
+
+                    _verbose(f'Initial mse = {initial_mse}')
+                    _verbose(f'Candidate mse     = {new_mse}')
+                    # Optionally, make some plots
+                    if incres_fun is not None:
+                        incres_fun(new_model, f'{id_str}_{flux}_{label}_{nsegment}_{segment}_{subdivision_accepted}')
+
+                # accept or reject the subdivision
+                if subdivision_accepted:
                     _verbose(f'Subdivision accepted for {flux}, {label} segment {segment}')
 
                     # Add to the record of new components, and increment the counter
@@ -125,8 +162,8 @@ def incorporate_new_components(initial_model, new_components):
     return new_model
 
 
-def increase_resolution_scanning(initial_model, initial_mse, new_components, maxscan=100, incres_plot_fun=None,
-                                 index=None,
+def increase_resolution_scanning(initial_model, initial_mse, new_components, maxscan=100,
+                                 index=None, incres_fun=None,
                                  **kwargs):
     """Increases sas function resolution by splitting a piecewise linear segment (scanning method)
 
@@ -134,7 +171,6 @@ def increase_resolution_scanning(initial_model, initial_mse, new_components, max
     :param initial_mse: How well it currently fits the data
     :param new_components: A dict that keeps track of which components we are trying to refine
     :param segment: The index of the segment we are currently refining
-    :param incres_plot_fun: An optional function that can produce some plots along the way
     :param kwargs: Additional arguments to be passed to the fit_model function
     :return:
     """
@@ -163,6 +199,7 @@ def increase_resolution_scanning(initial_model, initial_mse, new_components, max
             last_accepted_model, last_accepted_mse, new_components, new_components_count, mse_dict = lookfor_new_components(
                 initial_model, initial_mse,
                 new_components, check_segment_dict,
+                id_str=f'scan_{scan}', incres_fun=incres_fun,
                 index=None, **kwargs)
 
             # if we accepted refined components we want to add them into the model
@@ -174,17 +211,20 @@ def increase_resolution_scanning(initial_model, initial_mse, new_components, max
                 # If we found more than one new component, we need to include all of them, then re-run
                 # fit_model so that their interactions can be accounted for
                 if new_components_count > 1:
-                    new_model, new_mse = fit_model(incorporate_new_components(initial_model, new_components),
-                                                   index=index, **kwargs)
+                    _verbose('-- Combining and fitting ', end='')
+                    new_model, _ = fit_model(incorporate_new_components(initial_model, new_components),
+                                             index=index, **kwargs)
+                    new_mse = cross_validation_mse(new_model, index=index, **kwargs)
+
                 else:
                     new_model, new_mse = last_accepted_model, last_accepted_mse
 
+                # Optionally, make some plots
+                if incres_fun is not None:
+                    incres_fun(new_model, f'scan_{scan}_all_components_{max_segment}_{segment}')
+
                 _verbose('New model is:')
                 _verbose(new_model)
-
-                # Optionally, make some plots
-                if incres_plot_fun is not None:
-                    incres_plot_fun(initial_model, new_model, mse_dict, scan, segment)
 
                 initial_model = new_model
                 initial_mse = new_mse
@@ -210,20 +250,23 @@ def increase_resolution_scanning(initial_model, initial_mse, new_components, max
     return new_model
 
 
-def increase_resolution_leftfirst(initial_model, initial_mse, new_components, segment, incres_plot_fun=None, index=None,
-                        **kwargs):
+def increase_resolution_leftfirst(initial_model, initial_mse, new_components, segment, incres_fun=None, index=None,
+                                  **kwargs):
     """Increases sas function resolution by splitting a piecewise linear segment (left-first method)
 
     :param initial_model: The model we want to try increasing the resolution of
     :param initial_mse: How well it currently fits the data
     :param new_components: A dict that keeps track of which components we are trying to refine
     :param segment: The index of the segment we are currently refining
-    :param incres_plot_fun: An optional function that can produce some plots along the way
+    :param incres_fun: An optional function that can produce some plots along the way
     :param kwargs: Additional arguments to be passed to the fit_model function
     :return:
     """
 
-    _verbose(f'\n***********************\nStarting {inspect.stack()[0][3]}')
+    global ITERATION
+    ITERATION +=1
+
+    _verbose(f'\n***********************\nStarting {inspect.stack()[0][3]} iteration {ITERATION}')
     _verbose(f'Testing increased SAS resolution in segment {segment}')
 
     # total number of segments. Used for plotting (actually for naming the saved figure files)
@@ -232,6 +275,7 @@ def increase_resolution_leftfirst(initial_model, initial_mse, new_components, se
     last_accepted_model, last_accepted_mse, new_components, new_components_count, mse_dict = lookfor_new_components(
         initial_model, initial_mse,
         new_components, segment,
+        id_str=f'iteration_{ITERATION}', incres_fun=incres_fun,
         index=None, **kwargs)
 
     # if we accepted refined components we want to add them into the model
@@ -241,21 +285,25 @@ def increase_resolution_leftfirst(initial_model, initial_mse, new_components, se
         # If we found more than one new component, we need to include all of them, then re-run
         # fit_model so that their interactions can be accounted for
         if new_components_count > 1:
-            new_model, new_mse = fit_model(incorporate_new_components(initial_model, new_components),
-                                           index=index, **kwargs)
+            _verbose('-- Combining and fitting ', end='')
+            new_model, _ = fit_model(incorporate_new_components(initial_model, new_components),
+                                     index=index, **kwargs)
+            new_mse = cross_validation_mse(new_model, index=index, **kwargs)
+
         else:
             new_model, new_mse = last_accepted_model, last_accepted_mse
+
+        # Optionally, make some plots
+        if incres_fun is not None:
+            incres_fun(new_model, f'iteration_{ITERATION}_all_components')
 
         _verbose('New model is:')
         _verbose(new_model)
 
-        # Optionally, make some plots
-        if incres_plot_fun is not None:
-            incres_plot_fun(initial_model, new_model, mse_dict, Ns, segment)
 
         # Recursively try subdividing the first of the two new segments
         return increase_resolution_leftfirst(new_model, new_mse, new_components, segment,
-                                             incres_plot_fun=incres_plot_fun, index=index, **kwargs)
+                                             incres_fun=incres_fun, index=index, **kwargs)
 
     # If we didn't accept any new subdivisions, we need to move on
     else:
@@ -280,7 +328,7 @@ def increase_resolution_leftfirst(initial_model, initial_mse, new_components, se
             # If so, recursively call this function on the next segment
             _verbose(f'Moving to segment {segment + 1}')
             return increase_resolution_leftfirst(initial_model, initial_mse, new_components, segment + 1,
-                                                 incres_plot_fun=incres_plot_fun, index=index, **kwargs)
+                                                 incres_fun=incres_fun, index=index, **kwargs)
         else:
 
             # If not, we are done. Return the model we've found,
@@ -288,17 +336,19 @@ def increase_resolution_leftfirst(initial_model, initial_mse, new_components, se
             return initial_model
 
 
-def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, jacobian_mode='analytical', **kwargs):
+def fit_model(model, include_C_old=True, learn_fun=None, index=None, jacobian_mode='analytical', **kwargs):
     """
     Fit the sas function to the data using a least-squares regression optimization
 
     :param model:
     :param include_C_old:
-    :param learn_plot_fun:
+    :param learn_fun:
     :param index:
     :param kwargs:
     :return:
     """
+
+    _verbose('Fitting...', end='')
 
     if index is None:
         index = model.get_obs_index()
@@ -306,37 +356,45 @@ def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, jacobi
     new_model = model.copy_without_results()
 
     # Use the current values as the initial estimate
-    segment_list = model.get_segment_list()
+    segment_list = new_model.get_segment_list()
     # Assume that any segments of zero length are the first segment
     # and exclude these from the estimate of x0
     # TODO: check that zero_segments are indeed ST_min
     non_zero_segments = segment_list > 0
     x0 = np.log(segment_list[non_zero_segments])
-    xmin = np.ones_like(x0) * np.log(1 / 1000000.)
-    xmax = np.ones_like(x0) * np.log(1000000.)
+    xmin = np.ones_like(x0) * np.log(new_model.options['ST_smallest_segment'])
+    xmax = np.ones_like(x0) * np.log(new_model.options['ST_largest_segment'])
     if any((x0 < xmin) | (x0 > xmax)):
-        print(np.exp(x0))
+        print(f'A segment size is out of bounds: {np.exp(x0)}')
     nseg_x0 = len(x0)
     if include_C_old:
-        x0 = np.r_[x0, [model.solute_parameters[sol]['C_old'] for sol in model._solorder]]
-        xmin = np.r_[xmin, [-np.inf for sol in model._solorder]]
-        xmax = np.r_[xmax, [np.inf for sol in model._solorder]]
-
+        x0 = np.r_[x0, [new_model.solute_parameters[sol]['C_old'] for sol in new_model._solorder]]
+        xmin = np.r_[xmin, [-np.inf for sol in new_model._solorder]]
+        xmax = np.r_[xmax, [np.inf for sol in new_model._solorder]]
 
     # Construct an index into the the columns returned by get_jacobian() that we wish to keep
-    keep_jac_columns = np.ones(len(segment_list) + model._numsol) == 1
+    keep_jac_columns = np.ones(len(segment_list) + new_model._numsol) == 1
     keep_jac_columns[:len(segment_list)] = non_zero_segments
+
+    new_model.x_prev = None
 
     def update_parameters(x):
 
-        new_segment_list = np.zeros_like(segment_list)
-        new_segment_list[non_zero_segments] = np.exp(x[:nseg_x0])
-        new_model.update_from_segment_list(new_segment_list)
+        if new_model.x_prev is not None and np.all(x == new_model.x_prev):
+            return False
 
-        # optionally update the C_old parameter
-        if include_C_old:
-            for isol, sol in enumerate(model._solorder):
-                new_model.solute_parameters[sol]['C_old'] = x[-model._numsol + isol]
+        else:
+            #_verbose(x)
+            new_segment_list = np.zeros_like(segment_list)
+            new_segment_list[non_zero_segments] = np.exp(x[:nseg_x0])
+            new_model.update_from_segment_list(new_segment_list)
+
+            # optionally update the C_old parameter
+            if include_C_old:
+                for isol, sol in enumerate(new_model._solorder):
+                    new_model.solute_parameters[sol]['C_old'] = x[-new_model._numsol + isol]
+            new_model.x_prev = x
+            return True
 
     def f(x):
         """return residuals given parameters x"""
@@ -345,36 +403,59 @@ def fit_model(model, include_C_old=True, learn_plot_fun=None, index=None, jacobi
         new_model.run()
 
         # optionally do some plotting
-        if learn_plot_fun is not None:
-            learn_plot_fun(new_model)
+        if learn_fun is not None:
+            learn_fun(new_model)
 
-        return new_model.get_residuals()[index]
+        residuals = new_model.get_residuals()[index]
+        return residuals
 
     def jac(x):
         """return the jacobian given parameters x"""
 
-        update_parameters(x)
-        new_model.run()
+        if update_parameters(x):
+            new_model.run()
 
-        return new_model.get_jacobian(index=index)[:, keep_jac_columns]
+        jacobian = new_model.get_jacobian(index=index)[:, keep_jac_columns]
+        return jacobian
 
     # use the scipy.optimize.least_square package
     if jacobian_mode == 'analytical':
         OptimizeResult = least_squares(fun=f,
                                        x0=x0,
                                        jac=jac,
-                                       verbose=2,
+                                       verbose=0,
                                        bounds=(xmin, xmax))
     elif jacobian_mode == 'numerical':
         OptimizeResult = least_squares(fun=f,
                                        x0=x0,
-                                       verbose=2,
+                                       verbose=0,
                                        bounds=(xmin, xmax))
-
 
     xopt = OptimizeResult.x
     update_parameters(xopt)
     new_mse = np.mean(OptimizeResult.fun ** 2)
+    new_model.mse = new_mse
 
+    _verbose('done.')
     return new_model, new_mse
 
+
+def cross_validation_mse(model, index=None, **kwargs):
+    if index is None:
+        index = model.get_obs_index()
+    n_splits = 5
+    kf = KFold(n_splits=n_splits)
+    mse_cv_list = []
+    _verbose('Getting mse from k-fold cross validation')
+    iter = 0
+    for train, test in kf.split(index):
+        iter +=1
+        _verbose(f'-- iteration {iter} of {n_splits} ', end='')
+        new_model_cv, _ = fit_model(model, index=index[train], **kwargs)
+        mse_cv_list.append(np.mean(new_model_cv.get_residuals()[index[test]]**2))
+    _verbose(f'    mse_cv = {mse_cv_list}')
+    #mse_cv_list.remove(max(mse_cv_list))
+    #mse_cv_list.remove(min(mse_cv_list))
+    mse_cv = np.mean(np.sqrt(mse_cv_list))**2
+    model.mse_cv = mse_cv
+    return mse_cv

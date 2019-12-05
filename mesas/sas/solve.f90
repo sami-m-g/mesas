@@ -1,6 +1,6 @@
 ! -*- f90 -*-
 subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, STcum_init_ts, dt, &
-        verbose, debug, full_outputs, &
+        verbose, debug, warning, full_outputs, &
         CS_init_ts, C_J_ts, alpha_ts, k1_ts, C_eq_ts, C_old, &
         n_substeps, numflux, numsol, max_age, &
         timeseries_length, nP_list, nP_total, &
@@ -17,7 +17,7 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, STcum_init_ts, dt, &
     real(8), intent(in), dimension(0:nP_total - 1, 0:timeseries_length - 1) :: P_list
     real(8), intent(in), dimension(0:max_age) :: STcum_init_ts
     real(8), intent(in) :: dt
-    logical, intent(in) :: verbose, debug, full_outputs
+    logical, intent(in) :: verbose, debug, warning, full_outputs
     real(8), intent(in), dimension(0:max_age - 1, 0:numsol - 1) :: CS_init_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: C_J_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) &
@@ -383,6 +383,16 @@ contains
     end subroutine f_debug
 
 
+    subroutine f_warning(debugstring)
+        ! Prints informative information
+        implicit none
+        character(len = *), intent(in) :: debugstring
+        if (warning) then
+            print *, debugstring
+        endif
+    end subroutine f_warning
+
+
     subroutine f_verbose(debugstring)
         ! Prints informative information
         implicit none
@@ -408,6 +418,8 @@ contains
         do j = 0, n - 1
             if (x(j).le.xa(0)) then
                 y(j) = ya(0)
+            else if (x(j).ge.xa(na - 1)) then
+                y(j) = ya(na - 1)
             else
                 foundit = .FALSE.
                 do i = i0, na - 1
@@ -549,6 +561,9 @@ contains
         enddo
         ! Fluxes in
         sT_temp(0) = sT_temp(0) + J_ts(i) * hr
+        if (ANY(sT_temp<0)) then
+                call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
+        end if
 
         ! Print some debugging info
         do s = 0, numsol - 1

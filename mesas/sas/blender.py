@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
 
+import mesas.sas.functions
+
 
 class Weighted:
     """
@@ -40,20 +42,20 @@ class Weighted:
         >>>import pandas as pd
         >>>from mesas.sas.functions import Piecewise
         >>>weights_df=pd.DataFrame(data={'rising':np.linspace(0,1,10), 'falling':np.linspace(1,0,10)})
-        >>>sas_fun_dict={'rising':Piecewise(ST=[0,10]), 'falling':Piecewise(ST=[0,200])}
-        >>>sas_blend=Weighted(sas_fun_dict=sas_fun_dict, weights_df=weights_df)
+        >>>fun_dict={'rising':Piecewise(ST=[0,10]), 'falling':Piecewise(ST=[0,200])}
+        >>>sas_blend=Weighted(fun_dict=fun_dict, weights_df=weights_df)
         >>>sas_blend([5., 150.], 2)
         array([0.13055556, 0.80555556])
         >>>sas_blend([5., 150.], 8)
         array([0.44722222, 0.97222222])
     """
 
-    def __init__(self, sas_fun_dict, weights_df):
+    def __init__(self, fun_dict, weights_df, **kwargs):
         """
         Initializes a Weighted sas blender
 
-        :param sas_fun_dict: A dict of sas functions
-        :param weights_df: Timeseries of weights. Must contain columns with names matching the keys in `sas_fun_dict`
+        :param fun_dict: A dict of sas functions
+        :param weights_df: Timeseries of weights. Must contain columns with names matching the keys in `fun_dict`
         """
 
         self.weights_df = weights_df
@@ -61,17 +63,23 @@ class Weighted:
 
         # The sas_function objects are stored in an ordered dictionary of :class:`Component` objects
         self.components = OrderedDict(
-            (label, Component(label, sas_fun_dict[label], weights_df[label]))
-            for label in sas_fun_dict.keys())
+            (label, _typedict[type(fun_dict[label])](label, fun_dict[label], weights_df[label], **kwargs))
+            for label in fun_dict.keys())
         self._componentorder = list(self.components.keys())
         self._comp2learn_componentorder = self._componentorder
 
         # Trigger the method to create interpolators
-        self._blend()
+        self._interp1d_inv = list(range(self.N))
+        self._interp1d = list(range(self.N))
+        self.ST_lists = list(range(self.N))
+        self.P_lists = list(range(self.N))
+        self.ST = None
+        self.P = None
+        self.blend()
 
     def subdivided_copy(self, label, segment, **kwargs):
         """
-        Returns a copy of itself with one segment in one componet sas function divided into two
+        Returns a copy of itself with one segment in one component sas function divided into two
 
         :param label: Which component sas function to subdivide
         :param segment: Which segment to subdivide
@@ -80,32 +88,40 @@ class Weighted:
         """
         new_blend = copy.deepcopy(self)
         new_blend.components[label].sas_fun = self.components[label].sas_fun.subdivided_copy(segment, **kwargs)
+        new_blend.blend()
         return new_blend
 
-    def _blend(self):
+    def blend(self):
         """
         Create functions that can be called to return the CDF and inverse CDF
         """
-        _ST = np.sort(np.unique(np.concatenate(
-            [component.sas_fun.ST for label, component in self.components.items()])))
-        self.ST = np.broadcast_to(_ST, (self.N, len(_ST))).T
-        self.P = np.zeros_like(self.ST)
-        for label, component in self.components.items():
-            _P = component.sas_fun(self.ST)
-            self.P[:, :] += (_P * np.broadcast_to(component.weights, (len(_ST), self.N)))
-        self._interp1d_inv = list(range(self.N))
-        self._interp1d = list(range(self.N))
         for i in range(self.N):
-            ST_min = self.ST[0, i]
-            ST_max = self.ST[-1, i]
-            self._interp1d_inv[i] = interp1d(self.P[:, i], self.ST[:, i],
+            self.ST_lists[i] = np.sort(np.unique(np.concatenate(
+                [component.sas_fun[i].ST for label, component in self.components.items()])))
+            self.P_lists[i] = np.zeros_like(self.ST_lists[i])
+            for label, component in self.components.items():
+                self.P_lists[i] += component.sas_fun[i](self.ST_lists[i]) * component.weights[i]
+            ST_min = self.ST_lists[i][0]
+            ST_max = self.ST_lists[i][-1]
+            self._interp1d_inv[i] = interp1d(self.P_lists[i], self.ST_lists[i],
                                              fill_value=(ST_min, ST_max),
                                              kind='linear', copy=False,
                                              bounds_error=False, assume_sorted=True)
-            self._interp1d[i] = interp1d(self.ST[:, i], self.P[:, i],
+            self._interp1d[i] = interp1d(self.ST_lists[i], self.P_lists[i],
                                          fill_value=(0., 1.),
                                          kind='linear', copy=False,
                                          bounds_error=False, assume_sorted=True)
+        # create matricies of ST, P padded with extra values on the left
+        maxj = np.max([len(ST) for ST in self.ST_lists])
+        self.ST = np.zeros((maxj, self.N))
+        self.P = np.zeros_like(self.ST)
+        for i in range(self.N):
+            Nj = len(self.ST_lists[i])
+            self.ST[maxj - Nj:maxj, i] = self.ST_lists[i]
+            self.P[maxj - Nj:maxj, i] = self.P_lists[i]
+            if Nj < maxj:
+                self.ST[:maxj - Nj, i] = -1 - np.arange(maxj - Nj)
+                self.P[:maxj - Nj, i] = np.zeros(maxj - Nj)
 
     def __call__(self, ST, i):
         """
@@ -129,10 +145,9 @@ class Weighted:
 
     def __repr__(self):
         """produce a string representation of the blender"""
-        repr = '\n'
+        repr = ''
         for label, component in self.components.items():
             repr += component.__repr__()
-            repr += ''+'\n'
         return repr
 
     def get_P_list(self):
@@ -156,7 +171,7 @@ class Weighted:
             nP = len(component.sas_fun.P)
             component.sas_fun.P = P_list[starti: starti + nP]
             starti += nP
-        self._blend()
+        self.blend()
 
     def update_from_segment_list(self, segment_list):
         """Modify the component sas functions using a modified segment_list"""
@@ -166,7 +181,7 @@ class Weighted:
             nparams = len(component.sas_fun.segment_list)
             component.sas_fun.segment_list = segment_list[starti: starti + nparams]
             starti += nparams
-        self._blend()
+        self.blend()
 
     def update(self, P_list, segment_list):
         """
@@ -184,7 +199,7 @@ class Weighted:
             component.sas_fun.P = P_list[starti: starti + nP]
             component.sas_fun.segment_list = segment_list[starti: starti + nparams]
             starti += nP
-        self._blend()
+        self.blend()
 
     def plot(self, ax=None, **kwargs):
         """Plot the component sas_functions"""
@@ -195,6 +210,18 @@ class Weighted:
         ax.set_xlabel('$S_T$')
         ax.set_ylabel('$\Omega(S_T)$')
         ax.legend(frameon=False)
+        return componentlines
+
+    def plot_asd(self, ax=None, with_trimmings=True, **kwargs):
+        """Plot the component sas_functions"""
+        if ax is None:
+            fig, ax = plt.subplots()
+        componentlines = dict([(label, component.plot_asd(ax=ax, **kwargs))
+                               for label, component in self.components.items()])
+        if with_trimmings:
+            ax.set_xlabel('$\overline{S_T}$')
+            ax.set_ylabel('$\overline{Q_T}$')
+            ax.legend(frameon=False)
         return componentlines
 
     def get_jacobian(self, *args, index=None, **kwargs):
@@ -227,21 +254,67 @@ class Component:
     functions with their weights timeseries and a label. The class also defines __repr__ and plot functions
     that call the corresponding functions of the underlying sas functions.
     """
+
     def __init__(self, label, sas_fun, weights):
         self.label = label
-        self.sas_fun = sas_fun
+        self._sas_fun = sas_fun
         self.weights = weights
         self.N = len(weights)
 
+    @property
+    def sas_fun(self):
+        return self._sas_fun
+
+    @sas_fun.setter
+    def sas_fun(self, new_sas_fun):
+        self._sas_fun = new_sas_fun
+
     def __repr__(self):
         repr = ''
-        repr += 'component = {}'.format(self.label)+'\n'
-        repr += ''+'\n'
+        repr += '    component = {}'.format(self.label) + '\n'
         repr += self.sas_fun.__repr__()
         return repr
 
     def plot(self, *args, **kwargs):
         return self.sas_fun.plot(*args, label=self.label, **kwargs)
+
+
+class ComponentASD(Component):
+    """
+    The Component class defines simple objects that package together sas
+    functions with their weights timeseries and a label. The class also defines __repr__ and plot functions
+    that call the corresponding functions of the underlying sas functions.
+    """
+
+    def __init__(self, label, asd_fun, weights, S=None, Q=None):
+        self._S, self._Q = S, Q
+        self.asd_fun = asd_fun
+        super().__init__(label, self._asd_fun, weights)
+        self.asd_fun.set_SQ(S, Q)
+
+    @property
+    def asd_fun(self):
+        return self._asd_fun
+
+    @asd_fun.setter
+    def asd_fun(self, new_asd_fun):
+        self._asd_fun = new_asd_fun
+        self._sas_fun = self._asd_fun
+
+    @Component.sas_fun.setter
+    def sas_fun(self, new_sas_fun):
+        self.asd_fun.update_from_Piecewise_SAS(new_sas_fun)
+        self._sas_fun = self._asd_fun
+
+    def __repr__(self):
+        repr = ''
+        repr += '    component = {}'.format(self.label) + '\n'
+        repr += self.asd_fun.__repr__()
+        return repr
+
+    def plot_asd(self, *args, **kwargs):
+        return self.asd_fun.plot_asd(*args, label=self.label, **kwargs)
+
 
 
 class Fixed(Weighted):
@@ -272,7 +345,7 @@ class Fixed(Weighted):
         """
         weights_df = pd.DataFrame(index=range(N))
         weights_df['Fixed'] = 1.
-        Weighted.__init__(self, {'Fixed': sas_fun}, weights_df)
+        super().__init__({'Fixed': sas_fun}, weights_df)
 
 
 class StateSwitch(Weighted):
@@ -290,22 +363,27 @@ class StateSwitch(Weighted):
 
         >>>from mesas.sas.functions import Piecewise
         >>>state_ts = np.where(np.random.rand(10)>0.5, 'a', 'b')
-        >>>sas_fun_dict = {'a':Piecewise(ST=[0,10]), 'b':Piecewise(ST=[0,200])}
-        >>>sas_blend = StateSwitch(sas_fun_dict=sas_fun_dict, state_ts=state_ts)
+        >>>fun_dict = {'a':Piecewise(ST=[0,10]), 'b':Piecewise(ST=[0,200])}
+        >>>sas_blend = StateSwitch(fun_dict=fun_dict, state_ts=state_ts)
         >>>sas_blend([5., 150.], 2)
         sas_blend([5., 150.], 2)
         >>>sas_blend([5., 150.], 8)
         array([0.025, 0.75 ])
     """
 
-    def __init__(self, sas_fun_dict, state_ts):
+    def __init__(self, fun_dict, state_ts):
         """
         creates instance of a StateSwitch blender
 
-        :param sas_fun_dict: a dict of sas functions with keys corresponding to entries in state_ts
+        :param fun_dict: a dict of sas functions with keys corresponding to entries in state_ts
         :param state_ts: a timeseries whose entries are each a key in sas_fun_dict
         """
         weights_df = pd.DataFrame(index=range(len(state_ts)))
-        for label in sas_fun_dict:
+        for label in fun_dict:
             weights_df[label] = 1. * (state_ts == label)
-        Weighted.__init__(self, sas_fun_dict, weights_df)
+        super().__init__(fun_dict, weights_df)
+
+
+from mesas.sas.functions import Piecewise, PiecewiseASD
+
+_typedict = {Piecewise: Component, PiecewiseASD: ComponentASD}

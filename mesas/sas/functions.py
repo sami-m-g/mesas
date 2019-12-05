@@ -15,7 +15,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
-
+import warnings
+import copy
 
 class Piecewise:
     """
@@ -122,7 +123,7 @@ class Piecewise:
             # Use the supplied values
             assert P[0] == 0
             assert P[-1] == 1
-            assert np.all(np.diff(P) > 0)
+            assert np.all(np.diff(P) >= 0)
             assert len(P) == len(self._ST)
             self._P = np.r_[P]
 
@@ -133,6 +134,14 @@ class Piecewise:
 
         # call this to make the interpolation functions
         self._make_interpolators()
+        self.index_select = range(len(self.ST))
+        self.orig_select = range(len(self.ST))
+
+    def __getitem__(self, i):
+        return self
+
+    def __setitem__(self, i):
+        raise TypeError("You're not allowed to modify the SAS function for a specific index")
 
     def _make_interpolators(self):
         """
@@ -237,12 +246,23 @@ class Piecewise:
 
     def __repr__(self):
         """Return a repr of the SAS function"""
-        repr = ''
-        repr += 'ST        P' + '\n'
-        repr += '--------  --------' + '\n'
+        repr = '        ST: '
         for i in range(self.nsegment + 1):
-            repr += '{ST:<8.4}  {P:<8.7} \n'.format(ST=self.ST[i], P=self.P[i])
+            repr += '{ST:<10.4}  '.format(ST=self.ST[i])
+        repr += '\n'
+        repr += '        P : '
+        for i in range(self.nsegment + 1):
+            repr += '{P:<10.4}  '.format(P=self.P[i])
+        repr += '\n'
         return repr
+
+    #def __repr__(self):
+        #"""Return a repr of the SAS function"""
+        #repr += 'ST        P' + '\n'
+        #repr += '--------  --------' + '\n'
+        #for i in range(self.nsegment + 1):
+        #    repr += '{ST:<8.4}  {P:<8.7} \n'.format(ST=self.ST[i], P=self.P[i])
+        #return repr
 
     def plot(self, ax=None, **kwargs):
         """Return a repr of the SAS function"""
@@ -288,13 +308,6 @@ class Piecewise:
         Ns = self.nsegment
         J_S = np.zeros((Ni, Ns + 1))
 
-        # pull out the sas function parameters, and get some derivatives and differences
-        Omegaj = self.P
-        Sj = self.ST
-        dOmegaj = np.diff(Omegaj)
-        dSj = np.diff(Sj)
-        omegaj = dOmegaj / dSj
-
         # These represent the volume and solute mass in the system whose age is known.
         # Everything older is assumed to have concentration C_old
         S_maxcalc = ST[-1, :]
@@ -312,6 +325,17 @@ class Piecewise:
         # Loop over the times
         for i, start_index in enumerate(index):
 
+            # pull out the sas function parameters, and get some derivatives and differences
+            sas_fun = self[start_index]
+            Nsi = sas_fun.nsegment
+            Omegaj = sas_fun.P
+            Sj = sas_fun.ST
+            dOmegaj = np.diff(Omegaj)
+            dSj = np.diff(Sj)
+            omegaj = dOmegaj / dSj
+
+            J_Si = np.zeros_like(Sj)
+
             # We are going to do this twice: once for the start and once for the end of each timestep
             # we will average them together at the end
             for stepend in [0, 1]:
@@ -321,7 +345,7 @@ class Piecewise:
                 if S_maxcalc[time_index] >= Sj[-1]:
 
                     # If we do set this to the number of segments
-                    seg_maxcalc = Ns
+                    seg_maxcalc = Nsi
 
                 else:
 
@@ -338,10 +362,7 @@ class Piecewise:
                 Tjr = np.digitize(Sj[:seg_maxcalc + 1], ST[:time_index + 1, time_index], right=False) - 1
                 Tjl[Tjl < 0] = 0
                 Tjr[Tjr == Nt] = Tjl[Tjr == Nt]
-                try:
-                    Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
-                except:
-                    Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
+                Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
 
                 # Calculate the bulk-averaged concentration in each segment
                 # Age-ranked mass at each segment endpoint
@@ -355,28 +376,28 @@ class Piecewise:
                 if seg_maxcalc > 0:
 
                     # derivative w.r.t. ST_min
-                    J_S[i, 0] += alpha * (Csj[0] - Cpj[0]) * omegaj[0]
+                    J_Si[0] += alpha * (Csj[0] - Cpj[0]) * omegaj[0]
 
                     # derivative w.r.t. the endpoints that have completely full segments on both sides
                     if seg_maxcalc > 1:
-                        J_S[i, 1:seg_maxcalc] += alpha * (
+                        J_Si[1:seg_maxcalc] += alpha * (
                                 Csj[1:seg_maxcalc] * omegaj[1:seg_maxcalc]
                                 - Csj[0:seg_maxcalc - 1] * omegaj[0:seg_maxcalc - 1]
                                 - Cpj[1:seg_maxcalc] * (omegaj[1:seg_maxcalc] - omegaj[0:seg_maxcalc - 1])
                         )
                 # Is the maximum known ST less than ST_max?
-                if seg_maxcalc < Ns:
+                if seg_maxcalc < Nsi:
 
                     # Is it greater than ST_min?
                     if S_maxcalc[time_index] > Sj[0]:
                         # Get the derivative w.r.t the left end of the segment
-                        J_S[i, seg_maxcalc] += omegaj[seg_maxcalc] * (
+                        J_Si[seg_maxcalc] += omegaj[seg_maxcalc] * (
                                 alpha * (
                                 (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc] - Cpj[seg_maxcalc])
                                 + (C_old * (Sj[1 + seg_maxcalc] - S_maxcalc[time_index])) / dSj[seg_maxcalc]
                         )
                         # Get the derivative w.r.t the right end of the segment
-                        J_S[i, seg_maxcalc + 1] += omegaj[seg_maxcalc] * (
+                        J_Si[seg_maxcalc + 1] += omegaj[seg_maxcalc] * (
                                 -alpha * (
                                 (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc])
                                 + (C_old * (S_maxcalc[time_index] - Sj[seg_maxcalc])) / dSj[seg_maxcalc]
@@ -385,10 +406,16 @@ class Piecewise:
                 else:
 
                     # Effect of varying ST_max
-                    J_S[i, Ns] += -alpha * (Csj[Ns - 1] - Cpj[Ns]) * omegaj[Ns - 1]
+                    J_Si[Nsi] += -alpha * (Csj[Nsi - 1] - Cpj[Nsi]) * omegaj[Nsi - 1]
 
-        # Average the start and end of the timestep
-        J_S = J_S / 2
+            # Average the start and end of the timestep
+            J_Si = J_Si / 2
+
+            # Extract and save the valid points
+            # If an ASD function is being used, the first (ST,P) may be absent, so we have to skip them
+            # There may also be a dummy fist (ST,P), which we will discard
+            J_S[i, sas_fun.orig_select] = J_Si[sas_fun.index_select]
+
 
         if mode == 'endpoint':
             return J_S
@@ -399,7 +426,7 @@ class Piecewise:
         J_seg = np.dot(A, J_S.T).T
 
         if logtransform:
-            J_seglog = J_seg * np.r_[Sj[0], np.diff(Sj)]
+            J_seglog = J_seg * self._segment_list
             return J_seglog
         else:
             return J_seg
@@ -423,13 +450,7 @@ class Piecewise:
         Nt = ST.shape[1] - 1
         Ni = len(index)
         Ns = self.nsegment
-        r_seg_i = np.zeros((Ni, Ns))
-
-        # pull out the sas function parameters, and get some derivatives and differences
-        Omegaj = self.P
-        Sj = self.ST
-        dOmegaj = np.diff(Omegaj)
-        dSj = np.diff(Sj)
+        r_seg_i = np.zeros((Ni, Ns+1))
 
         # These represent the volume and solute mass in the system whose age is known.
         # Everything older is assumed to have concentration C_old
@@ -451,6 +472,16 @@ class Piecewise:
             # Pull out the observed concentration we want to compare with
             C_train_this = C_train[start_index]
 
+            # pull out the sas function parameters, and get some derivatives and differences
+            sas_fun = self[start_index]
+            Nsi = sas_fun.nsegment
+            Omegaj = sas_fun.P
+            Sj = sas_fun.ST
+            dOmegaj = np.diff(Omegaj)
+            dSj = np.diff(Sj)
+
+            r_seg_ii = np.zeros_like(dSj)
+
             # We are going to do this twice: once for the start and once for the end of each timestep
             # we will average them together at the end
             for stepend in [0, 1]:
@@ -462,7 +493,7 @@ class Piecewise:
                     if S_maxcalc[time_index] >= Sj[-1]:
 
                         # If we do set this to the number of segments
-                        seg_maxcalc = Ns
+                        seg_maxcalc = Nsi
 
                     else:
 
@@ -479,18 +510,132 @@ class Piecewise:
 
                     # Is at least one segment completely full of water of known age?
                     if seg_maxcalc > 0:
-                        r_seg_i[i, :seg_maxcalc] += (alpha * Csj[:seg_maxcalc] - C_train_this) * dOmegaj[
-                                                                                                           :seg_maxcalc]
+                        r_seg_ii[:seg_maxcalc] += (alpha * Csj[:seg_maxcalc] - C_train_this) * dOmegaj[
+                                                                                                 :seg_maxcalc]
                     # Is the maximum known ST less than ST_max?
-                    if seg_maxcalc < Ns:
-                        Omegam = self(S_maxcalc[time_index])
-                        r_seg_i[i, seg_maxcalc] += (alpha * (M_maxcalc[time_index] - Mj[seg_maxcalc])
+                    if seg_maxcalc < Nsi:
+                        Omegam = sas_fun(S_maxcalc[time_index])
+                        r_seg_ii[seg_maxcalc] += (alpha * (M_maxcalc[time_index] - Mj[seg_maxcalc])
                                                     / (S_maxcalc[time_index] - Sj[seg_maxcalc])
                                                     - C_train_this) \
                                                    * (Omegam - Omegaj[seg_maxcalc])
 
-        # Average the start and end of the timestep
-        r_seg_i = r_seg_i / 2
+            # Average the start and end of the timestep
+            r_seg_ii = r_seg_ii / 2
+
+            # Extract and save the valid points
+            # If an ASD function is being used, the first (ST,P) may be absent, so we have to skip them
+            # There may also be a dummy fist (ST,P), which we will keep
+            r_seg_i[i, -len(dSj):] = r_seg_ii
 
         return r_seg_i
 
+class PiecewiseASD(Piecewise):
+    def __init__(self, STc, QTc, S=None, Q=None):
+        self._STc = STc
+        self._QTc = QTc
+        self._S = None
+        self._Q = None
+        self._sas_fun_index = None
+        ST = STc[-1] - STc[::-1]
+        QT = QTc[-1] - QTc[::-1]
+        P = QT/QTc[-1]
+        super().__init__(ST=ST, P=P)
+        self.set_SQ(S, Q)
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        new_obj = cls.__new__(cls)
+        memo[id(self)] = new_obj
+        new_obj.__init__(copy.deepcopy(self._STc), copy.deepcopy(self._QTc),
+                                       copy.deepcopy(self._S), copy.deepcopy(self._Q))
+        return new_obj
+
+    def set_SQ(self, S=None, Q=None):
+        pass
+        #if S is not None:
+        #    self._S = S
+        #if Q is not None:
+        #    self._Q = Q
+        #if self._S is not None and self._Q is not None:
+        #    self._sas_fun_index = [0] * len(self._S)
+        #    for i in range(len(self._S)):
+        #        num_orig = ((self._STc < self._S[i]) & (self._QTc < self._Q[i])).sum()
+        #        if num_orig > 0:
+        #            STc = np.zeros(num_orig + 1)
+        #            QTc = np.zeros(num_orig + 1)
+        #            STc[:-1] = self._STc[:num_orig]
+        #            QTc[:-1] = self._QTc[:num_orig]
+        #            STc[-1] = self._S[i]
+        #            QTc[-1] = self._Q[i]
+        #            index_select = range(1, num_orig+1)
+        #            orig_select = range(self.nsegment+1-num_orig, self.nsegment+1)
+        #        else:
+        #            STc = self._STc[:2]
+        #            QTc = np.zeros_like(STc)
+        #            orig_select = []
+        #            index_select = []
+        #        ST = STc[-1] - STc[::-1]
+        #        QT = QTc[-1] - QTc[::-1]
+        #        P = QT/QT[-1]
+        #        self._sas_fun_index[i] = Piecewise(ST=ST, P=P)
+        #        self._sas_fun_index[i].orig_select = orig_select
+        #        self._sas_fun_index[i].index_select = index_select
+
+    #def __call__(self, *args, **kwargs):
+        #warnings.warn('Just FYI, you are calling an ASD function without an index. Is that what you want to do?')
+        #return super().__call__(*args, **kwargs)
+
+    #def __getitem__(self, i):
+    #    return self._sas_fun_index[i]
+
+    def update_from_Piecewise_SAS(self, sas_fun):
+        ST = sas_fun.ST
+        P = sas_fun.P
+        super().__init__(ST=ST, P=P)
+        self._STc = self._STc[-1] - ST[::-1]
+        self._QTc = self._QTc[-1] * (1 - P[::-1])
+        self.set_SQ()
+
+    @Piecewise.ST.setter
+    def ST(self, new_ST):
+        self._STc = self._STc[-1] - new_ST[::-1]
+        super(PiecewiseASD, self.__class__).ST.fset(self, new_ST)
+        self.set_SQ()
+
+    @Piecewise.P.setter
+    def P(self, new_P):
+        self._QTc = self._QTc[-1] * (1 - new_P[::-1])
+        super(PiecewiseASD, self.__class__).P.fset(self, new_P)
+        self.set_SQ()
+
+    def __repr__(self):
+        """Return a repr of the SAS function"""
+        repr = '        STc : '
+        for i in range(self.nsegment + 1):
+            repr += '{STc:<10.4}  '.format(STc=self._STc[i])
+        repr += '\n'
+        repr += '        QTc : '
+        for i in range(self.nsegment + 1):
+            repr += '{QTc:<10.4}  '.format(QTc=self._QTc[i])
+        repr += '\n'
+        return repr
+
+    def plot_asd(self, ax=None, Q_transform = None, **kwargs):
+        """Return a repr of the SAS function"""
+        if ax is None:
+            fig, ax = plt.subplots()
+        if Q_transform is None:
+            return ax.plot(self._STc, self._QTc, **kwargs)
+        else:
+            return ax.plot(self._STc, Q_transform(self._QTc), **kwargs)
+
+
+    #def __repr__(self):
+    #    """Return a repr of the SAS function"""
+    #    repr = ''
+    #    repr += 'STc        QTc' + '\n'
+    #    repr += '--------  --------' + '\n'
+    #    for i in range(self.nsegment + 1):
+    #        repr += '{STc:<8.4}  {QTc:<8.7} \n'.format(STc=self._STc[i], QTc=self._QTc[i])
+    #    return repr
