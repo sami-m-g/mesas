@@ -1,8 +1,9 @@
 build/
-rsas.egg-info/
+mesas.egg-info/
 dist/
 *.pyc
 *.swo
 *.swp
 /mesas/junk/
 /doc/_build/
+.idea/
