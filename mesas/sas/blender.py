@@ -269,6 +269,17 @@ class Component:
     def sas_fun(self, new_sas_fun):
         self._sas_fun = new_sas_fun
 
+    def trim(self, ST_trim):
+        ST = self.sas_fun.ST
+        P = self.sas_fun.P
+        trimmable = ST > ST_trim
+        if trimmable.sum() > 2:
+            trimmable[0] = False
+            trimmable[-1] = False
+            ST = ST[~trimmable]
+            P = P[~trimmable]
+            self.sas_fun = Piecewise(ST=ST, P=P)
+
     def __repr__(self):
         repr = ''
         repr += '    component = {}'.format(self.label) + '\n'

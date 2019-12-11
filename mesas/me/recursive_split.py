@@ -3,6 +3,7 @@ import inspect
 import numpy as np
 from scipy.optimize import least_squares
 from sklearn.model_selection import KFold
+from scipy.stats import ttest_rel
 
 VERBOSE = True
 
@@ -94,34 +95,44 @@ def lookfor_new_components(initial_model, initial_rmse, new_components, segment_
             if segment < nsegment:
                 _verbose(f'Subdividing {flux} {label} segment {segment}')
 
-                new_model = initial_model.subdivided_copy(flux, label, segment)
-                segment_list = new_model.get_segment_list()
-                if np.any(segment_list[segment_list > 0] < new_model.options['ST_smallest_segment']):
-                    _verbose("New segment too small! Try reducing model.options['ST_smallest_segment']")
+                largest_observed_ST = initial_model.result['ST'].max()
+                smallest_ST_in_subdivided_segment = initial_model.sas_blends[flux].components[label].sas_fun.ST[segment]
+                if smallest_ST_in_subdivided_segment > largest_observed_ST:
+                    _verbose("Subdivision is beyond observed ST. Shouldn't make a difference.")
                     subdivision_accepted = False
                     new_rmse = None
+
                 else:
-                    _verbose('-- Initial fit of the candidate model ', end='')
-                    new_model, new_rmse = fit_model(new_model, index=index, **kwargs)
+                    new_model = initial_model.subdivided_copy(flux, label, segment)
+                    segment_list = new_model.get_segment_list()
+                    if np.any(segment_list[segment_list > 0] < new_model.options['ST_smallest_segment']):
+                        _verbose("New segment too small! Try reducing model.options['ST_smallest_segment']")
+                        subdivision_accepted = False
+                        new_rmse = None
+                    else:
+                        _verbose('-- Initial fit of the candidate model ', end='')
+                        new_model, new_rmse = fit_model(new_model, index=index, **kwargs)
 
-                    # The current criteria used for deciding whether to accept the subdivision is simple:
-                    # Just check whether the model improvement is greater than some threshold
-                    # This can definitely be improved
-                    # subdivision_accepted = (1 - new_rmse / initial_rmse) > split_tolerance
+                        # The current criteria used for deciding whether to accept the subdivision is simple:
+                        # Just check whether the model improvement is greater than some threshold
+                        # This can definitely be improved
+                        # subdivision_accepted = (1 - new_rmse / initial_rmse) > split_tolerance
 
-                    # Use k-fold cross validation to see if the split leads to an improvement in the model
-                    new_rmse = cross_validation_rmse(new_model, index=index, **kwargs)
-                    _verbose('Candidate model = ')
-                    _verbose(new_model)
-                    rmse_change = np.mean(new_rmse - initial_rmse)
-                    subdivision_accepted = rmse_change<0
+                        # Use k-fold cross validation to see if the split leads to an improvement in the model
+                        new_rmse = cross_validation_rmse(new_model, index=index, **kwargs)
+                        _verbose('Candidate model = ')
+                        _verbose(new_model)
+                        rmse_change = np.mean(new_rmse - initial_rmse)
+                        rmse_pvalue = ttest_rel(new_rmse, initial_rmse).pvalue
+                        subdivision_accepted = rmse_pvalue<0.9 and rmse_change<0
 
-                    _verbose(f'Initial rmse = {initial_rmse}')
-                    _verbose(f'Candidate rmse     = {new_rmse}')
-                    _verbose(f'Mean change in rmse     = {rmse_change}')
-                    # Optionally, make some plots
-                    if incres_fun is not None:
-                        incres_fun(new_model, f'{id_str}_{flux}_{label}_{nsegment}_{segment}_{subdivision_accepted}')
+                        _verbose(f'Initial rmse = {initial_rmse}')
+                        _verbose(f'Candidate rmse     = {new_rmse}')
+                        _verbose(f'Mean change in rmse     = {rmse_change}')
+                        _verbose(f't-test p value     = {rmse_pvalue}')
+                        # Optionally, make some plots
+                        if incres_fun is not None:
+                            incres_fun(new_model, f'{id_str}_{flux}_{label}_{nsegment}_{segment}_{subdivision_accepted}')
 
                 # accept or reject the subdivision
                 if subdivision_accepted:
@@ -181,6 +192,7 @@ def increase_resolution_scanning(initial_model, initial_rmse, new_components, ma
     _verbose(f'\n***********************\nStarting {inspect.stack()[0][3]}')
 
     any_segments_subdivided = False
+    new_model = None
 
     for scan in range(maxscan):
         _verbose(f'\nStarting scan #{scan + 1}')
@@ -222,6 +234,12 @@ def increase_resolution_scanning(initial_model, initial_rmse, new_components, ma
                 else:
                     new_model, new_rmse = last_accepted_model, last_accepted_rmse
 
+                _verbose('Trimming unused ST')
+                print(new_model)
+                new_model.trim_unused_ST()
+                print(new_model)
+                _verbose('Trimmed unused ST')
+
                 # Optionally, make some plots
                 if incres_fun is not None:
                     incres_fun(new_model, f'scan_{scan}_all_components_{max_segment}_{segment}')
@@ -249,8 +267,11 @@ def increase_resolution_scanning(initial_model, initial_rmse, new_components, ma
             _verbose('Finished increasing model resolution')
             return new_model
 
-    _verbose(f'Maximum number of scans reached ({maxscan})')
-    return new_model
+    if new_model is not None:
+        _verbose(f'Maximum number of scans reached ({maxscan})')
+        return new_model
+    else:
+        return initial_model
 
 
 def increase_resolution_leftfirst(initial_model, initial_rmse, new_components, segment, incres_fun=None, index=None,
@@ -295,6 +316,9 @@ def increase_resolution_leftfirst(initial_model, initial_rmse, new_components, s
 
         else:
             new_model, new_rmse = last_accepted_model, last_accepted_rmse
+
+        _verbose('Trimming unused ST')
+        new_model.trim_unused_ST()
 
         # Optionally, make some plots
         if incres_fun is not None:

@@ -39,7 +39,7 @@ class Model:
             'ST_init': None,
             'influx': 'J',
             'ST_smallest_segment': 1./100,
-            'ST_largest_segment': 1000000.,
+            'ST_largest_segment': np.inf,
         }
         self._options = self._default_options
         # do input Checking
@@ -245,6 +245,14 @@ class Model:
         self._comp2learn_fluxorder = list(self._components_to_learn.keys())
         for flux in self._comp2learn_fluxorder:
             self._sas_blends[flux]._comp2learn_componentorder = self._components_to_learn[flux]
+
+    def trim_unused_ST(self):
+        largest_observed_ST = self.result['ST'].max()
+        for flux, labels in self.components_to_learn.items():
+            for label in labels:
+                self.sas_blends[flux].components[label].trim(largest_observed_ST)
+
+
 
 
     def get_segment_list(self):
