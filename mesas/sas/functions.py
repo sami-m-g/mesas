@@ -12,11 +12,12 @@
     See the class docstring for more information..
 
 """
+import copy
+
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
-import warnings
-import copy
+
 
 class Piecewise:
     """
@@ -630,12 +631,3 @@ class PiecewiseASD(Piecewise):
         else:
             return ax.plot(self._STc, Q_transform(self._QTc), **kwargs)
 
-
-    #def __repr__(self):
-    #    """Return a repr of the SAS function"""
-    #    repr = ''
-    #    repr += 'STc        QTc' + '\n'
-    #    repr += '--------  --------' + '\n'
-    #    for i in range(self.nsegment + 1):
-    #        repr += '{STc:<8.4}  {QTc:<8.7} \n'.format(STc=self._STc[i], QTc=self._QTc[i])
-    #    return repr

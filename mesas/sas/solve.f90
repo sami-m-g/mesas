@@ -1,6 +1,6 @@
 ! -*- f90 -*-
-subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init, dt, &
-        verbose, debug, warning, full_outputs, &
+subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init, dt, &
+        verbose, debug, warning, &
         mS_init, C_J_ts, alpha_ts, k1_ts, C_eq_ts, C_old, &
         n_substeps, numflux, numsol, max_age, &
         timeseries_length, nP_list, nP_total, &
@@ -15,13 +15,12 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init, dt, &
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1) :: Q_ts
     real(8), intent(in), dimension(0:nP_total - 1, 0:timeseries_length - 1) :: SAS_lookup
     real(8), intent(in), dimension(0:nP_total - 1, 0:timeseries_length - 1) :: P_list
-    real(8), intent(in), dimension(0:max_age) :: sT_init
+    real(8), intent(in), dimension(0:max_age - 1) :: sT_init
     real(8), intent(in) :: dt
-    logical, intent(in) :: verbose, debug, warning, full_outputs
+    logical, intent(in) :: verbose, debug, warning
     real(8), intent(in), dimension(0:max_age - 1, 0:numsol - 1) :: mS_init
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: C_J_ts
-    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) &
-            :: alpha_ts
+    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: alpha_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: k1_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: C_eq_ts
     real(8), intent(in), dimension(0:numsol - 1) :: C_old
@@ -34,75 +33,85 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init, dt, &
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numsol - 1) :: mR_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1) :: WaterBalance_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numsol - 1) :: SoluteBalance_ts
-    integer :: k, ik, iT, jt
-    real(8) :: h, P_old
+    integer :: k, iT, jt, ik, jk
+    real(8) :: h
+    real(8), dimension(0:timeseries_length - 1, 0:numflux - 1) :: P_old
     integer, dimension(0:numflux) :: iP_list
-    real(8), dimension(0:timeseries_length * n_substeps) :: STcum_inst
-    real(8), dimension(0:timeseries_length * n_substeps, 0:numflux - 1) :: PQcum_inst
-    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: PQcum_temp
+    real(8), dimension(0:timeseries_length * n_substeps) :: STcum_start
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: STcum_temp
+    real(8), dimension(0:timeseries_length * n_substeps, 0:numflux - 1) :: PQcum_start
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: PQcum_temp
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: sT_start
-    real(8), dimension(0:timeseries_length * n_substeps - 1) :: sT_inc
+    real(8), dimension(0:timeseries_length * n_substeps - 1) :: sT_temp
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: sT_end
-    real(8), dimension(0:timeseries_length * n_substeps) :: STcum_inst
+    real(8), dimension(0:timeseries_length * n_substeps, 0:numsol - 1) :: MScum_start
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ1
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ2
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ3
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ4
-    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ_substep
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ_aver
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ_end
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: mQ1
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: mQ2
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: mQ3
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: mQ4
-    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: mQ_substep
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: mQ_aver
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: mQ_end
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR1
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR2
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR3
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR4
-    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR_substep
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR_aver
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR_end
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mS_start
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mS_temp
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mS_end
     real(8) :: one8
     character(len = 128) :: tempdebugstring
-    integer iTs, iTe, iq, s, M
-    one8 = 1.0
+    integer iq, s, M, N
 
     call f_verbose('...Initializing arrays...')
+    one8 = 1.0
+
     C_Q_ts(:, :, :) = 0.
     sT_ts(:, :) = 0.
-    WaterBalance_ts(:, :) = 0.
-    pQ_ts(:, :, :) = 0.
     mS_ts(:, :, :) = 0.
+    pQ_ts(:, :, :) = 0.
     mQ_ts(:, :, :, :) = 0.
     mR_ts(:, :, :) = 0.
+    WaterBalance_ts(:, :) = 0.
     SoluteBalance_ts(:, :, :) = 0.
-    STcum_inst(:) = 0.
-    PQcum_temp(:, :) = 0.
+    P_old(:, :) = 0.
+    iP_list(:) = 0
+    STcum_start(:) = 0.
     STcum_temp(:) = 0.
+    PQcum_start(:, :) = 0.
+    PQcum_temp(:, :) = 0.
     sT_start(:) = 0.
-    sT_inc(:) = 0.
+    sT_temp(:) = 0.
     sT_end(:) = 0.
+    MScum_start(:, :) = 0.
     pQ1(:, :) = 0.
     pQ2(:, :) = 0.
     pQ3(:, :) = 0.
     pQ4(:, :) = 0.
     pQ_aver(:, :) = 0.
-    pQ_ts(:, :) = 0.
+    pQ_end(:, :) = 0.
     mQ1(:, :, :) = 0.
     mQ2(:, :, :) = 0.
     mQ3(:, :, :) = 0.
     mQ4(:, :, :) = 0.
     mQ_aver(:, :, :) = 0.
-    mQ_ts(:, :, :) = 0.
+    mQ_end(:, :, :) = 0.
     mR1(:, :) = 0.
     mR2(:, :) = 0.
     mR3(:, :) = 0.
     mR4(:, :) = 0.
     mR_aver(:, :) = 0.
-    mR_ts(:, :) = 0.
+    mR_end(:, :) = 0.
     mS_start(:, :) = 0.
-    mS_end(:, :) = 0.
-    MScum_inst(:, :) = 0.
+    mS_temp(:, :) = 0.
+    mS_end (:, :) = 0.
 
     ! The list of probabilities in each sas function is a 1-D array.
     ! iP_list gives the starting index of the probabilities (P) associated
@@ -152,7 +161,7 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init, dt, &
             call f_debug('RK', (/1._8/))
             sT_temp = sT_start
             mS_temp = mS_start
-            call get_flux(0, sT_temp, mS_temp, pQ1, mQ1, mR1)
+            call get_flux(0.0D0, sT_temp, mS_temp, pQ1, mQ1, mR1)
             call f_debug('RK', (/2._8/))
             call new_state(h / 2, sT_temp, mS_temp, pQ1, mQ1, mR1)
             call get_flux(h / 2, sT_temp, mS_temp, pQ2, mQ2, mR2)
@@ -174,19 +183,19 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init, dt, &
             end where
             do s = 0, numsol - 1
                 where (Q_ts==0)
-                    mQ_aver = 0.
+                    mQ_aver(:, :, s) = 0.
                 end where
             end do
 
             ! Update the cumulative instantaneous trackers before we overwrite the '_end' variables
             if (ik>0) then
                 call get_flux(h, sT_end, mS_end, pQ_end, mQ_end, mR_end)
-                STcum_inst(1:N)    = STcum_inst(1:N)    + sT_end * h
-                MScum_inst(1:N, :) = MScum_inst(1:N, :) + mS_end * h
-                PQcum_inst(1:N, :) = PQcum_inst(1:N, :) + pQ_end * h
-                STcum_inst(0) = STcum_inst(0)    + sT_start(0) * h
-                MScum_inst(0) = MScum_inst(0, :) + mS_start(0) * h
-                PQcum_inst(0) = PQcum_inst(0, :) + pQ1(0) * h
+                STcum_start(1:N)    = STcum_start(1:N)    + sT_end * h
+                MScum_start(1:N, :) = MScum_start(1:N, :) + mS_end * h
+                PQcum_start(1:N, :) = PQcum_start(1:N, :) + pQ_end * h
+                STcum_start(0) = STcum_start(0)    + sT_start(0) * h
+                MScum_start(0, :) = MScum_start(0, :) + mS_start(0, :) * h
+                PQcum_start(0, :) = PQcum_start(0, :) + pQ1(0, :) * h
             end if
 
             ! Update the state with the new estimates
@@ -217,14 +226,12 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init, dt, &
 
             ! Get the timestep-averaged mass flux
             do iq = 0, numflux - 1
-                do iq = 0, numflux - 1
-                    do s = 0, numsol - 1
-                        mQ_ts(iT, 0, iq, s) = mQ_ts(iT, 0, iq, s) &
-                                + sum(mQ_aver(0:k, iq, s)) / n_substeps
-                        mQ_ts(iT, 1:, iq, s) = mQ_ts(iT, 1:, iq, s)&
-                                + sum(reshape(mQ_aver(k + 1:N - n_substeps + k, iq, s), &
-                                        [n_substeps, timeseries_length - 1]), 1) / n_substeps
-                    enddo
+                do s = 0, numsol - 1
+                    mQ_ts(iT, 0, iq, s) = mQ_ts(iT, 0, iq, s) &
+                            + sum(mQ_aver(0:k, iq, s)) / n_substeps
+                    mQ_ts(iT, 1:, iq, s) = mQ_ts(iT, 1:, iq, s)&
+                            + sum(reshape(mQ_aver(k + 1:N - n_substeps + k, iq, s), &
+                                    [n_substeps, timeseries_length - 1]), 1) / n_substeps
                 enddo
             enddo
 
@@ -287,7 +294,8 @@ subroutine f_solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init, dt, &
     do s = 0, numsol - 1
         ! Difference of starting and ending age-ranked mass
         SoluteBalance_ts(0, :, s) = C_J_ts(:, s) * J_ts * dt - mS_ts(0, 1:, s)
-        SoluteBalance_ts(1:, :, s) = mS_ts(0:max_age-2, 0:timeseries_length-1, s) - mS_ts(1:max_age-1, 1:timeseries_length, s)   - MScum_ts(0:max_age-1, 1:timeseries_length, s)
+        SoluteBalance_ts(1:, :, s) = mS_ts(0:max_age-2, 0:timeseries_length-1, s) &
+                                   - mS_ts(1:max_age-1, 1:timeseries_length, s)
     enddo
     ! Subtract timestep-averaged mass fluxes
     SoluteBalance_ts = SoluteBalance_ts - sum(mQ_ts, DIM=3) * dt
@@ -389,7 +397,7 @@ contains
                 STcum_temp = 0 + sT_temp * hr
             end if
         else
-            STcum_temp = STcum_inst(0:N-1) * (1-hr/h) + (STcum_inst(1:N) + sT_inst(1:N) * h) * (hr/h) + sT_temp * h
+            STcum_temp = STcum_start(0:N-1) * (1-hr/h) + (STcum_start(1:N) + sT_end * h) * (hr/h) + sT_temp * h
         end if
 
         ! Print some debuggin info
@@ -406,8 +414,11 @@ contains
                 do k = 0, n_substeps - 1
                     jk = jt * n_substeps + k
                     ! Call the sas function and get the transit time distribution
-                    call lookup(SAS_lookup(iP_list(iq):iP_list(iq + 1) - 1, jt), P_list(iP_list(iq):iP_list(iq + 1) - 1, jt), STcum_temp(jk), &
-                            PQcum_temp(jk, iq), nP_list(iq), N)
+                    call lookup(&
+                            SAS_lookup(iP_list(iq):iP_list(iq + 1) - 1, jt), &
+                            P_list(iP_list(iq):iP_list(iq + 1) - 1, jt), &
+                            STcum_temp(jk), PQcum_temp(jk, iq), &
+                            nP_list(iq), N)
                 end do
             end do
             call f_debug('PQcum_temp', PQcum_temp(:, iq))
@@ -421,7 +432,7 @@ contains
                 pQ_temp = (PQcum_temp - 0) / hr
             end if
         else
-            pQ_temp = (PQcum_temp - (PQcum_inst(0:N-1, :) * (1-hr/h) + (PQcum_inst(1:N, :) + pQ_inc(1:N, :) * h ) * (hr/h))) /h
+            pQ_temp = (PQcum_temp - (PQcum_start(0:N-1, :) * (1-hr/h) + (PQcum_start(1:N, :) + pQ_end * h ) * (hr/h))) /h
         end if
         call f_debug('pQ_temp', pQ_temp(:, iq))
 
@@ -505,7 +516,7 @@ contains
                 mS_temp(:, s) = mS_temp(:, s) - mQ_temp(:, iq, s) * hr
             enddo
             ! Flux in
-            mS_temp(0, s) = mS_temp(0, s) + J_ts(:) * C_J_ts(:, s) * hr
+            mS_temp(:, s) = mS_temp(:, s) + J_ts(:) * C_J_ts(:, s) * hr
         enddo
 
         do s = 0, numsol - 1
@@ -516,4 +527,4 @@ contains
 
     end subroutine new_state
 
-end subroutine f_solve
+end subroutine solve
