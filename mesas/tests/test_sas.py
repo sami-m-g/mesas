@@ -20,11 +20,11 @@ from mesas.sas.model import Model
 def test_steady_vs_analytical():
     # data_df = steady_df
     # Steady-state flow in and out for N timesteps
-    dt = 1.
+    dt = 24.
     Q_0 = 1.0 / dt  # <-- steady-state flow rate
     C_J = 100.0
-    N = 3#37
-    S_0 = 5.
+    N = 60
+    S_0 = 3.
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(N) * Q_0 / 2
     data_df['Q2'] = np.ones(N) * Q_0 / 2
@@ -37,7 +37,7 @@ def test_steady_vs_analytical():
     sas_fun2 = Piecewise(nsegment=1, ST_max=S_0)
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df)), 'Q2': Fixed(sas_fun1, N=len(data_df))}
     solute_parameters = {'Ca': {}, 'Cb': {}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=True, verbose=True, dt=dt, n_substeps=1)
+    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=True, dt=dt, n_substeps=2)
     print('running test_steady')
     model.run()
     rdf = model.result
@@ -67,7 +67,7 @@ def test_steady_vs_analytical():
         print(f'iq = {iq}')
         print(((pQ_analytical - rdf['pQ'][:, :, iq]) / pQ_analytical)[:, -1])
     print('Water Balance:')
-    print(rdf['WaterBalance'])
+    print(rdf['WaterBalance'][:, -1])
     print('Solute Balance:')
     for s in range(1):
         print(rdf['SoluteBalance'][:, -1, s])

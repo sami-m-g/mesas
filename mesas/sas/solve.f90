@@ -41,6 +41,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: C_J_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: Q_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: alpha_ss
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: C_eq_ss
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: k1_ss
     real(8), dimension(0:timeseries_length * n_substeps) :: STcum_start
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: STcum_temp
     real(8), dimension(0:timeseries_length * n_substeps, 0:numflux - 1) :: PQcum_start
@@ -147,6 +149,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
     C_J_ss = reshape(spread(C_J_ts, 1, n_substeps), (/N, numsol/))
     Q_ss = reshape(spread(Q_ts, 1, n_substeps), (/N, numflux/))
     alpha_ss = reshape(spread(alpha_ts, 1, n_substeps), (/N, numflux, numsol/))
+    C_eq_ss = reshape(spread(C_eq_ts, 1, n_substeps), (/N, numsol/))
+    k1_ss = reshape(spread(k1_ts, 1, n_substeps), (/N, numsol/))
     call f_debug('J_ss           ', J_ss)
     do s = 0, numsol - 1
         call f_debug('C_J_ss           ', C_J_ss(:, s))
@@ -290,6 +294,10 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
                 STcum_start(0) = STcum_start(0)    + sT_init_ts(i_prev) * h
                 MScum_start(0, :) = MScum_start(0, :) + mS_init_ts(i_prev, :) * h
                 PQcum_start(0, :) = PQcum_start(0, :) + pQ1(0, :) * h
+                call f_debug('PQcum_start 1  ', PQcum_start(:, 0))
+                PQcum_start(:, :) = 0
+                call get_SAS(STcum_start, PQcum_start, N+1)
+                call f_debug('PQcum_start 2  ', PQcum_start(:, 0))
             end if
 
             sT_prev = sT_end
@@ -412,6 +420,34 @@ contains
     end subroutine f_verbose
 
 
+    subroutine get_SAS(STcum_toget, PQcum_toget, n_array)
+        ! Call the sas function and get the transit time distribution
+        integer, intent(in) :: n_array
+        real(8), intent(in), dimension(0:n_array - 1) :: STcum_toget
+        real(8), intent(out), dimension(0:n_array - 1, 0:numflux - 1) :: PQcum_toget
+        ! Main lookup loop
+        do iq = 0, numflux - 1
+            do jt = 0, timeseries_length - 1
+                jk = jt * n_substeps
+                call f_debug('getting entries', (/jk*one8, (jk+n_substeps-1)*one8/))
+                call lookup(&
+                        SAS_lookup(iP_list(iq):iP_list(iq + 1) - 1, jt), &
+                        P_list(iP_list(iq):iP_list(iq + 1) - 1, jt), &
+                        STcum_toget(jk:jk+n_substeps-1), PQcum_toget(jk:jk+n_substeps-1, iq), &
+                        nP_list(iq), n_substeps)
+            end do
+            if (n_array>N) then
+                call f_debug('getting last entry', (/n_array*one8, N*one8/))
+                jt = timeseries_length - 1
+                call lookup(&
+                        SAS_lookup(iP_list(iq):iP_list(iq + 1) - 1, jt), &
+                        P_list(iP_list(iq):iP_list(iq + 1) - 1, jt), &
+                        STcum_toget(N:N), PQcum_toget(N:N, iq), &
+                        nP_list(iq), 1)
+            end if
+        enddo
+        end subroutine get_SAS
+
     subroutine lookup(xa, ya, x, y, na, n)
         ! A simple lookup table
         implicit none
@@ -486,20 +522,7 @@ contains
         enddo
         call f_debug_blank()
 
-        ! Main lookup loop
-        do iq = 0, numflux - 1
-            do jt = 0, timeseries_length - 1
-                !do k = 0, n_substeps - 1
-                    jk = jt * n_substeps
-                    ! Call the sas function and get the transit time distribution
-                    call lookup(&
-                            SAS_lookup(iP_list(iq):iP_list(iq + 1) - 1, jt), &
-                            P_list(iP_list(iq):iP_list(iq + 1) - 1, jt), &
-                            STcum_temp(jk:jk+n_substeps), PQcum_temp(jk:jk+n_substeps, iq), &
-                            nP_list(iq), n_substeps)
-                !end do
-            end do
-        enddo
+        call get_SAS(STcum_temp, PQcum_temp, N)
 
         ! Get the pdf form
         call f_debug('getting pQ_out ', (/0._8/))
@@ -550,7 +573,7 @@ contains
         do s = 0, numsol - 1
 
             ! If there are first-order reactions, get the total mass rate
-            mR_out(:, s) = k1_ts(:, s) * (C_eq_ts(:, s) * sT_in(:) - mS_in(:, s))
+            mR_out(:, s) = k1_ss(:, s) * (C_eq_ss(:, s) * sT_in(:) - mS_in(:, s))
 
             call f_debug('mQ_out         ', mQ_out(:, 0, s))
             !call f_debug('mE_out         ', mQ_out(:, 1, s))
