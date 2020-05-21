@@ -374,7 +374,7 @@ class Model:
             verbose, debug, warning,
             mS_init, C_J, alpha, k1, C_eq, C_old,
             n_substeps, nP_list, numflux, numsol, max_age, timeseries_length, nP_total)
-        sT, pQ, WaterBalance, mS, mQ, mR, C_Q, SoluteBalance = fresult
+        sT, pQ, WaterBalance, mS, mQ, mR, C_Q, dmTdSj, SoluteBalance = fresult
 
         if numsol > 0:
             self._result = {'C_Q': C_Q}
