@@ -47,7 +47,7 @@ class Model:
         self.sas_blends = sas_blends
         # defaults for solute transport
         self._default_parameters = {
-            'mS_init': 0.,
+            'mT_init': 0.,
             'C_old': 0.,
             'k1': 0.,
             'C_eq': 0.,
@@ -109,7 +109,7 @@ class Model:
                 wrong.
             'C_Q' : n x q x s float64 ndarray
                 If C_J is supplied, C_Q is the timeseries of timestep-averaged outflow concentration
-            'mS' : m x n+1 x s float64 ndarray
+            'mT' : m x n+1 x s float64 ndarray
                 Array of instantaneous age-ranked solute mass for n times, m ages, and s solutes. First column is initial condition
             'mQ' : m x n x q x s float64 ndarray
                 Array of timestep-averaged age-ranked solute mass flux for n times, m ages, q fluxes and s
@@ -275,7 +275,7 @@ class Model:
         This is a dictionary whose keys correspond to columns in data_df. Each entry in the dictionary
         is itself a dict with the following default key:value pairs
 
-            'mS_init': 0.   # initial age-ranked mass in the system
+            'mT_init': 0.   # initial age-ranked mass in the system
             'C_old': 0.   # old water concentration
             'k1': 0.   # reaction rate constant
             'C_eq': 0.   # equilibrium concentration
@@ -312,7 +312,7 @@ class Model:
 
     def _create_solute_inputs(self):
         C_J = np.zeros((self._timeseries_length, self._numsol), dtype=dtype)
-        mS_init = np.zeros((self._max_age, self._numsol), dtype=dtype)
+        mT_init = np.zeros((self._max_age, self._numsol), dtype=dtype)
         C_old = np.zeros(self._numsol, dtype=dtype)
         k1 = np.zeros((self._timeseries_length, self._numsol), dtype=dtype)
         C_eq = np.zeros((self._timeseries_length, self._numsol), dtype=dtype)
@@ -327,14 +327,14 @@ class Model:
             for isol, sol in enumerate(self._solorder):
                 C_J[:, isol] = self.data_df[sol].values
                 C_old[isol] = self.solute_parameters[sol]['C_old']
-                mS_init[:, isol] = _get_array(self.solute_parameters[sol]['mS_init'], self._max_age)
+                mT_init[:, isol] = _get_array(self.solute_parameters[sol]['mT_init'], self._max_age)
                 k1[:, isol] = _get_array(self.solute_parameters[sol]['k1'], self._timeseries_length)
                 C_eq[:, isol] = _get_array(self.solute_parameters[sol]['C_eq'],
                                            self._timeseries_length)
                 for iflux, flux in enumerate(self._fluxorder):
                     alpha[:, iflux, isol] = _get_array(
                         self.solute_parameters[sol]['alpha'][flux], self._timeseries_length)
-        return C_J, mS_init, C_old, alpha, k1, C_eq
+        return C_J, mT_init, C_old, alpha, k1, C_eq
 
     def _create_sas_lookup(self):
         nP_list = np.array([len(self.sas_blends[flux].P) for flux in self._fluxorder])
@@ -357,7 +357,7 @@ class Model:
         P_list = np.asfortranarray(P_list)
         #
         # Solutes
-        C_J, mS_init, C_old, alpha, k1, C_eq = self._create_solute_inputs()
+        C_J, mT_init, C_old, alpha, k1, C_eq = self._create_solute_inputs()
         numsol = self._numsol
         #
         # options
@@ -372,17 +372,17 @@ class Model:
         fresult = solve(
             J, Q, SAS_lookup, P_list, sT_init, dt,
             verbose, debug, warning,
-            mS_init, C_J, alpha, k1, C_eq, C_old,
+            mT_init, C_J, alpha, k1, C_eq, C_old,
             n_substeps, nP_list, numflux, numsol, max_age, timeseries_length, nP_total)
-        sT, pQ, WaterBalance, mS, mQ, mR, C_Q, dmTdSj, SoluteBalance = fresult
+        sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
         if numsol > 0:
             self._result = {'C_Q': C_Q}
         else:
             self._result = {}
-        self._result.update({'sT': sT, 'pQ': pQ, 'WaterBalance': WaterBalance})
+        self._result.update({'sT': sT, 'pQ': pQ, 'WaterBalance': WaterBalance, 'dsTdSj':dsTdSj})
         if numsol > 0:
-            self._result.update({'mS': mS, 'mQ': mQ, 'mR': mR, 'SoluteBalance': SoluteBalance})
+            self._result.update({'mT': mT, 'mQ': mQ, 'mR': mR, 'SoluteBalance': SoluteBalance, 'dmTdSj':dmTdSj, 'dCdSj':dCdSj})
 
     def get_jacobian(self, index=None, **kwargs):
         J = None
@@ -392,15 +392,19 @@ class Model:
         for isol, sol in enumerate(self._solorder):
             if 'observations' in self.solute_parameters[sol]:
                 self.jacobian[sol] = {}
+                iP = 0
                 for iflux, flux in enumerate(self._comp2learn_fluxorder):
+                    nP = len(self.sas_blends[flux].P)
                     if flux in self.solute_parameters[sol]['observations']:
-                        mS = np.squeeze(self.result['mS'][:, :, isol])
+                        mT = np.squeeze(self.result['mT'][:, :, isol])
                         sT = self.result['sT']
+                        dCdSj = np.squeeze(self.result['dCdSj'][:, iP:iP+nP, isol])
                         pQ = self.result['pQ'][:, :, iflux]
                         PQ_max = np.sum(pQ, axis=0)
                         C_old = self.solute_parameters[sol]['C_old']
                         alpha = self.solute_parameters[sol]['alpha'][flux]
-                        J_seg = self.sas_blends[flux].get_jacobian(sT, mS, C_old, alpha=alpha, index=index, **kwargs)
+                        J_seg = self.sas_blends[flux].get_jacobian(sT, mT, dCdSj, C_old, self.options['dt'],
+                                                                   alpha=alpha, index=index, **kwargs)
                         J_old = np.zeros(len(index))
                         observed_index = index[index < self._max_age]
                         unobserved_index = index[index >= self._max_age]

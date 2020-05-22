@@ -271,7 +271,7 @@ class Piecewise:
             fig, ax = plt.subplots()
         return ax.plot(self.ST, self.P, **kwargs)
 
-    def get_jacobian(self, ST, MS, C_old, alpha=1, index=None, mode='segment', logtransform=True):
+    def get_jacobian(self, sT, mT, dCdSj, C_old, dt, alpha=1, index=None, mode='segment', logtransform=True):
         """
         Calculates a limited jacobian of the model predictions
 
@@ -288,8 +288,8 @@ class Piecewise:
         concentrations at each timestep to variations in the sas function at that timestep, and neglects
         the cumulative effects that changing the sas function would have on the state variables (ST and MS).
 
-        :param ST: Age-ranked storage array produced by a sas model
-        :param MS: Age-ranked solute mass array produced by a sas model
+        :param sT: Age-ranked storage array produced by a sas model
+        :param mT: Age-ranked solute mass array produced by a sas model
         :param C_old: Old water concentration
         :param alpha: solute partitioning coefficient
         :param index: index of timesteps to calculate the jacobian for
@@ -301,26 +301,26 @@ class Piecewise:
         """
 
         if index is None:
-            index = np.arange(ST.shape[1] - 1)
+            index = np.arange(sT.shape[1] - 1)
 
         # Create an array to store the result
-        Nt = ST.shape[1] - 1
+        Nt = sT.shape[1] - 1
         Ni = len(index)
         Ns = self.nsegment
         J_S = np.zeros((Ni, Ns + 1))
 
         # These represent the volume and solute mass in the system whose age is known.
         # Everything older is assumed to have concentration C_old
+        ST = np.zeros((sT.shape[0]+1, sT.shape[1]))
+        MT = np.zeros_like(ST)
+        ST[1:, :] = np.cumsum(sT, axis=0) * dt
+        MT[1:, :] = np.cumsum(mT, axis=0) * dt
         S_maxcalc = ST[-1, :]
-        M_maxcalc = MS[-1, :]
-
-        # Get some differences along the age dimension
-        dST = np.diff(ST, axis=0)
-        dMS = np.diff(MS, axis=0)
+        M_maxcalc = MT[-1, :]
 
         # This gives the concentration of water of each age
         with np.errstate(divide='ignore', invalid='ignore'):
-            CS = np.where(dST > 0, dMS / dST, 0)
+            CS = np.where(sT > 0, mT / sT, 0)
         CS[np.isnan(CS)] = 0
 
         # Loop over the times
@@ -336,6 +336,8 @@ class Piecewise:
             omegaj = dOmegaj / dSj
 
             J_Si = np.zeros_like(Sj)
+
+            J_Si += dCdSj[start_index, :]
 
             # We are going to do this twice: once for the start and once for the end of each timestep
             # we will average them together at the end
@@ -367,7 +369,7 @@ class Piecewise:
 
                 # Calculate the bulk-averaged concentration in each segment
                 # Age-ranked mass at each segment endpoint
-                Mj = np.interp(Sj, ST[:, time_index], MS[:, time_index])
+                Mj = np.interp(Sj, ST[:, time_index], MT[:, time_index])
                 # Increment of age-ranked mass in each segment
                 dMj = np.diff(Mj)
                 # Concentration in each segment
