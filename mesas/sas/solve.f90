@@ -1,18 +1,19 @@
 ! -*- f90 -*-
-subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
+subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
         verbose, debug, warning, &
         mT_init_ts, C_J_ts, alpha_ts, k1_ts, C_eq_ts, C_old, &
-        n_substeps, numflux, numsol, max_age, &
-        timeseries_length, nP_list, nP_total, &
+        n_substeps, nC_list, nP_list, numflux, numsol, max_age, &
+        timeseries_length, nC_total, nP_total, &
         sT_ts, pQ_ts, WaterBalance_ts, &
         mT_ts, mQ_ts, mR_ts, C_Q_ts, ds_ts, dm_ts, dC_ts, SoluteBalance_ts)
     implicit none
 
     ! Start by declaring and initializing all the variables we will be using
     integer, intent(in) :: n_substeps, numflux, numsol, max_age, &
-            timeseries_length, nP_total
+            timeseries_length, nC_total, nP_total
     real(8), intent(in), dimension(0:timeseries_length - 1) :: J_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1) :: Q_ts
+    real(8), intent(in), dimension(0:timeseries_length - 1, 0:nC_total - 1) :: weights_ts
     real(8), intent(in), dimension(0:nP_total - 1, 0:timeseries_length - 1) :: SAS_lookup
     real(8), intent(in), dimension(0:nP_total - 1, 0:timeseries_length - 1) :: P_list
     real(8), intent(in), dimension(0:max_age - 1) :: sT_init_ts
@@ -24,7 +25,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: k1_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: C_eq_ts
     real(8), intent(in), dimension(0:numsol - 1) :: C_old
-    integer, intent(in), dimension(0:numflux - 1) :: nP_list
+    integer, intent(in), dimension(0:numflux - 1) :: nC_list
+    integer, intent(in), dimension(0:nC_total - 1) :: nP_list
     real(8), intent(out), dimension(0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: C_Q_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length) :: sT_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length, 0:numsol - 1) :: mT_ts
@@ -39,19 +41,21 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
     integer :: k, iT, jt, ik, jk, i_prev, js
     real(8) :: h
     real(8), dimension(0:timeseries_length - 1, 0:numflux - 1) :: P_old
-    integer, dimension(0:numflux) :: iP_list
+    integer, dimension(0:nC_total) :: iP_list
+    integer, dimension(0:numflux) :: iC_list
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: J_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: C_J_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: Q_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: alpha_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: C_eq_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: k1_ss
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nC_total - 1) :: weights_ss
     real(8), dimension(0:timeseries_length * n_substeps) :: STcum_start
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: STcum_temp
     real(8), dimension(0:timeseries_length * n_substeps, 0:numflux - 1) :: PQcum_start
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: PQcum_temp
-    integer, dimension(0:timeseries_length * n_substeps, 0:numflux-1) :: iPj_start
-    integer, dimension(0:timeseries_length * n_substeps - 1, 0:numflux-1) :: iPj_temp
+    integer, dimension(0:timeseries_length * n_substeps, 0:nC_total-1) :: iPj_start
+    integer, dimension(0:timeseries_length * n_substeps - 1, 0:nC_total-1) :: iPj_temp
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ1
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ2
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ3
@@ -105,7 +109,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total-1, 0:numsol - 1) :: dm_prev
     real(8) :: one8, weight
     character(len = 128) :: tempdebugstring
-    integer iq, s, M, N, ip
+    integer iq, s, M, N, ip, ic
     logical :: carryover
 
     call f_verbose('...Initializing arrays...')
@@ -124,6 +128,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
     SoluteBalance_ts(:, :, :) = 0.
     P_old(:, :) = 0.
     iP_list(:) = 0
+    iC_list(:) = 0
     STcum_start(:) = 0.
     STcum_temp(:) = 0.
     PQcum_start(:, :) = 0.
@@ -187,8 +192,12 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
     ! iP_list gives the starting index of the probabilities (P) associated
     ! with each flux
     iP_list(0) = 0
+    iC_list(0) = 0
     do iq = 0, numflux - 1
-        iP_list(iq + 1) = iP_list(iq) + nP_list(iq)
+        iC_list(iq + 1) = iC_list(iq) + nC_list(iq)
+        do ic = iC_list(iq), iC_list(iq+1) - 1
+            iP_list(ic + 1) = iP_list(ic) + nP_list(ic)
+        enddo
     enddo
     !call f_debug('iP_list', one8 * iP_list(:))
 
@@ -203,6 +212,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
     alpha_ss = reshape(spread(alpha_ts, 1, n_substeps), (/N, numflux, numsol/))
     C_eq_ss = reshape(spread(C_eq_ts, 1, n_substeps), (/N, numsol/))
     k1_ss = reshape(spread(k1_ts, 1, n_substeps), (/N, numsol/))
+    weights_ss = reshape(spread(weights_ts, 1, n_substeps), (/N, nC_total/))
     call f_debug('J_ss           ', J_ss)
     do s = 0, numsol - 1
         call f_debug('C_J_ss           ', C_J_ss(:, s))
@@ -305,33 +315,33 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
 
             ! Get the timestep-averaged transit time distribution
             weight = 1.0 / n_substeps / n_substeps
-            do jt = 0, timeseries_length - 1
-                js = jt * n_substeps
-                carryover = ((n_substeps>1) .and. (k>0) .and. (iT<max_age-1))
-                do iq = 0, numflux - 1
+            carryover = ((n_substeps>1) .and. (k>0) .and. (iT<max_age-1))
+            do iq = 0, numflux - 1
+                do jt = 0, timeseries_length - 1
+                    js = jt * n_substeps
                     pQ_ts(iT, jt, iq) = pQ_ts(iT, jt, iq) + sum(pQ_aver((js+k):(js+n_substeps-1), iq)) * weight
                     if (carryover) then
                         pQ_ts(iT+1, jt, iq) = pQ_ts(iT+1, jt, iq) + sum(pQ_aver((js):(js+k-1), iq)) * weight
                     endif
-                    do s = 0, numsol - 1
+                enddo
+                do s = 0, numsol - 1
+                    do jt = 0, timeseries_length - 1
+                        js = jt * n_substeps
                         mQ_ts(iT, jt, iq, s) = mQ_ts(iT, jt, iq, s) + sum(mQ_aver((js+k):(js+n_substeps-1), iq, s)) * weight
                         if (carryover) then
                             mQ_ts(iT+1, jt, iq, s) = mQ_ts(iT+1, jt, iq, s) + sum(mQ_aver((js):(js+k-1), iq, s)) * weight
                         endif
                     enddo
                 enddo
-                do s = 0, numsol - 1
+            enddo
+            do s = 0, numsol - 1
+                do jt = 0, timeseries_length - 1
+                    js = jt * n_substeps
                     mR_ts(iT, jt, s) = mR_ts(iT, jt, s) + sum(mR_aver((js+k):(js+n_substeps-1), s)) * weight
                     if (carryover) then
                         mR_ts(iT+1, jt, s) = mR_ts(iT+1, jt, s) + sum(mR_aver((js):(js+k-1), s)) * weight
                     endif
                 enddo
-                !do ip = 0, nP_total - 1
-                !    fs_ts(iT, jt, ip) = fs_ts(iT, jt, ip) + sum(fs_aver((js+k):(js+n_substeps-1), ip)) * weight
-                !    if (carryover) then
-                !        fs_ts(iT+1, jt, ip) = fs_ts(iT+1, jt, ip) + sum(fs_aver((js):(js+k-1), ip)) * weight
-                !    endif
-                !enddo
             enddo
 
             ! Extract substep state at timesteps
@@ -351,13 +361,15 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
             enddo
             do iq = 0, numflux - 1
                 do s = 0, numsol - 1
-                    do ip = iP_list(iq), iP_list(iq+1) - 1
-                        where (Q_ts(:,iq)>0)
-                            dC_ts(:, ip, s) = dC_ts(:, ip, s) + alpha_ts(:, iq, s) &
-                                    * dm_start(0:N-n_substeps:n_substeps, ip, s) &
-                                    * pQ1(0:N-n_substeps:n_substeps, iq) &
-                                    / sT_start(0:N-n_substeps:n_substeps)  * h
-                        end where
+                    do ic = iC_list(iq), iC_list(iq+1) - 1
+                        do ip = iP_list(ic), iP_list(ic+1) - 1
+                            where (Q_ts(:,iq)>0)
+                                dC_ts(:, ip, s) = dC_ts(:, ip, s) + alpha_ts(:, iq, s) &
+                                        * dm_start(0:N-n_substeps:n_substeps, ip, s) &
+                                        * pQ1(0:N-n_substeps:n_substeps, iq) &
+                                        / sT_start(0:N-n_substeps:n_substeps)  * h
+                            end where
+                        enddo
                     enddo
                 enddo
             enddo
@@ -432,8 +444,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, sT_init_ts, dt, &
             enddo
         enddo
     enddo
-    do iq = 0, numflux - 1
-        do s = 0, numsol - 1
+    do s = 0, numsol - 1
+        do iq = 0, numflux - 1
 
             where (Q_ts(:,iq)>0)
                 ! From the age-ranked mass
@@ -494,41 +506,52 @@ contains
     end subroutine f_verbose
 
 
-    subroutine get_SAS(STcum_toget, PQcum_toget, iPj_toget, n_array)
+    subroutine get_SAS(STcum_in, PQcum_out, iPj_out, n_array)
         ! Call the sas function and get the transit time distribution
         integer, intent(in) :: n_array
-        real(8), intent(in), dimension(0:n_array - 1) :: STcum_toget
-        real(8), intent(out), dimension(0:n_array - 1, 0:numflux - 1) :: PQcum_toget
-        integer, intent(out), dimension(0:n_array - 1, 0:numflux - 1) :: iPj_toget
+        real(8), intent(in), dimension(0:n_array - 1) :: STcum_in
+        real(8), intent(out), dimension(0:n_array - 1, 0:numflux - 1) :: PQcum_out
+        integer, intent(out), dimension(0:n_array - 1, 0:nC_total - 1) :: iPj_out
+        real(8), dimension(0:n_array - 1) :: PQcum_component
         ! Main lookup loop
+        PQcum_out(:, :) = 0.
         do iq = 0, numflux - 1
-            call f_debug('iP_list        ', (/iP_list(iq)*one8, iP_list(iq + 1)-1*one8/))
-            do jt = 0, timeseries_length - 1
-                call f_debug('SAS_lookup     ', SAS_lookup(iP_list(iq):iP_list(iq + 1)-1, jt))
-                call f_debug('P_list         ', P_list(iP_list(iq):iP_list(iq + 1)-1, jt))
-                jk = jt * n_substeps
-                call f_debug('getting entries', (/jk*one8, (jk+n_substeps-1)*one8/))
-                call lookup(&
-                        SAS_lookup(iP_list(iq):iP_list(iq + 1) - 1, jt), &
-                        P_list(iP_list(iq):iP_list(iq + 1) - 1, jt), &
-                        STcum_toget(jk:jk+n_substeps-1), &
-                        PQcum_toget(jk:jk+n_substeps-1, iq), &
-                        iPj_toget(jk:jk+n_substeps-1, iq), &
-                        iPj_start(jk:jk+n_substeps-1, iq), &
-                        nP_list(iq), n_substeps)
-            end do
-            if (n_array>N) then
-                call f_debug('getting last entry', (/n_array*one8, N*one8/))
-                jt = timeseries_length - 1
-                call lookup(&
-                        SAS_lookup(iP_list(iq):iP_list(iq + 1) - 1, jt), &
-                        P_list(iP_list(iq):iP_list(iq + 1) - 1, jt),  &
-                        STcum_toget(N:N), &
-                        PQcum_toget(N:N, iq), &
-                        iPj_toget(N:N, iq), &
-                        iPj_start(N:N, iq), &
-                        nP_list(iq), 1)
-            end if
+            do ic = iC_list(iq), iC_list(iq+1) - 1
+                call f_debug('iP_list        ', (/iP_list(ic)*one8, iP_list(ic + 1)-1*one8/))
+                PQcum_component(:) = 0
+                do jt = 0, timeseries_length - 1
+                    jk = jt * n_substeps
+                    call f_debug('getting entries', (/jk*one8, (jk+n_substeps-1)*one8, ic*one8, jt*one8/))
+                    call f_debug('SAS_lookup     ', SAS_lookup(iP_list(ic):iP_list(ic + 1)-1, jt))
+                    call f_debug('P_list         ', P_list(iP_list(ic):iP_list(ic + 1)-1, jt))
+                    call lookup(&
+                            SAS_lookup(iP_list(ic):iP_list(ic + 1) - 1, jt), &
+                            P_list(iP_list(ic):iP_list(ic + 1) - 1, jt), &
+                            STcum_in(jk:jk+n_substeps-1), &
+                            PQcum_component(jk:jk+n_substeps-1), &
+                            iPj_out(jk:jk+n_substeps-1, ic), &
+                            iPj_start(jk:jk+n_substeps-1, ic), &
+                            nP_list(ic), n_substeps)
+                end do
+                PQcum_out(:N-1, iq) = PQcum_out(:N-1, iq) + weights_ss(:N-1, ic) * PQcum_component(:N-1)
+                if (n_array>N) then
+                    jt = timeseries_length - 1
+                    call f_debug('getting last entry', (/n_array*one8, N*one8, ic*one8, jt*one8/))
+                    call f_debug('SAS_lookup     ', SAS_lookup(iP_list(ic):iP_list(ic + 1)-1, jt))
+                    call f_debug('P_list         ', P_list(iP_list(ic):iP_list(ic + 1)-1, jt))
+                    call lookup(&
+                            SAS_lookup(iP_list(ic):iP_list(ic + 1)-1, jt), &
+                            P_list(iP_list(ic):iP_list(ic + 1)-1, jt),  &
+                            STcum_in(N:N), &
+                            PQcum_component(N:N), &
+                            iPj_out(N:N, ic), &
+                            iPj_start(N:N, ic), &
+                            nP_list(ic), 1)
+                    PQcum_out(N, iq) = PQcum_out(N, iq) + weights_ss(N-1, ic) * PQcum_component(N)
+                end if
+            enddo
+            call f_debug('STcum_in       ', STcum_in(:))
+            call f_debug('PQcum_out      ', PQcum_out(:, iq))
         enddo
         end subroutine get_SAS
 
@@ -589,8 +612,9 @@ contains
         real(8), intent(out), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR_out
         real(8), intent(out), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1) :: fs_out
         real(8), intent(out), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fm_out
-        integer iq, s, ip, kk
-        real(8) dS
+        real(8), dimension(0:timeseries_length * n_substeps - 1) :: temp
+        integer iq, s, ip, kk, rightend
+        real(8) dS, dP
         call f_debug('get_flux', (/hr/))
 
         ! Use the SAS function lookup table to convert age-rank storage to the fraction of discharge of age T at each t
@@ -647,13 +671,13 @@ contains
         ! Solute mass flux accounting
         call f_debug('getting mQ_out', (/0._8/))
 
-        do s = 0, numsol - 1
-            do iq = 0, numflux - 1
+        do iq = 0, numflux - 1
+            !temp = Q_ss(:, iq) * pQ_out(:, iq) / sT_in(:)
+            do s = 0, numsol - 1
 
                 ! Get the mass flux out
                 where (sT_in(:)>0)
-                    mQ_out(:, iq, s) = mT_in(:, s) / sT_in(:) * alpha_ss(:, iq, s) &
-                            * Q_ss(:, iq) * pQ_out(:, iq)
+                    mQ_out(:, iq, s) = mT_in(:, s) * alpha_ss(:, iq, s) * Q_ss(:, iq) * pQ_out(:, iq) / sT_in(:)
 
                     ! unless there is nothing in storage
                 elsewhere
@@ -661,7 +685,9 @@ contains
 
                 end where
             enddo
+        enddo
 
+        do s = 0, numsol - 1
             ! Reaction mass accounting
 
             ! If there are first-order reactions, get the total mass rate
@@ -673,55 +699,61 @@ contains
 
         enddo
 
+        temp = sum(pQ_out*Q_ss, dim=2) / sT_in
         do ip = 0, nP_total - 1
             where (sT_in(:)>0)
-                fs_out(:, ip) = -ds_in(:, ip) * sum(pQ_out*Q_ss, dim=2) / sT_in
+                fs_out(:, ip) = -ds_in(:, ip) * temp
             elsewhere
                 fs_out(:, ip) = 0.
             end where
         end do
         do iq = 0, numflux - 1
-            do jt = 0, timeseries_length - 1
-                do kk = 0, n_substeps - 1
-                    jk = jt * n_substeps + kk
-                    ! sensitivity
-                    if ((iPj_temp(jk, iq).ge.0).and.(iPj_temp(jk, iq)<nP_list(iq)-1)) then
-                        ip = iP_list(iq) + iPj_temp(jk, iq)
-                        dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
-                        ! to the left node
-                        fs_out(jk, ip) = fs_out(jk, ip) - pQ_out(jk, iq) * Q_ss(jk, iq) / dS
-                        ! to the right node
-                        fs_out(jk, ip+1) = fs_out(jk, ip+1) + pQ_out(jk, iq) * Q_ss(jk, iq) / dS
-                    end if
+            do rightend = 0, 1
+                do ic = iC_list(iq), iC_list(iq+1) - 1
+                    do jt = 0, timeseries_length - 1
+                        do kk = 0, n_substeps - 1
+                            jk = jt * n_substeps + kk
+                            ! sensitivity
+                            if ((iPj_temp(jk, ic).ge.0).and.(iPj_temp(jk, ic)<nP_list(ic)-1)) then
+                                ip = iP_list(ic) + iPj_temp(jk, ic)
+                                dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
+                                dP = P_list(ip+1, jt) - P_list(ip, jt)
+                                fs_out(jk, ip+rightend) = fs_out(jk, ip+rightend) &
+                                            + (2 * rightend - 1) * weights_ss(jk, ic) * Q_ss(jk, iq) * sT_in(jk) * dP / (dS*dS)
+                            end if
+                        end do
+                    end do
                 end do
             end do
         end do
         do s = 0, numsol - 1
+            temp = sum(alpha_ss(:,:,s)*Q_ss*pQ_out, dim=2) / sT_in
             do ip = 0, nP_total - 1
                 where (mT_in(:, s)>0)
-                    fm_out(:, ip, s) = -dm_in(:, ip, s) * sum(mQ_out(:,:,s), dim=2) / mT_in(:, s)
+                    fm_out(:, ip, s) = -dm_in(:, ip, s) * temp
                 elsewhere
                     fm_out(:, ip, s) = 0.
                 end where
             end do
             do iq = 0, numflux - 1
-                do jt = 0, timeseries_length - 1
-                    do kk = 0, n_substeps - 1
-                        jk = jt * n_substeps + kk
-                        ! sensitivity
-                        if ((iPj_temp(jk, iq).ge.0).and.(iPj_temp(jk, iq)<nP_list(iq)-1)) then
-                            ip = iP_list(iq) + iPj_temp(jk, iq)
-                            dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
-                            ! to the left node
-                            fm_out(jk, ip, s) = fm_out(jk, ip, s) - mQ_out(jk, iq, s) / dS
-                            ! to the right node
-                            fm_out(jk, ip+1, s) = fm_out(jk, ip+1, s) + mQ_out(jk, iq, s) / dS
-                            fm_out(jk, ip, s) = fm_out(jk, ip, s) &
-                                    + k1_ss(jk, s) * (C_eq_ss(jk, s) * ds_in(jk, ip) - dm_in(jk, ip, s))
-                            fm_out(jk, ip+1, s) = fm_out(jk, ip+1, s) &
-                                    + k1_ss(jk, s) * (C_eq_ss(jk, s) * ds_in(jk, ip+1) - dm_in(jk, ip+1, s))
-                            !
-                        end if
+                do rightend = 0, 1
+                    do ic = iC_list(iq), iC_list(iq+1) - 1
+                        do jt = 0, timeseries_length - 1
+                            do kk = 0, n_substeps - 1
+                                jk = jt * n_substeps + kk
+                                ! sensitivity
+                                if ((iPj_temp(jk, ic).ge.0).and.(iPj_temp(jk, ic)<nP_list(ic)-1)) then
+                                    ip = iP_list(ic) + iPj_temp(jk, ic)
+                                    dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
+                                    dP = P_list(ip+1, jt) - P_list(ip, jt)
+                                    fm_out(jk, ip+rightend, s) = fm_out(jk, ip+rightend, s) &
+                                            + (2 * rightend - 1) * alpha_ss(jk, iq, s) &
+                                                    * weights_ss(jk, ic) * Q_ss(jk, iq) * mT_in(jk, s) * dP / (dS*dS)
+                                    fm_out(jk, ip+rightend, s) = fm_out(jk, ip+rightend, s) &
+                                            + k1_ss(jk, s) * (C_eq_ss(jk, s) * ds_in(jk, ip+rightend) - dm_in(jk, ip+rightend, s))
+                                end if
+                            end do
+                        end do
                     end do
                 end do
             end do

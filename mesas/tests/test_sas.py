@@ -11,11 +11,11 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
-dt = 24.
+dt = 25.
 Q_0 = 1.0 / dt  # <-- steady-state flow rate
 C_J = 100.0
 N = 5
-S_0 = 3.
+S_0 = 4.
 eps = 0.0000001
 
 
@@ -50,31 +50,31 @@ def test_steady_vs_analytical():
     sT_analytical = np.tril(np.tile(sT_analytical, [N, 1])).T
     pQ_analytical = np.tril(np.tile(pQ_analytical, [N, 1])).T
     print('Expected:')
-    print(sT_analytical[:, -1])
+    print(dt*sT_analytical[:, -3:])
     print('Got:')
-    print(rdf['sT'][:, -1])
+    print(dt*rdf['sT'][:, -3:])
     print('Difference/expected:')
-    print(((sT_analytical - rdf['sT'][:, 1:]) / sT_analytical)[:, -1])
+    print(((sT_analytical - rdf['sT'][:, 1:]) / sT_analytical)[:, -3:])
     print('Expected:')
-    print(pQ_analytical[:, -1])
+    print(dt*pQ_analytical[:, -3:])
     print('Got:')
     for iq in range(1):
         print(f'iq = {iq}')
-        print(rdf['pQ'][:, -1, iq])
+        print(dt*rdf['pQ'][:, -3:, iq])
     print('Difference/expected:')
     for iq in range(1):
         print(f'iq = {iq}')
-        print(((pQ_analytical - rdf['pQ'][:, :, iq]) / pQ_analytical)[:, -1])
+        print(dt*((pQ_analytical - rdf['pQ'][:, :, iq]) / pQ_analytical)[:, -3:])
     print('Water Balance:')
-    print(rdf['WaterBalance'][:, -1])
+    print(dt*rdf['WaterBalance'][:, -3:])
     print('Solute Balance:')
     for s in range(1):
-        print(rdf['SoluteBalance'][:, -1, s])
+        print(dt*rdf['SoluteBalance'][:, -3:, s])
     print('T compare')
     print('Expected:')
-    print(sT_analytical[:, -1] / pQ_analytical[:, -1] / Q_0 / T1)
+    print(dt*sT_analytical[:, -3:] / pQ_analytical[:, -3:] / Q_0 / T1)
     print('Got:')
-    print(rdf['sT'][:, -1] / rdf['pQ'][:, -1, 0] / Q_0 / T1)
+    print(dt*rdf['sT'][:, -3:] / rdf['pQ'][:, -3:, 0] / Q_0 / T1)
     #
     assert np.nanmax(np.abs((sT_analytical - rdf['sT'][:, 1:]) / sT_analytical)) < 1.0E-3
     for iq in range(1):
@@ -88,8 +88,8 @@ def test_sensitivity():
     model2 = steady_run(N, dt, Q_0, S_0, C_J, eps)
     rdf = model.result
     rdf2 = model2.result
-    SAS_lookup, _, _, _ = model._create_sas_lookup()
-    SAS_lookup2, _, _, _ = model2._create_sas_lookup()
+    SAS_lookup, _, _, _, _, _, _= model._create_sas_lookup()
+    SAS_lookup2, _, _, _, _, _, _ = model2._create_sas_lookup()
     j = 1
     dSj = SAS_lookup2[j, N-1] - SAS_lookup[j, N-1]
     dsTdSj = ((rdf2['sT'][:, 1:]-rdf['sT'][:, 1:])/dSj)

@@ -95,7 +95,7 @@ def lookfor_new_components(initial_model, initial_rmse, new_components, segment_
             if segment < nsegment:
                 _verbose(f'Subdividing {flux} {label} segment {segment}')
 
-                largest_observed_ST = initial_model.result['ST'].max()
+                largest_observed_ST = initial_model.result['sT'].sum(axis=0)
                 smallest_ST_in_subdivided_segment = initial_model.sas_blends[flux].components[label].sas_fun.ST[segment]
                 if smallest_ST_in_subdivided_segment > largest_observed_ST:
                     _verbose("Subdivision is beyond observed ST. Shouldn't make a difference.")
@@ -450,7 +450,7 @@ def fit_model(model, include_C_old=True, learn_fun=None, index=None, jacobian_mo
         OptimizeResult = least_squares(fun=f,
                                        x0=x0,
                                        jac=jac,
-                                       verbose=0,
+                                       verbose=1,
                                        bounds=(xmin, xmax))
     elif jacobian_mode == 'numerical':
         OptimizeResult = least_squares(fun=f,

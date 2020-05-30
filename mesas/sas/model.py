@@ -243,14 +243,12 @@ class Model:
         for flux in self._comp2learn_fluxorder:
             self._sas_blends[flux]._comp2learn_componentorder = self._components_to_learn[flux]
 
-    def trim_unused_ST(self):
-        largest_observed_ST = self.result['sT'].sum()
-        for flux, labels in self.components_to_learn.items():
-            for label in labels:
-                self.sas_blends[flux].components[label].trim(largest_observed_ST)
-
-
-
+    ## Taking this out because I don't think I want to do this ever
+    #def trim_unused_ST(self):
+    #    largest_observed_ST = self.result['sT'].sum()
+    #    for flux, labels in self.components_to_learn.items():
+    #        for label in labels:
+    #            self.sas_blends[flux].components[label].trim(largest_observed_ST)
 
     def get_segment_list(self):
         """
@@ -337,11 +335,20 @@ class Model:
         return C_J, mT_init, C_old, alpha, k1, C_eq
 
     def _create_sas_lookup(self):
-        nP_list = np.array([len(self.sas_blends[flux].P) for flux in self._fluxorder])
+        nC_list = []
+        nP_list = []
+        component_list = []
+        for flux in self._fluxorder:
+            nC_list.append(len(self._sas_blends[flux].components))
+            for component in self._sas_blends[flux]._componentorder:
+                component_list.append(self.sas_blends[flux].components[component])
+                nP_list.append(len(component_list[-1].sas_fun.P))
+        nC_total = np.sum(nC_list)
         nP_total = np.sum(nP_list)
-        P_list = np.concatenate([self.sas_blends[flux].P for flux in self._fluxorder], axis=0)
-        SAS_lookup = np.concatenate([self.sas_blends[flux].ST for flux in self._fluxorder], axis=0)
-        return SAS_lookup, P_list, nP_list, nP_total
+        P_list = np.column_stack([component.P for component in component_list]).T
+        SAS_lookup = np.column_stack([component.ST for component in component_list]).T
+        weights = np.column_stack([component.weights for component in component_list])
+        return SAS_lookup, P_list, weights, nC_list, nC_total, nP_list, nP_total
 
     def run(self):
         # water fluxes
@@ -352,9 +359,10 @@ class Model:
         numflux = self._numflux
         #
         # SAS lookup table
-        SAS_lookup, P_list, nP_list, nP_total = self._create_sas_lookup()
+        SAS_lookup, P_list, weights, nC_list, nC_total, nP_list, nP_total = self._create_sas_lookup()
         SAS_lookup = np.asfortranarray(SAS_lookup)
         P_list = np.asfortranarray(P_list)
+        weights = np.asfortranarray(weights)
         #
         # Solutes
         C_J, mT_init, C_old, alpha, k1, C_eq = self._create_solute_inputs()
@@ -370,10 +378,10 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, Q, SAS_lookup, P_list, sT_init, dt,
+            J, Q, SAS_lookup, P_list, weights, sT_init, dt,
             verbose, debug, warning,
             mT_init, C_J, alpha, k1, C_eq, C_old,
-            n_substeps, nP_list, numflux, numsol, max_age, timeseries_length, nP_total)
+            n_substeps, nC_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nP_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
         if numsol > 0:
