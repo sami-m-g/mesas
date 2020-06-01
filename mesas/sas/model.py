@@ -384,50 +384,72 @@ class Model:
             n_substeps, nC_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nP_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
+
+
         if numsol > 0:
             self._result = {'C_Q': C_Q}
         else:
             self._result = {}
         self._result.update({'sT': sT, 'pQ': pQ, 'WaterBalance': WaterBalance, 'dsTdSj':dsTdSj})
+        self._result['last_T'] = np.ones(self._timeseries_length + 1, dtype=int) * (self._max_age - 1)
+        if np.any(sT[:, 0] > 0):
+            self._result['last_T'][0] = np.nonzero(sT_init > 0)[0].max()
+            off_diag = np.arange(self._result['last_T'][0]+1, self._timeseries_length - 1)
+        else:
+            self._result['last_T'][0] = 0
+            off_diag = np.arange(1, self._timeseries_length - 1)
+        self._result['last_T'][1:len(off_diag)+1] = off_diag-1
         if numsol > 0:
             self._result.update({'mT': mT, 'mQ': mQ, 'mR': mR, 'SoluteBalance': SoluteBalance, 'dmTdSj':dmTdSj, 'dCdSj':dCdSj})
 
     def get_jacobian(self, index=None, **kwargs):
         J = None
         if index is None:
-            index = np.arange(self.N)
+            index = np.arange(self._timeseries_length)
         self.jacobian = {}
         for isol, sol in enumerate(self._solorder):
             if 'observations' in self.solute_parameters[sol]:
                 self.jacobian[sol] = {}
                 iP = 0
-                for iflux, flux in enumerate(self._comp2learn_fluxorder):
-                    nP = len(self.sas_blends[flux].P)
-                    if flux in self.solute_parameters[sol]['observations']:
-                        mT = np.squeeze(self.result['mT'][:, :, isol])
-                        sT = self.result['sT']
-                        dCdSj = np.squeeze(self.result['dCdSj'][:, iP:iP+nP, isol])
-                        pQ = self.result['pQ'][:, :, iflux]
-                        PQ_max = np.sum(pQ, axis=0)
-                        C_old = self.solute_parameters[sol]['C_old']
-                        alpha = self.solute_parameters[sol]['alpha'][flux]
-                        J_seg = self.sas_blends[flux].get_jacobian(sT, mT, dCdSj, C_old, self.options['dt'],
-                                                                   alpha=alpha, index=index, **kwargs)
-                        J_old = np.zeros(len(index))
-                        observed_index = index[index < self._max_age]
-                        unobserved_index = index[index >= self._max_age]
-                        J_old[:len(observed_index)] = 1 - PQ_max[1:][observed_index]
-                        J_old[len(observed_index):] = 1 - PQ_max[unobserved_index]
+                for isolflux, solflux in enumerate(self._fluxorder):
+                    if solflux in self.solute_parameters[sol]['observations']:
+                        J_seg = None
+                        for iflux, flux in enumerate(self._comp2learn_fluxorder):
+                            nP = len(self.sas_blends[flux].P)
+                            mT = np.squeeze(self.result['mT'][:, :, isol])
+                            sT = self.result['sT']
+                            last_T = self.result['last_T']
+                            dCdSj = np.squeeze(self.result['dCdSj'][:, iP:iP+nP, isol])
+                            dsTdSj = np.squeeze(self.result['dsTdSj'][:, :, iP:iP+nP])
+                            pQ = self.result['pQ'][:, :, iflux]
+                            PQ = np.zeros((self._max_age, self._timeseries_length))
+                            PQ[1:,:] = np.sum(pQ, axis=0)
+                            C_old = self.solute_parameters[sol]['C_old']
+                            alpha = self.solute_parameters[sol]['alpha'][flux]
+                            this_flux = flux==solflux
+                            J_seg_this = self.sas_blends[flux].get_jacobian(sT, mT, dCdSj, dsTdSj, last_T, C_old, self.options['dt'],
+                                                                      this_flux, alpha=alpha, index=index, **kwargs)
+                            if J_seg is None:
+                                J_seg = J_seg_this
+                            else:
+                                J_seg = np.c_[J_seg, J_seg_this]
+                        J_old = 1 - PQ[-1, index]
+                        #J_old = np.zeros(len(index))
+                        #observed_index = index[index < self._max_age]
+                        #unobserved_index = index[index >= self._max_age]
+                        #J_old[:len(observed_index)] = 1 - np.diag(PQ)[1:][observed_index]
+                        #J_old[len(observed_index):] = 1 - PQ[-1, unobserved_index]
                         J_old_sol = np.zeros((len(index), self._numsol))
                         J_old_sol[:, list(self._solorder).index(sol)] = J_old
                         J_sol = np.c_[J_seg, J_old_sol]
                         if J is None:
                             J = J_sol
                         else:
-                            J = np.concatenate(J, J_sol, axis=0)
+                            J = np.concatenate((J, J_sol), axis=0)
                         self.jacobian[sol][flux] = {}
                         self.jacobian[sol][flux]['seg'] = J_seg
                         self.jacobian[sol][flux]['C_old'] = J_old
+                    iP +=nP
         return J
 
     def get_residuals(self):

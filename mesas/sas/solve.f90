@@ -363,7 +363,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 do s = 0, numsol - 1
                     do ic = iC_list(iq), iC_list(iq+1) - 1
                         do ip = iP_list(ic), iP_list(ic+1) - 1
-                            where (Q_ts(:,iq)>0)
+                            where (sT_start(0:N-n_substeps:n_substeps)>0)
                                 dC_ts(:, ip, s) = dC_ts(:, ip, s) + alpha_ts(:, iq, s) &
                                         * dm_start(0:N-n_substeps:n_substeps, ip, s) &
                                         * pQ1(0:N-n_substeps:n_substeps, iq) &
