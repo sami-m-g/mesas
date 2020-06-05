@@ -419,7 +419,7 @@ class Model:
                             mT = np.squeeze(self.result['mT'][:, :, isol])
                             sT = self.result['sT']
                             last_T = self.result['last_T']
-                            dCdSj = np.squeeze(self.result['dCdSj'][:, iP:iP+nP, isol])
+                            dCdSj = np.squeeze(self.result['dCdSj'][:, iP:iP+nP, isolflux, isol])
                             dsTdSj = np.squeeze(self.result['dsTdSj'][:, :, iP:iP+nP])
                             pQ = self.result['pQ'][:, :, iflux]
                             PQ = np.zeros((self._max_age, self._timeseries_length))
@@ -428,7 +428,7 @@ class Model:
                             alpha = self.solute_parameters[sol]['alpha'][flux]
                             this_flux = flux==solflux
                             J_seg_this = self.sas_blends[flux].get_jacobian(sT, mT, dCdSj, dsTdSj, last_T, C_old, self.options['dt'],
-                                                                      this_flux, alpha=alpha, index=index, **kwargs)
+                                                                      this_flux=False, alpha=alpha, index=index, **kwargs)
                             if J_seg is None:
                                 J_seg = J_seg_this
                             else:

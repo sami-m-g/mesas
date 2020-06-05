@@ -397,16 +397,14 @@ class Piecewise:
                         # Is it greater than ST_min?
                         if S_maxcalc[time_index] > Sj[0]:
                             # Get the derivative w.r.t the left end of the segment
-                            J_Si[seg_maxcalc] += omegaj[seg_maxcalc] * (
-                                    alpha * (
-                                    (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc] - Cpj[seg_maxcalc])
-                                    + (C_old * (Sj[1 + seg_maxcalc] - S_maxcalc[time_index])) / dSj[seg_maxcalc]
+                            J_Si[seg_maxcalc] += omegaj[seg_maxcalc] * alpha * (
+                                    (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc] - Cpj[seg_maxcalc]
+                                    - C_old * (Sj[1 + seg_maxcalc] - S_maxcalc[time_index]) / dSj[seg_maxcalc]
                             )
                             # Get the derivative w.r.t the right end of the segment
-                            J_Si[seg_maxcalc + 1] += omegaj[seg_maxcalc] * (
-                                    -alpha * (
-                                    (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc])
-                                    + (C_old * (S_maxcalc[time_index] - Sj[seg_maxcalc])) / dSj[seg_maxcalc]
+                            J_Si[seg_maxcalc + 1] += omegaj[seg_maxcalc] * alpha * (
+                                    - (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc]
+                                    - C_old * (S_maxcalc[time_index] - Sj[seg_maxcalc]) / dSj[seg_maxcalc]
                             )
 
                     else:
@@ -421,7 +419,7 @@ class Piecewise:
             J_Si += dCdSj[start_index, :]
 
             # Effect of changes in ST at the oldest observed storage
-            J_Si += (CS[last_T[start_index], start_index] - C_old) * dSTdSj[start_index, :]
+            #J_Si += (CS[last_T[start_index], start_index] - C_old) * dSTdSj[start_index, :]
 
             # Extract and save the valid points
             # If an ASD function is being used, the first (ST,P) may be absent, so we have to skip them

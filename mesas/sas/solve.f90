@@ -32,7 +32,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length, 0:numsol - 1) :: mT_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length, 0:nP_total-1) :: ds_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length, 0:nP_total-1, 0:numsol - 1) :: dm_ts
-    real(8), intent(out), dimension(0:timeseries_length - 1, 0:nP_total-1, 0:numsol - 1) :: dC_ts
+    real(8), intent(out), dimension(0:timeseries_length-1, 0:nP_total-1, 0:numflux - 1, 0:numsol - 1) :: dC_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numflux - 1) :: pQ_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: mQ_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numsol - 1) :: mR_ts
@@ -40,9 +40,11 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numsol - 1) :: SoluteBalance_ts
     integer :: k, iT, jt, ik, jk, i_prev, js
     real(8) :: h
+    real(8), dimension(0:timeseries_length-1, 0:nP_total-1, 0:numflux - 1) :: dW_ts
     real(8), dimension(0:timeseries_length - 1, 0:numflux - 1) :: P_old
     integer, dimension(0:nC_total) :: iP_list
     integer, dimension(0:numflux) :: iC_list
+    real(8), dimension(0:timeseries_length * n_substeps, 0:numsol - 1) :: CS_last
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: J_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: C_J_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: Q_ss
@@ -50,12 +52,15 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: C_eq_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: k1_ss
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nC_total - 1) :: weights_ss
-    real(8), dimension(0:timeseries_length * n_substeps) :: STcum_start
-    real(8), dimension(0:timeseries_length * n_substeps - 1) :: STcum_temp
-    real(8), dimension(0:timeseries_length * n_substeps, 0:numflux - 1) :: PQcum_start
-    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: PQcum_temp
-    integer, dimension(0:timeseries_length * n_substeps, 0:nC_total-1) :: iPj_start
-    integer, dimension(0:timeseries_length * n_substeps - 1, 0:nC_total-1) :: iPj_temp
+    real(8), dimension(0:timeseries_length * n_substeps) :: STcum_prev
+    real(8), dimension(0:timeseries_length * n_substeps - 1) :: STcum_end
+    real(8), dimension(0:timeseries_length * n_substeps - 1) :: STcum_start
+    real(8), dimension(0:timeseries_length * n_substeps, 0:numflux - 1) :: PQcum_prev
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: PQcum_end
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: PQcum_start
+    integer, dimension(0:timeseries_length * n_substeps, 0:nC_total-1) :: iPj_prev
+    integer, dimension(0:timeseries_length * n_substeps - 1, 0:nC_total-1) :: iPj_end
+    integer, dimension(0:timeseries_length * n_substeps - 1, 0:nC_total-1) :: iPj_start
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ1
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ2
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:numflux - 1) :: pQ3
@@ -91,6 +96,13 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fm_aver
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fm_end
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fm_prev
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR1
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR2
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR3
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR4
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR_aver
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR_end
+    real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR_prev
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: sT_start
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: sT_temp
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: sT_end
@@ -107,9 +119,10 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total-1, 0:numsol - 1) :: dm_temp
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total-1, 0:numsol - 1) :: dm_end
     real(8), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total-1, 0:numsol - 1) :: dm_prev
-    real(8) :: one8, weight
+    real(8) :: one8, norm
+    real(8) :: dS, dP, dSe, dPe, dSs, dPs
     character(len = 128) :: tempdebugstring
-    integer iq, s, M, N, ip, ic
+    integer :: iq, s, M, N, ip, ic, kk, rightend
     logical :: carryover
 
     call f_verbose('...Initializing arrays...')
@@ -120,7 +133,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     mT_ts(:, :, :) = 0.
     ds_ts(:, :, :) = 0.
     dm_ts(:, :, :, :) = 0.
-    dC_ts(:, :, :) = 0.
+    dC_ts(:, :, :, :) = 0.
+    dW_ts(:, :, :) = 0.
     pQ_ts(:, :, :) = 0.
     mQ_ts(:, :, :, :) = 0.
     mR_ts(:, :, :) = 0.
@@ -129,12 +143,12 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     P_old(:, :) = 0.
     iP_list(:) = 0
     iC_list(:) = 0
-    STcum_start(:) = 0.
-    STcum_temp(:) = 0.
-    PQcum_start(:, :) = 0.
-    PQcum_temp(:, :) = 0.
-    iPj_start(:, :) = 0
-    iPj_temp(:, :) = 0
+    STcum_prev(:) = 0.
+    STcum_end(:) = 0.
+    PQcum_prev(:, :) = 0.
+    PQcum_end(:, :) = 0.
+    iPj_prev(:, :) = 0
+    iPj_end(:, :) = 0
     pQ1(:, :) = 0.
     pQ2(:, :) = 0.
     pQ3(:, :) = 0.
@@ -170,22 +184,30 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     fm_aver(:, :, :) = 0.
     fm_end(:, :, :) = 0.
     fm_prev(:, :, :) = 0.
+    fmR1(:, :, :) = 0.
+    fmR2(:, :, :) = 0.
+    fmR3(:, :, :) = 0.
+    fmR4(:, :, :) = 0.
+    fmR_aver(:, :, :) = 0.
+    fmR_end(:, :, :) = 0.
+    fmR_prev(:, :, :) = 0.
     sT_start(:) = 0.
     sT_temp(:) = 0.
     sT_end(:) = 0.
     sT_prev(:) = 0.
     mT_start(:, :) = 0.
     mT_temp(:, :) = 0.
-    mT_end (:, :) = 0.
-    mT_prev (:, :) = 0.
+    mT_end(:, :) = 0.
+    mT_prev(:, :) = 0.
     ds_start(:, :) = 0.
     ds_temp(:, :) = 0.
-    ds_end (:, :) = 0.
-    ds_prev (:, :) = 0.
+    ds_end(:, :) = 0.
+    ds_prev(:, :) = 0.
     dm_start(:, :, :) = 0.
     dm_temp(:, :, :) = 0.
-    dm_end (:, :, :) = 0.
-    dm_prev (:, :, :) = 0.
+    dm_end(:, :, :) = 0.
+    dm_prev(:, :, :) = 0.
+    CS_last(:, :) = 0.
     i_prev = -1
 
     ! The list of probabilities in each sas function is a 1-D array.
@@ -213,12 +235,12 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     C_eq_ss = reshape(spread(C_eq_ts, 1, n_substeps), (/N, numsol/))
     k1_ss = reshape(spread(k1_ts, 1, n_substeps), (/N, numsol/))
     weights_ss = reshape(spread(weights_ts, 1, n_substeps), (/N, nC_total/))
-    call f_debug('J_ss           ', J_ss)
+    !call f_debug('J_ss           ', J_ss)
     do s = 0, numsol - 1
-        call f_debug('C_J_ss           ', C_J_ss(:, s))
+        !call f_debug('C_J_ss           ', C_J_ss(:, s))
     end do
     do iq = 0, numflux - 1
-        call f_debug('Q_ss           ', Q_ss(:,iq))
+        !call f_debug('Q_ss           ', Q_ss(:,iq))
     end do
 
     call f_verbose('...Setting initial conditions...')
@@ -264,19 +286,19 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             mT_temp = mT_start
             ds_temp = ds_start
             dm_temp = dm_start
-            call get_flux(0.0D0, sT_temp, mT_temp, ds_temp, dm_temp, pQ1, mQ1, mR1, fs1, fm1)
-            call f_debug_blank()
+            call get_flux(0.0D0, sT_temp, mT_temp, ds_temp, dm_temp, pQ1, mQ1, mR1, fs1, fm1, fmR1)
+            !call f_debug_blank()
             call f_debug('RK', (/2._8/))
-            call new_state(h / 2, sT_temp, mT_temp, ds_temp, dm_temp, pQ1, mQ1, mR1, fs1, fm1)
-            call get_flux(h / 2, sT_temp, mT_temp, ds_temp, dm_temp, pQ2, mQ2, mR2, fs2, fm2)
-            call f_debug_blank()
+            call new_state(h / 2, sT_temp, mT_temp, ds_temp, dm_temp, pQ1, mQ1, mR1, fs1, fm1, fmR1)
+            call get_flux(h / 2, sT_temp, mT_temp, ds_temp, dm_temp, pQ2, mQ2, mR2, fs2, fm2, fmR2)
+            !call f_debug_blank()
             call f_debug('RK', (/3._8/))
-            call new_state(h / 2, sT_temp, mT_temp, ds_temp, dm_temp, pQ2, mQ2, mR2, fs2, fm2)
-            call get_flux(h / 2, sT_temp, mT_temp, ds_temp, dm_temp, pQ3, mQ3, mR3, fs3, fm3)
-            call f_debug_blank()
+            call new_state(h / 2, sT_temp, mT_temp, ds_temp, dm_temp, pQ2, mQ2, mR2, fs2, fm2, fmR2)
+            call get_flux(h / 2, sT_temp, mT_temp, ds_temp, dm_temp, pQ3, mQ3, mR3, fs3, fm3, fmR3)
+            !call f_debug_blank()
             call f_debug('RK', (/4._8/))
-            call new_state(h, sT_temp, mT_temp, ds_temp, dm_temp, pQ3, mQ3, mR3, fs3, fm3)
-            call get_flux(h, sT_temp, mT_temp, ds_temp, dm_temp, pQ4, mQ4, mR4, fs4, fm4)
+            call new_state(h, sT_temp, mT_temp, ds_temp, dm_temp, pQ3, mQ3, mR3, fs3, fm3, fmR3)
+            call get_flux(h, sT_temp, mT_temp, ds_temp, dm_temp, pQ4, mQ4, mR4, fs4, fm4, fmR4)
 
             ! Average RK4 estimated change in the state variables
             pQ_aver = (pQ1 + 2 * pQ2 + 2 * pQ3 + pQ4) / 6.
@@ -284,6 +306,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             mR_aver = (mR1 + 2 * mR2 + 2 * mR3 + mR4) / 6.
             fs_aver = (fs1 + 2 * fs2 + 2 * fs3 + fs4) / 6.
             fm_aver = (fm1 + 2 * fm2 + 2 * fm3 + fm4) / 6.
+            fmR_aver = (fmR1 + 2 * fmR2 + 2 * fmR3 + fmR4) / 6.
 
             ! zero out the probabilities if there is no outflux this timestep
             where (Q_ss==0)
@@ -296,12 +319,13 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             end do
 
             call f_debug('RK final', (/4._8/))
+            call f_debug('pQ_aver        ', pQ_aver(:,0))
             ! Update the state with the new estimates
-            call new_state(h, sT_end, mT_end, ds_end, dm_end, pQ_aver, mQ_aver, mR_aver, fs_aver, fm_aver)
+            call new_state(h, sT_end, mT_end, ds_end, dm_end, pQ_aver, mQ_aver, mR_aver, fs_aver, fm_aver, fmR_aver)
 
             ! output some debugging info if desired
             do iq = 0, numflux - 1
-                call f_debug('pQ_aver        ', pQ_aver(:, iq))
+                !call f_debug('pQ_aver        ', pQ_aver(:, iq))
             enddo
             do s = 0, numsol - 1
                 !call f_debug('mT_end         ', mT_end(:, s))
@@ -314,33 +338,62 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             ! Aggregate flux data from substep to timestep
 
             ! Get the timestep-averaged transit time distribution
-            weight = 1.0 / n_substeps / n_substeps
+            norm = 1.0 / n_substeps / n_substeps
             carryover = ((n_substeps>1) .and. (k>0) .and. (iT<max_age-1))
             do iq = 0, numflux - 1
                 do jt = 0, timeseries_length - 1
                     js = jt * n_substeps
-                    pQ_ts(iT, jt, iq) = pQ_ts(iT, jt, iq) + sum(pQ_aver((js+k):(js+n_substeps-1), iq)) * weight
+                    pQ_ts(iT, jt, iq) = pQ_ts(iT, jt, iq) + sum(pQ_aver((js+k):(js+n_substeps-1), iq)) * norm
                     if (carryover) then
-                        pQ_ts(iT+1, jt, iq) = pQ_ts(iT+1, jt, iq) + sum(pQ_aver((js):(js+k-1), iq)) * weight
+                        pQ_ts(iT+1, jt, iq) = pQ_ts(iT+1, jt, iq) + sum(pQ_aver((js):(js+k-1), iq)) * norm
                     endif
+                enddo
+                do ip = 0, nP_total - 1
+                    do jt = 0, timeseries_length - 1
+                        if (Q_ts(jt, iq)>0) then
+                            js = jt * n_substeps
+                            dW_ts(jt, ip, iq) = dW_ts(jt, ip, iq) &
+                                    + sum(fs_aver((js+k):(js+n_substeps-1), ip))/Q_ts(jt, iq) * norm * dt
+                            if (carryover) then
+                                dW_ts(jt, ip, iq) = dW_ts(jt, ip, iq) &
+                                        + sum(fs_aver((js):(js+k-1), ip))/Q_ts(jt, iq) * norm * dt
+                            endif
+                        endif
+                    enddo
                 enddo
                 do s = 0, numsol - 1
                     do jt = 0, timeseries_length - 1
                         js = jt * n_substeps
-                        mQ_ts(iT, jt, iq, s) = mQ_ts(iT, jt, iq, s) + sum(mQ_aver((js+k):(js+n_substeps-1), iq, s)) * weight
+                        mQ_ts(iT, jt, iq, s) = mQ_ts(iT, jt, iq, s) + sum(mQ_aver((js+k):(js+n_substeps-1), iq, s)) * norm
                         if (carryover) then
-                            mQ_ts(iT+1, jt, iq, s) = mQ_ts(iT+1, jt, iq, s) + sum(mQ_aver((js):(js+k-1), iq, s)) * weight
+                            mQ_ts(iT+1, jt, iq, s) = mQ_ts(iT+1, jt, iq, s) + sum(mQ_aver((js):(js+k-1), iq, s)) * norm
                         endif
+                    enddo
+                    do ip = 0, nP_total - 1
+                        do jt = 0, timeseries_length - 1
+                            if (Q_ts(jt, iq)>0) then
+                                js = jt * n_substeps
+                                dC_ts(jt, ip, iq, s) = dC_ts(jt, ip, iq, s) &
+                                        + sum(fm_aver((js+k):(js+n_substeps-1), ip, s))/Q_ts(jt, iq) * norm * dt
+                                if (carryover) then
+                                    dC_ts(jt, ip, iq, s) = dC_ts(jt, ip, iq, s) &
+                                            + sum(fm_aver((js):(js+k-1), ip, s))/Q_ts(jt, iq) * norm * dt
+                                endif
+                            endif
+                        enddo
                     enddo
                 enddo
             enddo
             do s = 0, numsol - 1
                 do jt = 0, timeseries_length - 1
                     js = jt * n_substeps
-                    mR_ts(iT, jt, s) = mR_ts(iT, jt, s) + sum(mR_aver((js+k):(js+n_substeps-1), s)) * weight
+                    mR_ts(iT, jt, s) = mR_ts(iT, jt, s) + sum(mR_aver((js+k):(js+n_substeps-1), s)) * norm
                     if (carryover) then
-                        mR_ts(iT+1, jt, s) = mR_ts(iT+1, jt, s) + sum(mR_aver((js):(js+k-1), s)) * weight
+                        mR_ts(iT+1, jt, s) = mR_ts(iT+1, jt, s) + sum(mR_aver((js):(js+k-1), s)) * norm
                     endif
+                    where ((mT_end(:, s)>0).and.(sT_end(:)>0))
+                        CS_last(1:, s) = mT_end(:, s) / sT_end(:)
+                    end where
                 enddo
             enddo
 
@@ -359,27 +412,13 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     dm_ts(iT, 1:, ip, s) = dm_ts(iT, 1:, ip, s) + dm_end(n_substeps-1:N-1:n_substeps, ip, s) / n_substeps
                 enddo
             enddo
-            do iq = 0, numflux - 1
-                do s = 0, numsol - 1
-                    do ic = iC_list(iq), iC_list(iq+1) - 1
-                        do ip = iP_list(ic), iP_list(ic+1) - 1
-                            where (sT_start(0:N-n_substeps:n_substeps)>0)
-                                dC_ts(:, ip, s) = dC_ts(:, ip, s) + alpha_ts(:, iq, s) &
-                                        * dm_start(0:N-n_substeps:n_substeps, ip, s) &
-                                        * pQ1(0:N-n_substeps:n_substeps, iq) &
-                                        / sT_start(0:N-n_substeps:n_substeps)  * h
-                            end where
-                        enddo
-                    enddo
-                enddo
-            enddo
 
             ! Update the cumulative instantaneous trackers
-            call get_flux(h, sT_end, mT_end, ds_end, dm_end, pQ_end, mQ_end, mR_end, fs_end, fm_end)
+            call get_flux(h, sT_end, mT_end, ds_end, dm_end, pQ_end, mQ_end, mR_end, fs_end, fm_end, fmR_end)
             if (ik>0) then
-                STcum_start(1:N) = STcum_start(1:N) + sT_end * h
-                STcum_start(0) = STcum_start(0) + sT_init_ts(i_prev) * h
-                call get_SAS(STcum_start, PQcum_start, iPj_start, N+1)
+                STcum_prev(1:N) = STcum_prev(1:N) + sT_end * h
+                STcum_prev(0) = STcum_prev(0) + sT_init_ts(i_prev) * h
+                call get_SAS(STcum_prev, PQcum_prev, iPj_prev, N+1)
             end if
 
             sT_prev = sT_end
@@ -391,6 +430,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             mQ_prev = mQ_end
             fs_prev = fs_end
             fm_prev = fm_end
+            fmR_prev = fmR_end
 
             i_prev = iT
 
@@ -434,13 +474,13 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
 
     ! get the old water fraction
     P_old = 1 - sum(pQ_ts, DIM=1) * dt
-    call f_debug('P_old', (/P_old/))
+    !call f_debug('P_old', (/P_old/))
 
     ! Estimate the outflow concentration
     do iq = 0, numflux - 1
         do s = 0, numsol - 1
             do iT = 0, max_age - 1
-                call f_debug('mQ_ts          ', mQ_ts(iT, :, iq, s))
+                !call f_debug('mQ_ts          ', mQ_ts(iT, :, iq, s))
             enddo
         enddo
     enddo
@@ -449,13 +489,21 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
 
             where (Q_ts(:,iq)>0)
                 ! From the age-ranked mass
-                C_Q_ts(:, iq, s) = sum(mQ_ts(:, :, iq, s), DIM=1) / Q_ts(:,iQ)
+                C_Q_ts(:, iq, s) = sum(mQ_ts(:, :, iq, s), DIM=1) / Q_ts(:,iQ) * dt
 
                 ! From the old water concentration
                 C_Q_ts(:, iq, s) = C_Q_ts(:, iq, s) + alpha_ts(:, iq, s) * C_old(s) * P_old(:,iq)
+
+
             end where
 
-            call f_debug('C_Q_ts         ', C_Q_ts(:, iq, s))
+            do ip = 0, nP_total - 1
+                where (Q_ts(:,iq)>0)
+                    dC_ts(:, ip, iq, s) = dC_ts(:, ip, iq, s) - C_old(s) * dW_ts(:, ip, iq)
+                end where
+            end do
+
+            !call f_debug('C_Q_ts         ', C_Q_ts(:, iq, s))
 
         enddo
     enddo
@@ -481,7 +529,7 @@ contains
         real(8), dimension(:), intent(in) :: debugdblepr
         if (debug) then
             print 1, debugstring, debugdblepr
-            1 format (A16, *(f10.5))
+            1 format (A16, *(f14.10))
         endif
     end subroutine f_debug
 
@@ -517,41 +565,41 @@ contains
         PQcum_out(:, :) = 0.
         do iq = 0, numflux - 1
             do ic = iC_list(iq), iC_list(iq+1) - 1
-                call f_debug('iP_list        ', (/iP_list(ic)*one8, iP_list(ic + 1)-1*one8/))
+                !call f_debug('iP_list        ', (/iP_list(ic)*one8, iP_list(ic + 1)-1*one8/))
                 PQcum_component(:) = 0
                 do jt = 0, timeseries_length - 1
                     jk = jt * n_substeps
-                    call f_debug('getting entries', (/jk*one8, (jk+n_substeps-1)*one8, ic*one8, jt*one8/))
-                    call f_debug('SAS_lookup     ', SAS_lookup(iP_list(ic):iP_list(ic + 1)-1, jt))
-                    call f_debug('P_list         ', P_list(iP_list(ic):iP_list(ic + 1)-1, jt))
+                    !call f_debug('getting entries', (/jk*one8, (jk+n_substeps-1)*one8, ic*one8, jt*one8/))
+                    !call f_debug('SAS_lookup     ', SAS_lookup(iP_list(ic):iP_list(ic + 1)-1, jt))
+                    !call f_debug('P_list         ', P_list(iP_list(ic):iP_list(ic + 1)-1, jt))
                     call lookup(&
                             SAS_lookup(iP_list(ic):iP_list(ic + 1) - 1, jt), &
                             P_list(iP_list(ic):iP_list(ic + 1) - 1, jt), &
                             STcum_in(jk:jk+n_substeps-1), &
                             PQcum_component(jk:jk+n_substeps-1), &
                             iPj_out(jk:jk+n_substeps-1, ic), &
-                            iPj_start(jk:jk+n_substeps-1, ic), &
+                            iPj_prev(jk:jk+n_substeps-1, ic), &
                             nP_list(ic), n_substeps)
                 end do
                 PQcum_out(:N-1, iq) = PQcum_out(:N-1, iq) + weights_ss(:N-1, ic) * PQcum_component(:N-1)
                 if (n_array>N) then
                     jt = timeseries_length - 1
-                    call f_debug('getting last entry', (/n_array*one8, N*one8, ic*one8, jt*one8/))
-                    call f_debug('SAS_lookup     ', SAS_lookup(iP_list(ic):iP_list(ic + 1)-1, jt))
-                    call f_debug('P_list         ', P_list(iP_list(ic):iP_list(ic + 1)-1, jt))
+                    !call f_debug('getting last entry', (/n_array*one8, N*one8, ic*one8, jt*one8/))
+                    !call f_debug('SAS_lookup     ', SAS_lookup(iP_list(ic):iP_list(ic + 1)-1, jt))
+                    !call f_debug('P_list         ', P_list(iP_list(ic):iP_list(ic + 1)-1, jt))
                     call lookup(&
                             SAS_lookup(iP_list(ic):iP_list(ic + 1)-1, jt), &
                             P_list(iP_list(ic):iP_list(ic + 1)-1, jt),  &
                             STcum_in(N:N), &
                             PQcum_component(N:N), &
                             iPj_out(N:N, ic), &
-                            iPj_start(N:N, ic), &
+                            iPj_prev(N:N, ic), &
                             nP_list(ic), 1)
                     PQcum_out(N, iq) = PQcum_out(N, iq) + weights_ss(N-1, ic) * PQcum_component(N)
                 end if
             enddo
-            call f_debug('STcum_in       ', STcum_in(:))
-            call f_debug('PQcum_out      ', PQcum_out(:, iq))
+            !call f_debug('STcum_in       ', STcum_in(:))
+            !call f_debug('PQcum_out      ', PQcum_out(:, iq))
         enddo
         end subroutine get_SAS
 
@@ -599,7 +647,7 @@ contains
     end subroutine
 
 
-    subroutine get_flux(hr, sT_in, mT_in, ds_in, dm_in, pQ_out, mQ_out, mR_out, fs_out, fm_out)
+    subroutine get_flux(hr, sT_in, mT_in, ds_in, dm_in, pQ_out, mQ_out, mR_out, fs_out, fm_out, fmR_out)
         ! Calculates the fluxes in the given the curent state
         implicit none
         real(8), intent(in) :: hr
@@ -612,64 +660,47 @@ contains
         real(8), intent(out), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR_out
         real(8), intent(out), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1) :: fs_out
         real(8), intent(out), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fm_out
+        real(8), intent(out), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR_out
         real(8), dimension(0:timeseries_length * n_substeps - 1) :: temp
         integer iq, s, ip, kk, rightend
-        real(8) dS, dP
-        call f_debug('get_flux', (/hr/))
+        !call f_debug('get_flux', (/hr/))
 
         ! Use the SAS function lookup table to convert age-rank storage to the fraction of discharge of age T at each t
 
         ! First get the cumulative age-ranked storage
         if (ik==0) then
             if (hr==0) then
-                STcum_temp = 0
-            else
-                STcum_temp = 0 + sT_in * hr
-            end if
-        else
-            STcum_temp = STcum_start(0:N-1) * (1-hr/h) + (STcum_start(1:N) + sT_prev * h) * (hr/h) + sT_in * h
-        end if
-
-        ! Print some debuggin info
-        !call f_debug('get_flux', (/0._8/))
-        call f_debug('STcum_start    ', STcum_start(:))
-        call f_debug('sT_prev        ', sT_prev(:))
-        call f_debug('sT_in          ', sT_in(:))
-        call f_debug('STcum_temp     ', STcum_temp(:))
-        do s = 0, numsol - 1
-            call f_debug('mT_in          ', mT_in(:, s))
-        enddo
-        call f_debug_blank()
-
-        call get_SAS(STcum_temp, PQcum_temp, iPj_temp, N)
-
-        ! Get the pdf form
-        call f_debug('getting pQ_out ', (/0._8/))
-        if (ik==0) then
-            if (hr==0) then
+                STcum_start = 0
+                PQcum_start = 0
+                iPj_start = 0
+                STcum_end = 0
+                PQcum_end = 0
                 pQ_out = 0
             else
-                pQ_out = (PQcum_temp - 0) / hr
+                STcum_start = 0
+                PQcum_start = 0
+                iPj_start = 0
+                STcum_end = 0 + sT_in * hr
+                call get_SAS(STcum_end, PQcum_end, iPj_end, N)
+                pQ_out = (PQcum_end - PQcum_start) / hr
             end if
         else
-            pQ_out = (PQcum_temp - (PQcum_start(0:N-1, :) * (1-hr/h) + (PQcum_start(1:N, :) + pQ_prev * h ) * (hr/h))) /h
+            STcum_start = STcum_prev(0:N-1) * (1-hr/h) + (STcum_prev(1:N) + sT_prev * h) * (hr/h)
+            !PQcum_start = (PQcum_prev(0:N-1, :) * (1-hr/h) + (PQcum_prev(1:N, :) + pQ_prev * h ) * (hr/h))
+            call get_SAS(STcum_start, PQcum_start, iPj_start, N)
+            STcum_end = STcum_start + sT_in * h
+            call get_SAS(STcum_end, PQcum_end, iPj_end, N)
+            pQ_out = (PQcum_end - PQcum_start) / h
         end if
+
         do iq = 0, numflux - 1
             where (sT_in(:)==0)
                 pQ_out(:, iq) = 0
             end where
         end do
 
-        do iq = 0, numflux - 1
-            call f_debug('PQcum_start    ', PQcum_start(:, iq))
-            call f_debug('pQ_prev        ', pQ_prev(:, iq))
-            call f_debug('PQcum_temp     ', PQcum_temp(:, iq))
-            call f_debug('pQ_out         ', pQ_out(:, iq))
-        end do
-        call f_debug_blank()
-
         ! Solute mass flux accounting
-        call f_debug('getting mQ_out', (/0._8/))
+        !call f_debug('getting mQ_out', (/0._8/))
 
         do iq = 0, numflux - 1
             !temp = Q_ss(:, iq) * pQ_out(:, iq) / sT_in(:)
@@ -699,76 +730,144 @@ contains
 
         enddo
 
-        temp = sum(pQ_out*Q_ss, dim=2) / sT_in
-        do ip = 0, nP_total - 1
-            where (sT_in(:)>0)
-                fs_out(:, ip) = -ds_in(:, ip) * temp
-            elsewhere
-                fs_out(:, ip) = 0.
-            end where
+        !temp = sum(pQ_out*Q_ss, dim=2) / sT_in
+        fs_out(:, :) = 0.
+        do iq = 0, numflux - 1
+            do ip = 0, nP_total - 1
+                where (sT_in(:)>0)
+                    fs_out(:, ip) = ds_in(:, ip) * pQ_out(:, iq) * Q_ss(:, iq) / sT_in
+                elsewhere
+                    fs_out(:, ip) = 0.
+                end where
+            end do
         end do
         do iq = 0, numflux - 1
-            do rightend = 0, 1
+            do ic = iC_list(iq), iC_list(iq+1) - 1
+                do jt = 0, timeseries_length - 1
+                    do kk = 0, n_substeps - 1
+                        jk = jt * n_substeps + kk
+                        call f_debug('iP             ', (/0.*one8, iPj_start(jk, ic)*one8, &
+                                iPj_end(jk, ic)*one8, nP_list(ic)*one8-1/)*one8)
+                        ! sensitivity to point before the start
+                        ip = iP_list(ic) + iPj_start(jk, ic)
+                        if ((ip>=0).and.(ip<=nP_list(ic)-1)) then
+                            dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
+                            dP = P_list(ip+1, jt) - P_list(ip, jt)
+                            fs_out(jk, ip) = fs_out(jk, ip) &
+                                    + dP / (dS*dS) * sT_in(jk) * weights_ss(jk, ic) * Q_ss(jk, iq)
+                        end if
+                        ! sensitivity to point after the end
+                        ip = iP_list(ic) + iPj_end(jk, ic)
+                        if ((ip>=0).and.(ip<=nP_list(ic)-1)) then
+                            dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
+                            dP = P_list(ip+1, jt) - P_list(ip, jt)
+                            fs_out(jk, ip) = fs_out(jk, ip) &
+                                    - dP / (dS*dS) * sT_in(jk) * weights_ss(jk, ic) * Q_ss(jk, iq)
+                        end if
+                        ! sensitivity to point within
+                        if (iPj_end(jk, ic)>iPj_start(jk, ic)) then
+                            do ip = iPj_start(jk, ic)+1, iPj_end(jk, ic)
+                                if (ip>0) then
+                                    dSs = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
+                                    dPs = P_list(ip, jt) - P_list(ip-1, jt)
+                                else
+                                    dSs = 1.
+                                    dPs = 0.
+                                end if
+                                if (ip<nP_list(ic)-1) then
+                                    dSe = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
+                                    dPe = P_list(ip+1, jt) - P_list(ip, jt)
+                                else
+                                    dSe = 1.
+                                    dPe = 0.
+                                end if
+                                fs_out(jk, ip) = fs_out(jk, ip) &
+                                        - (dPe/dSe - dPs/dSs) * weights_ss(jk, ic) * Q_ss(jk, iq)
+                            end do
+                        end if
+                    end do
+                end do
+            end do
+        end do
+        call f_debug_blank()
+        !do ip = 0, nP_total - 1
+            !call f_debug('      fs      ', fs_out(:, ip))
+        !enddo
+        do s = 0, numsol - 1
+            temp = sum(alpha_ss(:,:,s)*Q_ss*pQ_out, dim=2) / sT_in
+            do ip = 0, nP_total - 1
+                where (mT_in(:, s)>0)
+                    fm_out(:, ip, s) = dm_in(:, ip, s) * temp
+                elsewhere
+                    fm_out(:, ip, s) = 0.
+                end where
+                fmR_out(:, ip, s) = 0.
+            end do
+            do iq = 0, numflux - 1
                 do ic = iC_list(iq), iC_list(iq+1) - 1
                     do jt = 0, timeseries_length - 1
                         do kk = 0, n_substeps - 1
                             jk = jt * n_substeps + kk
-                            ! sensitivity
-                            if ((iPj_temp(jk, ic).ge.0).and.(iPj_temp(jk, ic)<nP_list(ic)-1)) then
-                                ip = iP_list(ic) + iPj_temp(jk, ic)
+                            ! sensitivity to point before the start
+                            ip = iP_list(ic) + iPj_start(jk, ic)
+                            if ((ip>=0).and.(ip<=nP_list(ic)-1)) then
                                 dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
                                 dP = P_list(ip+1, jt) - P_list(ip, jt)
-                                fs_out(jk, ip+rightend) = fs_out(jk, ip+rightend) &
-                                            + (2 * rightend - 1) * weights_ss(jk, ic) * Q_ss(jk, iq) * sT_in(jk) * dP / (dS*dS)
+                                fm_out(jk, ip, s) = fm_out(jk, ip, s) &
+                                        + dP / (dS*dS) * mT_in(jk, s)&
+                                                * alpha_ss(jk, iq, s) * weights_ss(jk, ic) * Q_ss(jk, iq)
+                                fmR_out(jk, ip, s) = fmR_out(jk, ip, s) &
+                                        + k1_ss(jk, s) * (C_eq_ss(jk, s) * ds_in(jk, ip) - dm_in(jk, ip, s))
+                            end if
+                            ! sensitivity to point after the end
+                            ip = iP_list(ic) + iPj_end(jk, ic)
+                            if ((ip>=0).and.(ip<=nP_list(ic)-1)) then
+                                dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
+                                dP = P_list(ip+1, jt) - P_list(ip, jt)
+                                fm_out(jk, ip, s) = fm_out(jk, ip, s) &
+                                        - dP / (dS*dS) * mT_in(jk, s)&
+                                                * alpha_ss(jk, iq, s) * weights_ss(jk, ic) * Q_ss(jk, iq)
+                                fmR_out(jk, ip, s) = fmR_out(jk, ip, s) &
+                                        + k1_ss(jk, s) * (C_eq_ss(jk, s) * ds_in(jk, ip) - dm_in(jk, ip, s))
+                            end if
+                            ! sensitivity to point within
+                            if (iPj_end(jk, ic)>iPj_start(jk, ic)) then
+                                do ip = iPj_start(jk, ic)+1, iPj_end(jk, ic)
+                                    if (ip>0) then
+                                        dSs = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
+                                        dPs = P_list(ip, jt) - P_list(ip-1, jt)
+                                    else
+                                        dSs = 1.
+                                        dPs = 0.
+                                    end if
+                                    if (ip<nP_list(ic)-1) then
+                                        dSe = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
+                                        dPe = P_list(ip+1, jt) - P_list(ip, jt)
+                                    else
+                                        dSe = 1.
+                                        dPe = 0.
+                                    end if
+                                    fm_out(jk, ip, s) = fm_out(jk, ip, s) &
+                                            - (dPe/dSe - dPs/dSs) * mT_in(jk, s) / sT_in(jk) &
+                                                    * weights_ss(jk, ic) * Q_ss(jk, iq)
+                                end do
                             end if
                         end do
                     end do
                 end do
             end do
         end do
-        do s = 0, numsol - 1
-            temp = sum(alpha_ss(:,:,s)*Q_ss*pQ_out, dim=2) / sT_in
-            do ip = 0, nP_total - 1
-                where (mT_in(:, s)>0)
-                    fm_out(:, ip, s) = -dm_in(:, ip, s) * temp
-                elsewhere
-                    fm_out(:, ip, s) = 0.
-                end where
-            end do
-            do iq = 0, numflux - 1
-                do rightend = 0, 1
-                    do ic = iC_list(iq), iC_list(iq+1) - 1
-                        do jt = 0, timeseries_length - 1
-                            do kk = 0, n_substeps - 1
-                                jk = jt * n_substeps + kk
-                                ! sensitivity
-                                if ((iPj_temp(jk, ic).ge.0).and.(iPj_temp(jk, ic)<nP_list(ic)-1)) then
-                                    ip = iP_list(ic) + iPj_temp(jk, ic)
-                                    dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
-                                    dP = P_list(ip+1, jt) - P_list(ip, jt)
-                                    fm_out(jk, ip+rightend, s) = fm_out(jk, ip+rightend, s) &
-                                            + (2 * rightend - 1) * alpha_ss(jk, iq, s) &
-                                                    * weights_ss(jk, ic) * Q_ss(jk, iq) * mT_in(jk, s) * dP / (dS*dS)
-                                    fm_out(jk, ip+rightend, s) = fm_out(jk, ip+rightend, s) &
-                                            + k1_ss(jk, s) * (C_eq_ss(jk, s) * ds_in(jk, ip+rightend) - dm_in(jk, ip+rightend, s))
-                                end if
-                            end do
-                        end do
-                    end do
-                end do
-            end do
-        end do
 
 
-        call f_debug('get_flux finished', (/0._8/))
-        call f_debug_blank()
+        !call f_debug('get_flux finished', (/0._8/))
+        !call f_debug_blank()
 
 
 
     end subroutine get_flux
 
 
-    subroutine new_state(hr, sT_out, mT_out, ds_out, dm_out, pQ_in, mQ_in, mR_in, fs_in, fm_in)
+    subroutine new_state(hr, sT_out, mT_out, ds_out, dm_out, pQ_in, mQ_in, mR_in, fs_in, fm_in, fmR_in)
         ! Calculates the state given the fluxes
 
         real(8), intent(in) :: hr
@@ -781,8 +880,9 @@ contains
         real(8), intent(in), dimension(0:timeseries_length * n_substeps - 1, 0:numsol - 1) :: mR_in
         real(8), intent(in), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1) :: fs_in
         real(8), intent(in), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fm_in
+        real(8), intent(in), dimension(0:timeseries_length * n_substeps - 1, 0:nP_total - 1, 0:numsol - 1) :: fmR_in
 
-        call f_debug('new_state', (/0._8/))
+        !call f_debug('new_state', (/0._8/))
 
         ! Calculate the new age-ranked storage
         sT_out = sT_start ! Initial value
@@ -793,18 +893,18 @@ contains
         do iq = 0, numflux - 1
             sT_out = sT_out - Q_ss(:, iq) * hr * pQ_in(:, iq)
         enddo
-        call f_debug('sT_start ns    ', sT_start(:))
-        call f_debug('sT_out ns      ', sT_out(:))
+        !call f_debug('sT_start ns    ', sT_start(:))
+        !call f_debug('sT_out ns      ', sT_out(:))
         if (ANY(sT_out<0)) then
                 call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
         end if
 
         ! Print some debugging info
         do s = 0, numsol - 1
-            call f_debug('mT_start NS    ', mT_start(:, s))
+            !call f_debug('mT_start NS    ', mT_start(:, s))
             !call f_debug('mR_in NS       ', mR_in(:, s))
             do iq = 0, numflux - 1
-                call f_debug('mQ_in NS       ', mQ_in(:, iq, s))
+                !call f_debug('mQ_in NS       ', mQ_in(:, iq, s))
             enddo
         enddo
 
@@ -814,7 +914,7 @@ contains
             mT_out(:, s) = mT_start(:, s) + mR_in(:, s) * hr
             ! Flux in
             if (ik==0) then
-                mT_out(:, s) = mT_out(:, s) + J_ss(:) * C_J_ss(:, s)
+                mT_out(:, s) = mT_out(:, s) + J_ss(:) * C_J_ss(:, s) * (hr/h)
             end if
             ! Fluxes out
             do iq = 0, numflux - 1
@@ -823,16 +923,16 @@ contains
         enddo
 
         do s = 0, numsol - 1
-            call f_debug('mT_out NS      ', mT_out(:, s))
+            !call f_debug('mT_out NS      ', mT_out(:, s))
             !call f_debug('C_J_ss NS      ', (/C_J_ss(:, s)/))
         enddo
         !call f_debug('J_ss NS        ', (/J_ss(:)/))
-        call f_debug('new_state finished', (/0._8/))
-        call f_debug_blank()
+        !call f_debug('new_state finished', (/0._8/))
+        !call f_debug_blank()
 
         ! Calculate new parameter sensitivity
-        ds_out = ds_start + fs_in * hr
-        dm_out = dm_start + fm_in * hr
+        ds_out = ds_start - fs_in * hr
+        dm_out = dm_start + (-fm_in + fmR_in) * hr
 
     end subroutine new_state
 
