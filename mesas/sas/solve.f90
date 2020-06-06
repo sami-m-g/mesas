@@ -145,10 +145,13 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     iC_list(:) = 0
     STcum_prev(:) = 0.
     STcum_end(:) = 0.
+    STcum_start(:) = 0.
     PQcum_prev(:, :) = 0.
     PQcum_end(:, :) = 0.
+    PQcum_start(:, :) = 0.
     iPj_prev(:, :) = 0
     iPj_end(:, :) = 0
+    iPj_start(:, :) = 0
     pQ1(:, :) = 0.
     pQ2(:, :) = 0.
     pQ3(:, :) = 0.
@@ -529,7 +532,7 @@ contains
         real(8), dimension(:), intent(in) :: debugdblepr
         if (debug) then
             print 1, debugstring, debugdblepr
-            1 format (A16, *(f14.10))
+            1 format (A16, *(f16.10))
         endif
     end subroutine f_debug
 
@@ -672,14 +675,15 @@ contains
             if (hr==0) then
                 STcum_start = 0
                 PQcum_start = 0
-                iPj_start = 0
+                iPj_start = -1
                 STcum_end = 0
                 PQcum_end = 0
+                iPj_end = -1
                 pQ_out = 0
             else
                 STcum_start = 0
                 PQcum_start = 0
-                iPj_start = 0
+                iPj_start = -1
                 STcum_end = 0 + sT_in * hr
                 call get_SAS(STcum_end, PQcum_end, iPj_end, N)
                 pQ_out = (PQcum_end - PQcum_start) / hr
@@ -730,7 +734,7 @@ contains
 
         enddo
 
-        !temp = sum(pQ_out*Q_ss, dim=2) / sT_in
+        temp = sum(pQ_out*Q_ss, dim=2) / sT_in
         fs_out(:, :) = 0.
         do iq = 0, numflux - 1
             do ip = 0, nP_total - 1
@@ -746,27 +750,34 @@ contains
                 do jt = 0, timeseries_length - 1
                     do kk = 0, n_substeps - 1
                         jk = jt * n_substeps + kk
-                        call f_debug('iP             ', (/0.*one8, iPj_start(jk, ic)*one8, &
-                                iPj_end(jk, ic)*one8, nP_list(ic)*one8-1/)*one8)
                         ! sensitivity to point before the start
                         ip = iP_list(ic) + iPj_start(jk, ic)
-                        if ((ip>=0).and.(ip<=nP_list(ic)-1)) then
+                        if ((ip>=0).and.(ip<nP_list(ic)-1)) then
+                            call f_debug('iP start       ', &
+                                    (/ik*one8, jk*one8, ip*one8, STcum_start(jk), iPj_start(jk, ic)*one8, &
+                                    STcum_end(jk), iPj_end(jk, ic)*one8, nP_list(ic)*one8-1/)*one8)
                             dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
                             dP = P_list(ip+1, jt) - P_list(ip, jt)
                             fs_out(jk, ip) = fs_out(jk, ip) &
                                     + dP / (dS*dS) * sT_in(jk) * weights_ss(jk, ic) * Q_ss(jk, iq)
                         end if
                         ! sensitivity to point after the end
-                        ip = iP_list(ic) + iPj_end(jk, ic)
-                        if ((ip>=0).and.(ip<=nP_list(ic)-1)) then
-                            dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
-                            dP = P_list(ip+1, jt) - P_list(ip, jt)
+                        ip = iP_list(ic) + iPj_end(jk, ic) + 1
+                        if ((ip>0).and.(ip<=nP_list(ic)-1)) then
+                            call f_debug('iP end         ', &
+                            (/ik*one8, jk*one8, ip*one8, STcum_start(jk), iPj_start(jk, ic)*one8, &
+                                    STcum_end(jk), iPj_end(jk, ic)*one8, nP_list(ic)*one8-1/)*one8)
+                            dS = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
+                            dP = P_list(ip, jt) - P_list(ip-1, jt)
                             fs_out(jk, ip) = fs_out(jk, ip) &
                                     - dP / (dS*dS) * sT_in(jk) * weights_ss(jk, ic) * Q_ss(jk, iq)
                         end if
                         ! sensitivity to point within
                         if (iPj_end(jk, ic)>iPj_start(jk, ic)) then
                             do ip = iPj_start(jk, ic)+1, iPj_end(jk, ic)
+                                call f_debug('iP middle!     ', &
+                                        (/ik*one8, jk*one8, ip*one8, STcum_start(jk), iPj_start(jk, ic)*one8, &
+                                        STcum_end(jk), iPj_end(jk, ic)*one8, nP_list(ic)*one8-1/)*one8)
                                 if (ip>0) then
                                     dSs = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
                                     dPs = P_list(ip, jt) - P_list(ip-1, jt)
@@ -782,7 +793,7 @@ contains
                                     dPe = 0.
                                 end if
                                 fs_out(jk, ip) = fs_out(jk, ip) &
-                                        - (dPe/dSe - dPs/dSs) * weights_ss(jk, ic) * Q_ss(jk, iq)
+                                        - (dPe/dSe - dPs/dSs) / h * weights_ss(jk, ic) * Q_ss(jk, iq)
                             end do
                         end if
                     end do
@@ -794,14 +805,16 @@ contains
             !call f_debug('      fs      ', fs_out(:, ip))
         !enddo
         do s = 0, numsol - 1
-            temp = sum(alpha_ss(:,:,s)*Q_ss*pQ_out, dim=2) / sT_in
-            do ip = 0, nP_total - 1
-                where (mT_in(:, s)>0)
-                    fm_out(:, ip, s) = dm_in(:, ip, s) * temp
-                elsewhere
-                    fm_out(:, ip, s) = 0.
-                end where
-                fmR_out(:, ip, s) = 0.
+            !temp = sum(alpha_ss(:,:,s)*Q_ss*pQ_out, dim=2) / sT_in
+            do iq = 0, numflux - 1
+                do ip = 0, nP_total - 1
+                    where (mT_in(:, s)>0)
+                        fm_out(:, ip, s) = dm_in(:, ip, s) * alpha_ss(:,iq,s) * Q_ss(:, iq) * pQ_out(:, iq) / sT_in
+                    elsewhere
+                        fm_out(:, ip, s) = 0.
+                    end where
+                    fmR_out(:, ip, s) = 0.
+                end do
             end do
             do iq = 0, numflux - 1
                 do ic = iC_list(iq), iC_list(iq+1) - 1
@@ -810,7 +823,7 @@ contains
                             jk = jt * n_substeps + kk
                             ! sensitivity to point before the start
                             ip = iP_list(ic) + iPj_start(jk, ic)
-                            if ((ip>=0).and.(ip<=nP_list(ic)-1)) then
+                            if ((ip>=0).and.(ip<nP_list(ic)-1)) then
                                 dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
                                 dP = P_list(ip+1, jt) - P_list(ip, jt)
                                 fm_out(jk, ip, s) = fm_out(jk, ip, s) &
@@ -820,10 +833,10 @@ contains
                                         + k1_ss(jk, s) * (C_eq_ss(jk, s) * ds_in(jk, ip) - dm_in(jk, ip, s))
                             end if
                             ! sensitivity to point after the end
-                            ip = iP_list(ic) + iPj_end(jk, ic)
-                            if ((ip>=0).and.(ip<=nP_list(ic)-1)) then
-                                dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
-                                dP = P_list(ip+1, jt) - P_list(ip, jt)
+                            ip = iP_list(ic) + iPj_end(jk, ic) + 1
+                            if ((ip>0).and.(ip<=nP_list(ic)-1)) then
+                                dS = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
+                                dP = P_list(ip, jt) - P_list(ip-1, jt)
                                 fm_out(jk, ip, s) = fm_out(jk, ip, s) &
                                         - dP / (dS*dS) * mT_in(jk, s)&
                                                 * alpha_ss(jk, iq, s) * weights_ss(jk, ic) * Q_ss(jk, iq)
@@ -848,7 +861,7 @@ contains
                                         dPe = 0.
                                     end if
                                     fm_out(jk, ip, s) = fm_out(jk, ip, s) &
-                                            - (dPe/dSe - dPs/dSs) * mT_in(jk, s) / sT_in(jk) &
+                                            - (dPe/dSe - dPs/dSs) * mT_in(jk, s) / sT_in(jk) / h &
                                                     * weights_ss(jk, ic) * Q_ss(jk, iq)
                                 end do
                             end if
@@ -932,7 +945,7 @@ contains
 
         ! Calculate new parameter sensitivity
         ds_out = ds_start - fs_in * hr
-        dm_out = dm_start + (-fm_in + fmR_in) * hr
+        dm_out = dm_start - fm_in * hr + fmR_in * hr
 
     end subroutine new_state
 

@@ -11,7 +11,7 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
-dt = 1.
+dt = 10.
 Q_0 = 1.0 / dt  # <-- steady-state flow rate
 C_J = 1000.
 C_old = 0.
@@ -21,7 +21,7 @@ S_m = 0.601
 eps = 0.0000001
 
 
-def steady_run(N, dt, Q_0, S_0, C_J, eps1=(0, 0), ST_min=0., n_substeps=1):
+def steady_run(N, dt, Q_0, S_0, C_J, eps1=(0, 0), ST_min=0., n_substeps=10):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(N) * Q_0
     data_df['J'] = np.ones(N) * Q_0
@@ -29,7 +29,7 @@ def steady_run(N, dt, Q_0, S_0, C_J, eps1=(0, 0), ST_min=0., n_substeps=1):
     sas_fun1 = Piecewise(nsegment=1, ST_min=ST_min + eps1[0], ST_max=S_0 + eps1[1])
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=True, verbose=False, dt=dt, n_substeps=n_substeps)
+    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps)
     print('running test_steady')
     model.run()
     return model
@@ -74,11 +74,11 @@ def test_steady_uniform():
         assert np.nanmax(np.abs(err)) < 1.0E-4
         print('')
 
-    printcheck(rdf, 'C_Q', CQdisc)
     printcheck(rdf, 'sT', sTdisc)
     printcheck(rdf, 'pQ', pQdisc)
     printcheck(rdf, 'mT', mTdisc)
     printcheck(rdf, 'mQ', mQdisc)
+    printcheck(rdf, 'C_Q', CQdisc)
 
     print('Water Balance:')
     print(rdf['WaterBalance'][:, -3:] / Q_0)
@@ -184,7 +184,7 @@ def test_steady_piston_uniform():
     dCQdSmdisc = np.array([[dCQdSmdisc]]).T
 
 
-    model = steady_run(N, dt, Q_0, S_0, C_J, ST_min=S_m, n_substeps=200)
+    model = steady_run(N, dt, Q_0, S_0, C_J, ST_min=S_m, n_substeps=100)
     rdf = model.result
 
     def printcheck(rdfi, varstr, analy):
@@ -198,11 +198,11 @@ def test_steady_piston_uniform():
         assert np.nanmax(np.abs(err)) < 5.0E-2
         print('')
 
-    #printcheck(rdf, 'pQ', pQdisc)
-    #printcheck(rdf, 'sT', sTdisc)
-    #printcheck(rdf, 'mQ', mQdisc)
-    #printcheck(rdf, 'mT', mTdisc)
-    #printcheck(rdf, 'C_Q', CQdisc)
+    printcheck(rdf, 'pQ', pQdisc)
+    printcheck(rdf, 'sT', sTdisc)
+    printcheck(rdf, 'mQ', mQdisc)
+    printcheck(rdf, 'mT', mTdisc)
+    printcheck(rdf, 'C_Q', CQdisc)
 
     print('Water Balance:')
     print(rdf['WaterBalance'][:, -3:] / Q_0)
@@ -227,29 +227,29 @@ def test_steady_piston_uniform():
         print(f'{varstr} Difference/expected:')
         err = (analy - var) / analy
         print(err[..., -3:].T)
-        #assert np.nanmax(np.abs(err)) < 5.0E-2
+        assert np.nanmax(np.abs(err)) < 5.0E-2
         print('')
 
-    model0 = steady_run(N, dt, Q_0, S_0, C_J, eps1=[0, eps], ST_min=S_m, n_substeps=200)
+    model0 = steady_run(N, dt, Q_0, S_0, C_J, eps1=[0, eps], ST_min=S_m, n_substeps=100)
     rdf0 = model0.result
     SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
     SAS_lookup0, _, _, _, _, _, _ = model0._create_sas_lookup()
     j = 1
     dSj = SAS_lookup0[j, N - 1] - SAS_lookup[j, N - 1]
 
-    #printcheck(rdf, rdf0, 'dsTdSj', 'sT', dsTdSjdisc, j)
-    #printcheck(rdf, rdf0, 'dmTdSj', 'mT', dmTdSjdisc, j)
-    #printcheck(rdf, rdf0, 'dCdSj', 'C_Q', dCQdSjdisc, j)
+    printcheck(rdf, rdf0, 'dsTdSj', 'sT', dsTdSjdisc, j)
+    printcheck(rdf, rdf0, 'dmTdSj', 'mT', dmTdSjdisc, j)
+    printcheck(rdf, rdf0, 'dCdSj', 'C_Q', dCQdSjdisc, j)
 
-    modelm = steady_run(N, dt, Q_0, S_0, C_J, eps1=[eps, 0], ST_min=S_m, n_substeps=200)
+    modelm = steady_run(N, dt, Q_0, S_0, C_J, eps1=[eps, 0], ST_min=S_m, n_substeps=100)
     rdfm = modelm.result
     SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
     SAS_lookupm, _, _, _, _, _, _ = modelm._create_sas_lookup()
     j = 0
     dSj = SAS_lookupm[j, N - 1] - SAS_lookup[j, N - 1]
 
-    printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
     printcheck(rdf, rdfm, 'dmTdSj', 'mT', dmTdSmdisc, j)
+    printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
     printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
 
 def test_Jacobian():
