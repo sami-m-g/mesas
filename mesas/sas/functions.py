@@ -96,8 +96,8 @@ class Piecewise:
             assert ST[0] >= 0
             assert np.all(np.diff(ST) > 0)
             assert len(ST) > 1
-            self._ST = np.array(ST, dtype=np.float)
             self.nsegment = len(ST) - 1
+            self._ST = np.array(ST, dtype=np.float)
             self._segment_list = self._convert_ST_to_segment_list(self._ST)
 
         else:
@@ -135,8 +135,6 @@ class Piecewise:
 
         # call this to make the interpolation functions
         self._make_interpolators()
-        self.index_select = range(len(self.ST))
-        self.orig_select = range(len(self.ST))
 
     def __getitem__(self, i):
         return self
@@ -247,6 +245,8 @@ class Piecewise:
 
     def __repr__(self):
         """Return a repr of the SAS function"""
+        if not hasattr(self, 'nsegment'):
+            return 'Not initialized'
         repr = '        ST: '
         for i in range(self.nsegment + 1):
             repr += '{ST:<10.4}  '.format(ST=self.ST[i])
@@ -271,7 +271,7 @@ class Piecewise:
             fig, ax = plt.subplots()
         return ax.plot(self.ST, self.P, **kwargs)
 
-    def get_jacobian(self, sT, mT, dCdSj, dsTdSj, last_T, C_old, dt, this_flux=True, alpha=1, index=None, mode='segment', logtransform=True):
+    def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
         """
         Calculates a limited jacobian of the model predictions
 
@@ -288,10 +288,7 @@ class Piecewise:
         concentrations at each timestep to variations in the sas function at that timestep, and neglects
         the cumulative effects that changing the sas function would have on the state variables (ST and MS).
 
-        :param sT: Age-ranked storage array produced by a sas model
-        :param mT: Age-ranked solute mass array produced by a sas model
-        :param C_old: Old water concentration
-        :param alpha: solute partitioning coefficient
+        :param dCdSj: jacobian produced by solve.f90
         :param index: index of timesteps to calculate the jacobian for
         :param mode: If 'endpoint' return the derivatives with respect to the ST of the endpoints,
         otherwise if 'segment' return the derivatives wrt the segment lengths
@@ -301,137 +298,16 @@ class Piecewise:
         """
 
         if index is None:
-            index = np.arange(sT.shape[1] - 1)
+            index = np.arange(dCdSj.shape[0])
 
-        # Create an array to store the result
-        Nt = sT.shape[1] - 1
-        Ni = len(index)
-        Ns = self.nsegment
-        J_S = np.zeros((Ni, Ns + 1))
-
-        # These represent the volume and solute mass in the system whose age is known.
-        # Everything older is assumed to have concentration C_old
-        ST = np.zeros((sT.shape[0] + 1, sT.shape[1]))
-        MT = np.zeros_like(ST)
-        ST[1:, :] = np.cumsum(sT, axis=0) * dt
-        MT[1:, :] = np.cumsum(mT, axis=0) * dt
-        S_maxcalc = ST[-1, :]
-        M_maxcalc = MT[-1, :]
-
-        # This gives the concentration of water of each age
-        with np.errstate(divide='ignore', invalid='ignore'):
-            CS = np.where(sT > 0, mT / sT, 0)
-        CS[np.isnan(CS)] = 0
-
-        dSTdSj = np.sum(dsTdSj, axis=0) * dt
-
-        # Loop over the times
-        for i, start_index in enumerate(index):
-
-            # pull out the sas function parameters, and get some derivatives and differences
-            sas_fun = self[start_index]
-            Nsi = sas_fun.nsegment
-            Omegaj = sas_fun.P
-            Sj = sas_fun.ST
-            dOmegaj = np.diff(Omegaj)
-            dSj = np.diff(Sj)
-            omegaj = dOmegaj / dSj
-
-            J_Si = np.zeros_like(Sj)
-
-
-            if this_flux:
-
-                # We are going to do this twice: once for the start and once for the end of each timestep
-                # we will average them together at the end
-                for stepend in [0, 1]:
-                    time_index = start_index + stepend
-
-                    # Check if we know the concentration in all segments
-                    if S_maxcalc[time_index] >= Sj[-1]:
-
-                        # If we do set this to the number of segments
-                        seg_maxcalc = Nsi
-
-                    else:
-
-                        # If we don't, set this to the segment that contains the maximum known ST
-                        seg_maxcalc = np.argmax(Sj >= S_maxcalc[time_index]) - 1
-
-                    # Find the concentration at each segment endpoint
-                    # Get the age of water at the endpoint
-                    # NOTE: the two ages Tjl and Tjr are usually the same, but differ only for the case where
-                    # Sj is exactly equal to ST. In that case, the derivative is actually undefined due to the
-                    # step-change in concentration. Here we just take the average.
-                    # Todo: implement upwinding: when Sj=ST, check J_S in both directions and choose steepest
-                    Tjl = np.digitize(Sj[:seg_maxcalc + 1], ST[:time_index + 1, time_index], right=True) - 1
-                    Tjr = np.digitize(Sj[:seg_maxcalc + 1], ST[:time_index + 1, time_index], right=False) - 1
-                    Tjl[Tjl < 0] = 0
-                    Tjr[Tjr == Nt] = Tjl[Tjr == Nt]
-                    Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
-
-                    # Calculate the bulk-averaged concentration in each segment
-                    # Age-ranked mass at each segment endpoint
-                    Mj = np.interp(Sj, ST[:, time_index], MT[:, time_index])
-                    # Increment of age-ranked mass in each segment
-                    dMj = np.diff(Mj)
-                    # Concentration in each segment
-                    Cbarj = dMj / dSj
-
-                    # Is at least one segment completely full of water of known age?
-                    if seg_maxcalc > 0:
-
-                        # derivative w.r.t. ST_min
-                        J_Si[0] += alpha * (Cbarj[0] - Cpj[0]) * omegaj[0]
-
-                        # derivative w.r.t. the endpoints that have completely full segments on both sides
-                        if seg_maxcalc > 1:
-                            J_Si[1:seg_maxcalc] += alpha * (
-                                    Cbarj[1:seg_maxcalc] * omegaj[1:seg_maxcalc]
-                                    - Cbarj[0:seg_maxcalc - 1] * omegaj[0:seg_maxcalc - 1]
-                                    - Cpj[1:seg_maxcalc] * (omegaj[1:seg_maxcalc] - omegaj[0:seg_maxcalc - 1])
-                            )
-                    # Is the maximum known ST less than ST_max?
-                    if seg_maxcalc < Nsi:
-
-                        # Is it greater than ST_min?
-                        if S_maxcalc[time_index] > Sj[0]:
-                            # Get the derivative w.r.t the left end of the segment
-                            J_Si[seg_maxcalc] += omegaj[seg_maxcalc] * alpha * (
-                                    (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc] - Cpj[seg_maxcalc]
-                                    - C_old * (Sj[1 + seg_maxcalc] - S_maxcalc[time_index]) / dSj[seg_maxcalc]
-                            )
-                            # Get the derivative w.r.t the right end of the segment
-                            J_Si[seg_maxcalc + 1] += omegaj[seg_maxcalc] * alpha * (
-                                    - (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc]
-                                    - C_old * (S_maxcalc[time_index] - Sj[seg_maxcalc]) / dSj[seg_maxcalc]
-                            )
-
-                    else:
-
-                        # Effect of varying ST_max
-                        J_Si[Nsi] += -alpha * (Cbarj[Nsi - 1] - Cpj[Nsi]) * omegaj[Nsi - 1]
-
-                # Average the start and end of the timestep
-                J_Si = J_Si / 2
-
-            # Effect of past changes in Sj
-            J_Si += dCdSj[start_index, :]
-
-            # Effect of changes in ST at the oldest observed storage
-            #J_Si += (CS[last_T[start_index], start_index] - C_old) * dSTdSj[start_index, :]
-
-            # Extract and save the valid points
-            # If an ASD function is being used, the first (ST,P) may be absent, so we have to skip them
-            # There may also be a dummy fist (ST,P), which we will discard
-            J_S[i, sas_fun.orig_select] = J_Si[sas_fun.index_select]
+        J_S = dCdSj[index, :]
 
         if mode == 'endpoint':
             return J_S
 
         # To get the derivative with respect to the segment length, we add up the derivative w.r.t. the
         # endpoints that would be displaced by varying that segment
-        A = np.triu(np.ones(Ns + 1), k=0)
+        A = np.triu(np.ones(self.nsegment + 1), k=0)
         J_seg = np.dot(A, J_S.T).T
 
         if logtransform:
@@ -439,106 +315,6 @@ class Piecewise:
             return J_seglog
         else:
             return J_seg
-
-    def get_residual_parts(self, C_train, ST, MS, alpha=1, index=None):
-        """
-        Difference between the concentration drawn from each segment and the observed discharge concentration
-
-        :param C_train:
-        :param ST: Age-ranked storage array produced by a sas model
-        :param MS: Age-ranked solute mass array produced by a sas model
-        :param alpha: solute partitioning coefficient
-        :param index: index of timesteps to calculate the residuals for
-        :return: timeseries of the residuals
-        """
-
-        if index is None:
-            index = np.arange(ST.shape[1] - 1)
-
-        # Create an array to store the result
-        Nt = ST.shape[1] - 1
-        Ni = len(index)
-        Ns = self.nsegment
-        r_seg_i = np.zeros((Ni, Ns + 1))
-
-        # These represent the volume and solute mass in the system whose age is known.
-        # Everything older is assumed to have concentration C_old
-        S_maxcalc = ST[-1, :]
-        M_maxcalc = MS[-1, :]
-
-        # Get some differences along the age dimension
-        dST = np.diff(ST, axis=0)
-        dMS = np.diff(MS, axis=0)
-
-        # This gives the concentration of water of each age
-        with np.errstate(divide='ignore', invalid='ignore'):
-            CS = np.where(dST > 0, dMS / dST, 0)
-        CS[np.isnan(CS)] = 0
-
-        # Loop over the times
-        for i, start_index in enumerate(index):
-
-            # Pull out the observed concentration we want to compare with
-            C_train_this = C_train[start_index]
-
-            # pull out the sas function parameters, and get some derivatives and differences
-            sas_fun = self[start_index]
-            Nsi = sas_fun.nsegment
-            Omegaj = sas_fun.P
-            Sj = sas_fun.ST
-            dOmegaj = np.diff(Omegaj)
-            dSj = np.diff(Sj)
-
-            r_seg_ii = np.zeros_like(dSj)
-
-            # We are going to do this twice: once for the start and once for the end of each timestep
-            # we will average them together at the end
-            for stepend in [0, 1]:
-                time_index = start_index + stepend
-
-                if S_maxcalc[time_index] > Sj[0]:
-
-                    # Check if we know the concentration in all segments
-                    if S_maxcalc[time_index] >= Sj[-1]:
-
-                        # If we do set this to the number of segments
-                        seg_maxcalc = Nsi
-
-                    else:
-
-                        # If we don't, set this to the segment that contains the maximum known ST
-                        seg_maxcalc = np.argmax(Sj >= S_maxcalc[time_index]) - 1
-
-                    # Calculate the bulk-averaged concentration in each segment
-                    # Age-ranked mass at each segment endpoint
-                    Mj = np.interp(Sj, ST[:, time_index], MS[:, time_index])
-                    # Increment of age-ranked mass in each segment
-                    dMj = np.diff(Mj)
-                    # Concentration in each segment
-                    Csj = dMj / dSj
-
-                    # Is at least one segment completely full of water of known age?
-                    if seg_maxcalc > 0:
-                        r_seg_ii[:seg_maxcalc] += (alpha * Csj[:seg_maxcalc] - C_train_this) * dOmegaj[
-                                                                                               :seg_maxcalc]
-                    # Is the maximum known ST less than ST_max?
-                    if seg_maxcalc < Nsi:
-                        Omegam = sas_fun(S_maxcalc[time_index])
-                        r_seg_ii[seg_maxcalc] += (alpha * (M_maxcalc[time_index] - Mj[seg_maxcalc])
-                                                  / (S_maxcalc[time_index] - Sj[seg_maxcalc])
-                                                  - C_train_this) \
-                                                 * (Omegam - Omegaj[seg_maxcalc])
-
-            # Average the start and end of the timestep
-            r_seg_ii = r_seg_ii / 2
-
-            # Extract and save the valid points
-            # If an ASD function is being used, the first (ST,P) may be absent, so we have to skip them
-            # There may also be a dummy fist (ST,P), which we will keep
-            r_seg_i[i, -len(dSj):] = r_seg_ii
-
-        return r_seg_i
-
 
 class PiecewiseASD(Piecewise):
     def __init__(self, STc, QTc, S=None, Q=None):

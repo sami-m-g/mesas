@@ -450,7 +450,7 @@ def fit_model(model, include_C_old=True, learn_fun=None, index=None, jacobian_mo
         OptimizeResult = least_squares(fun=f,
                                        x0=x0,
                                        jac=jac,
-                                       verbose=1,
+                                       verbose=2,
                                        bounds=(xmin, xmax))
     elif jacobian_mode == 'numerical':
         OptimizeResult = least_squares(fun=f,
