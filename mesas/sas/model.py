@@ -427,8 +427,7 @@ class Model:
                             C_old = self.solute_parameters[sol]['C_old']
                             alpha = self.solute_parameters[sol]['alpha'][flux]
                             this_flux = flux==solflux
-                            J_seg_this = self.sas_blends[flux].get_jacobian(sT, mT, dCdSj, dsTdSj, last_T, C_old, self.options['dt'],
-                                                                      this_flux=False, alpha=alpha, index=index, **kwargs)
+                            J_seg_this = self.sas_blends[flux].get_jacobian(dCdSj, index=index, **kwargs)
                             if J_seg is None:
                                 J_seg = J_seg_this
                             else:

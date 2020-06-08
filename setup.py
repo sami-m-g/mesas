@@ -31,7 +31,7 @@ config = {
                               extra_f90_compile_args=["-Ofast", '-fno-stack-arrays'],
                               libraries=None)],
 }
-#extra_f90_compile_args=["-Ofast"],
+#extra_f90_compile_args=["-Ofast", '-fno-stack-arrays'],
 #extra_f90_compile_args=["-fbacktrace", '-fcheck=all'],
 
 
