@@ -423,9 +423,9 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
         SoluteBalance_ts(iT, :, :) = SoluteBalance_ts(iT, :, :) + mR_ts(iT, :, :) * dt
 
         ! Print some updates
-        if (mod(jt, 10).eq.0) then
-            write (tempdebugstring, *) '...Done ', char(jt), &
-                    'of', char(timeseries_length)
+        if (mod(iT, 10).eq.0) then
+            write (tempdebugstring, *) '...Done ', (iT), &
+                    'of', (timeseries_length)
             call f_verbose(tempdebugstring)
         endif
 

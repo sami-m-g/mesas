@@ -18,15 +18,15 @@ C_old = 2000.
 N = 10
 S_0 = 5.
 S_m = 0.601
-eps = 0.0000001
+eps = 0.000000001
 n_substeps=10
 
-n_segment=1
+n_segment=10
 fQ=0.3
 fc=0.1
 
 
-def steady_run(N, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=10):
+def steady_run(N, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=10, n_segment=1):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(N) * Q_0
     data_df['J'] = np.ones(N) * Q_0
@@ -350,17 +350,17 @@ def test_multiple():
         print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
     assert np.abs(rdf['SoluteBalance'] / (Q_0 * C_J)).max() < 1.0E-6
 
-    def printcheck(rdfi, rdfp, varstr, ostr, ip):
+    def printcheck(rdfi, rdfp, varstr, ostr, norm, ip):
         var = rdfi[varstr][:,:,ip,...]
         print(f'{varstr} ip={ip} eps check:')
         dnum = (rdfp[ostr] - rdfi[ostr]) / dSj
         print(dnum.T)
         print(f'{varstr} ip={ip} Got:')
         print(var.T)
-        print(f'{varstr} ip={ip} Difference/epscheck:')
-        err = (dnum - var) / dnum
+        print(f'{varstr} ip={ip} Difference/norm')
+        err = (dnum - var) / norm
         print(err[..., -3:].T)
-        assert np.nanmax(np.abs(err)) < 2.0E-1
+        assert np.nanmax(np.abs(err)) < 5.0E-2
         print('')
 
     def printcheckC(rdfi, rdfp, varstr, ostr, ip, iq, s):
@@ -373,7 +373,7 @@ def test_multiple():
         print(f'{varstr} ip={ip} Difference/CJ:')
         err = (dnum - var) / C_J
         print(err[..., :].T)
-        assert np.nanmax(np.abs(err)) < 1.0E-2
+        assert np.nanmax(np.abs(err)) < 5.0E-2
         print('')
 
     SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
@@ -386,8 +386,8 @@ def test_multiple():
             SAS_lookupp, _, _, _, _, _, _ = modelp._create_sas_lookup()
             dSj = SAS_lookupp[ip, N - 1] - SAS_lookup[ip, N - 1]
 
-            printcheck(rdf, rdfp, 'dsTdSj', 'sT', ip)
-            printcheck(rdf, rdfp, 'dmTdSj', 'mT', ip)
+            printcheck(rdf, rdfp, 'dsTdSj', 'sT', Q_0, ip)
+            printcheck(rdf, rdfp, 'dmTdSj', 'mT', Q_0 * C_J, ip)
             for iqq in range(2):
                 for s in range(2):
                     print(iq, ic, j, iqq, s)

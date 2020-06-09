@@ -100,7 +100,7 @@ class Weighted:
                 [component.sas_fun[i].ST for label, component in self.components.items()])))
             self.P_lists[i] = np.zeros_like(self.ST_lists[i])
             for label, component in self.components.items():
-                self.P_lists[i] += component.sas_fun[i](self.ST_lists[i]) * component.weights[i]
+                self.P_lists[i] += component.sas_fun[i](self.ST_lists[i]) * component.weights.values[i]
             ST_min = self.ST_lists[i][0]
             ST_max = self.ST_lists[i][-1]
             self._interp1d_inv[i] = interp1d(self.P_lists[i], self.ST_lists[i],

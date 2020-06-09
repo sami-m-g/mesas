@@ -64,7 +64,7 @@ class Piecewise:
 
     """
 
-    def __init__(self, segment_list=None, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0.):
+    def __init__(self, segment_list=None, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0., auto='uniform'):
         """
         Initializes a Piecewise sas function.
 
@@ -102,21 +102,24 @@ class Piecewise:
 
         else:
 
-            # Generate a random function
-            # Note this should probably be encapsulated in a function
-            # and called using an optional keyword, rather than triggered by default
 
             self.nsegment = nsegment
-            self._ST = np.zeros(self.nsegment + 1)
 
-            ST_scaled = np.zeros(self.nsegment + 1)
-            ST_scaled[-1] = 1.
-            for i in range(self.nsegment - 1):
-                ST_scaled[self.nsegment - i - 1] = np.random.uniform(
-                    0, ST_scaled[self.nsegment - i], 1)
+            if auto=='uniform':
+                self._ST = np.linspace(self.ST_min, self.ST_max, self.nsegment + 1)
+                self._segment_list = self._convert_ST_to_segment_list(self._ST)
+            elif auto=='random':
+                # Generate a random function
+                # Note this should probably be encapsulated in a function
+                self._ST = np.zeros(self.nsegment + 1)
+                ST_scaled = np.zeros(self.nsegment + 1)
+                ST_scaled[-1] = 1.
+                for i in range(self.nsegment - 1):
+                    ST_scaled[self.nsegment - i - 1] = np.random.uniform(
+                        0, ST_scaled[self.nsegment - i], 1)
 
-            self._ST[:] = self.ST_min + (self.ST_max - self.ST_min) * ST_scaled
-            self._segment_list = self._convert_ST_to_segment_list(self._ST)
+                self._ST[:] = self.ST_min + (self.ST_max - self.ST_min) * ST_scaled
+                self._segment_list = self._convert_ST_to_segment_list(self._ST)
 
         # Make a list of probabilities P
         if P is not None:
@@ -166,9 +169,12 @@ class Piecewise:
 
     @ST.setter
     def ST(self, new_ST):
-        assert new_ST[0] >= 0
-        assert np.all(np.diff(new_ST) > 0)
-        assert len(new_ST) > 1
+        try:
+            assert new_ST[0] >= 0
+            assert np.all(np.diff(new_ST) > 0)
+            assert len(new_ST) > 1
+        except Exception as ex:
+            raise ex
         self._ST = new_ST
         self.ST_min = self._ST[0]
         self.ST_max = self._ST[-1]

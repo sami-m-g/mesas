@@ -55,7 +55,8 @@ def run(model, verbose=True, search_mode='leftfirst', **kwargs):
     better_initial_rmse = cross_validation_rmse(better_initial_model, index=index, **kwargs)
     _verbose(f'Initial rmse     = {better_initial_rmse}')
 
-    kwargs['incres_fun'](better_initial_model, 'initial')
+    if 'incres_fun' in kwargs.keys():
+        kwargs['incres_fun'](better_initial_model, 'initial')
 
     # run the algorithm
     global ITERATION
@@ -105,7 +106,7 @@ def lookfor_new_components(initial_model, initial_rmse, new_components, segment_
                 else:
                     new_model = initial_model.subdivided_copy(flux, label, segment)
                     segment_list = new_model.get_segment_list()
-                    if np.any(segment_list[segment_list > 0] < new_model.options['ST_smallest_segment']):
+                    if np.any(segment_list[1:] < new_model.options['ST_smallest_segment']):
                         _verbose("New segment too small! Try reducing model.options['ST_smallest_segment']")
                         subdivision_accepted = False
                         new_rmse = None
@@ -215,7 +216,7 @@ def increase_resolution_scanning(initial_model, initial_rmse, new_components, ma
                 initial_model, initial_rmse,
                 new_components, check_segment_dict,
                 id_str=f'scan_{scan}', incres_fun=incres_fun,
-                index=None, **kwargs)
+                index=index, **kwargs)
 
             # if we accepted refined components we want to add them into the model
             # before moving on to the next segment or scan
@@ -300,7 +301,7 @@ def increase_resolution_leftfirst(initial_model, initial_rmse, new_components, s
         initial_model, initial_rmse,
         new_components, segment,
         id_str=f'iteration_{ITERATION}', incres_fun=incres_fun,
-        index=None, **kwargs)
+        index=index, **kwargs)
 
     # if we accepted refined components we want to add them into the model
     # and then recursively try subdividing them too
@@ -442,8 +443,8 @@ def fit_model(model, include_C_old=True, learn_fun=None, index=None, jacobian_mo
         if update_parameters(x):
             new_model.run()
 
-        jacobian = new_model.get_jacobian(index=index)[:, keep_jac_columns]
-        return jacobian
+        jacobian = new_model.get_jacobian()[index, :]
+        return jacobian[:, keep_jac_columns]
 
     # use the scipy.optimize.least_square package
     if jacobian_mode == 'analytical':

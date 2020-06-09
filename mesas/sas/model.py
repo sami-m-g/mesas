@@ -402,10 +402,8 @@ class Model:
         if numsol > 0:
             self._result.update({'mT': mT, 'mQ': mQ, 'mR': mR, 'SoluteBalance': SoluteBalance, 'dmTdSj':dmTdSj, 'dCdSj':dCdSj})
 
-    def get_jacobian(self, index=None, **kwargs):
+    def get_jacobian(self, mode='segment', logtransform=True):
         J = None
-        if index is None:
-            index = np.arange(self._timeseries_length)
         self.jacobian = {}
         for isol, sol in enumerate(self._solorder):
             if 'observations' in self.solute_parameters[sol]:
@@ -415,32 +413,27 @@ class Model:
                     if solflux in self.solute_parameters[sol]['observations']:
                         J_seg = None
                         for iflux, flux in enumerate(self._comp2learn_fluxorder):
-                            nP = len(self.sas_blends[flux].P)
-                            mT = np.squeeze(self.result['mT'][:, :, isol])
-                            sT = self.result['sT']
-                            last_T = self.result['last_T']
-                            dCdSj = np.squeeze(self.result['dCdSj'][:, iP:iP+nP, isolflux, isol])
-                            dsTdSj = np.squeeze(self.result['dsTdSj'][:, :, iP:iP+nP])
-                            pQ = self.result['pQ'][:, :, iflux]
-                            PQ = np.zeros((self._max_age, self._timeseries_length))
-                            PQ[1:,:] = np.sum(pQ, axis=0)
-                            C_old = self.solute_parameters[sol]['C_old']
-                            alpha = self.solute_parameters[sol]['alpha'][flux]
-                            this_flux = flux==solflux
-                            J_seg_this = self.sas_blends[flux].get_jacobian(dCdSj, index=index, **kwargs)
-                            if J_seg is None:
-                                J_seg = J_seg_this
-                            else:
-                                J_seg = np.c_[J_seg, J_seg_this]
-                        J_old = 1 - PQ[-1, index]
-                        #J_old = np.zeros(len(index))
-                        #observed_index = index[index < self._max_age]
-                        #unobserved_index = index[index >= self._max_age]
-                        #J_old[:len(observed_index)] = 1 - np.diag(PQ)[1:][observed_index]
-                        #J_old[len(observed_index):] = 1 - PQ[-1, unobserved_index]
-                        J_old_sol = np.zeros((len(index), self._numsol))
-                        J_old_sol[:, list(self._solorder).index(sol)] = J_old
-                        J_sol = np.c_[J_seg, J_old_sol]
+                            for label in self._components_to_learn[flux]:
+                                nP = len(self.sas_blends[flux].components[label].sas_fun.P)
+                                J_S = np.squeeze(self.result['dCdSj'][:, iP:iP+nP, isolflux, isol])
+                                if mode == 'endpoint':
+                                    pass
+                                elif mode == 'segment':
+                                    # To get the derivative with respect to the segment length, we add up the derivative w.r.t. the
+                                    # endpoints that would be displaced by varying that segment
+                                    A = np.triu(np.ones(nP), k=0)
+                                    J_S = np.dot(A, J_S.T).T
+                                    if logtransform:
+                                        J_S = J_S * self.sas_blends[flux].components[label].sas_fun._segment_list
+                                if J_seg is None:
+                                    J_seg = J_S
+                                else:
+                                    J_seg = np.c_[J_seg, J_S]
+                            PQ = np.sum(self.result['pQ'][:, :, iflux], axis=0)
+                            J_old = 1 - PQ
+                            J_old_sol = np.zeros((self._timeseries_length, self._numsol))
+                            J_old_sol[:, list(self._solorder).index(sol)] = J_old.T
+                            J_sol = np.c_[J_seg, J_old_sol]
                         if J is None:
                             J = J_sol
                         else:
@@ -465,7 +458,7 @@ class Model:
                         if ri is None:
                             ri = this_ri
                         else:
-                            ri = np.concatenate(ri, this_ri, axis=0)
+                            ri = np.concatenate((ri, this_ri), axis=0)
                         self.data_df[f'residual {flux}, {sol}, {obs}'] = this_ri
         return ri
 
@@ -481,5 +474,5 @@ class Model:
                         if index is None:
                             index = this_index
                         else:
-                            index = np.concatenate(index, this_index, axis=0)
+                            index = np.concatenate((index, this_index), axis=0)
         return np.nonzero(index)[0]
