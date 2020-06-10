@@ -97,58 +97,58 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     call f_verbose('...Initializing arrays...')
     one8 = 1.0
 
-    C_Q_ts(:, :, :) = 0.
-    sT_ts(:, :) = 0.
-    mT_ts(:, :, :) = 0.
-    ds_ts(:, :, :) = 0.
-    dm_ts(:, :, :, :) = 0.
-    dC_ts(:, :, :, :) = 0.
-    dW_ts(:, :, :) = 0.
-    pQ_ts(:, :, :) = 0.
-    mQ_ts(:, :, :, :) = 0.
-    mR_ts(:, :, :) = 0.
-    WaterBalance_ts(:, :) = 0.
-    SoluteBalance_ts(:, :, :) = 0.
-    P_old(:, :) = 0.
-    breakpt_index_list(:) = 0
-    component_index_list(:) = 0
-    STcum_prev(:) = 0.
-    STcum_bot(:) = 0.
-    STcum_top(:) = 0.
-    PQcum_prev(:, :) = 0.
-    PQcum_bot(:, :) = 0.
-    PQcum_top(:, :) = 0.
-    leftbreakpt_prev(:, :) = 0
-    leftbreakpt_bot(:, :) = 0
-    leftbreakpt_top(:, :) = 0
-    pQ_temp(:, :) = 0.
-    pQ_aver(:, :) = 0.
-    mQ_temp(:, :, :) = 0.
-    mQ_aver(:, :, :) = 0.
-    mR_temp(:, :) = 0.
-    mR_aver(:, :) = 0.
-    fs_temp(:, :) = 0.
-    fs_aver(:, :) = 0.
-    fsQ_temp(:, :, :) = 0.
-    fsQ_aver(:, :, :) = 0.
-    fm_temp(:, :, :) = 0.
-    fm_aver(:, :, :) = 0.
-    fmQ_temp(:, :, :, :) = 0.
-    fmQ_aver(:, :, :, :) = 0.
-    fmR_temp(:, :, :) = 0.
-    fmR_aver(:, :, :) = 0.
-    sT_start(:) = 0.
-    sT_temp(:) = 0.
-    sT_end(:) = 0.
-    mT_start(:, :) = 0.
-    mT_temp(:, :) = 0.
-    mT_end(:, :) = 0.
-    ds_start(:, :) = 0.
-    ds_temp(:, :) = 0.
-    ds_end(:, :) = 0.
-    dm_start(:, :, :) = 0.
-    dm_temp(:, :, :) = 0.
-    dm_end(:, :, :) = 0.
+    C_Q_ts = 0.
+    sT_ts = 0.
+    mT_ts = 0.
+    ds_ts = 0.
+    dm_ts = 0.
+    dC_ts = 0.
+    dW_ts = 0.
+    pQ_ts = 0.
+    mQ_ts = 0.
+    mR_ts = 0.
+    WaterBalance_ts = 0.
+    SoluteBalance_ts = 0.
+    P_old = 0.
+    breakpt_index_list = 0
+    component_index_list = 0
+    STcum_prev = 0.
+    STcum_bot = 0.
+    STcum_top = 0.
+    PQcum_prev = 0.
+    PQcum_bot = 0.
+    PQcum_top = 0.
+    leftbreakpt_prev = 0
+    leftbreakpt_bot = 0
+    leftbreakpt_top = 0
+    pQ_temp = 0.
+    pQ_aver = 0.
+    mQ_temp = 0.
+    mQ_aver = 0.
+    mR_temp = 0.
+    mR_aver = 0.
+    fs_temp = 0.
+    fs_aver = 0.
+    fsQ_temp = 0.
+    fsQ_aver = 0.
+    fm_temp = 0.
+    fm_aver = 0.
+    fmQ_temp = 0.
+    fmQ_aver = 0.
+    fmR_temp = 0.
+    fmR_aver = 0.
+    sT_start = 0.
+    sT_temp = 0.
+    sT_end = 0.
+    mT_start = 0.
+    mT_temp = 0.
+    mT_end = 0.
+    ds_start = 0.
+    ds_temp = 0.
+    ds_end = 0.
+    dm_start = 0.
+    dm_temp = 0.
+    dm_end = 0.
     i_prev = -1
 
     ! The list of probabilities in each sas function is a 1-D array.
@@ -203,12 +203,6 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             call f_debug('Agestep, Substep', (/ iT * one8, k * one8/))
             call f_debug_blank()
 
-            ! Copy the state variables from the end of the previous substep as the start of this one
-            ! but shifted by one substep
-            sT_start(1:N - 1) = sT_end(0:N - 2)
-            mT_start(1:N - 1, :) = mT_end(0:N - 2, :)
-            ds_start(1:N - 1, :) = ds_end(0:N - 2, :)
-            dm_start(1:N - 1, :, :) = dm_end(0:N - 2, :, :)
             ! Initialize the value at t=0
             if (ik>0) then
                 sT_start(0) = sT_init_ts(i_prev)
@@ -216,6 +210,13 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 ds_start(0, :) = 0.
                 dm_start(0, :, :) = 0.
             end if
+
+            ! Copy the state variables from the end of the previous substep as the start of this one
+            ! but shifted by one substep
+            sT_start(1:N - 1) = sT_end(0:N - 2)
+            mT_start(1:N - 1, :) = mT_end(0:N - 2, :)
+            ds_start(1:N - 1, :) = ds_end(0:N - 2, :)
+            dm_start(1:N - 1, :, :) = dm_end(0:N - 2, :, :)
 
             ! These will hold the evolving state variables
             ! They are global variables modified by the new_state function
@@ -231,20 +232,14 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
 
             call get_flux(0.0D0)
             call update_aver(1)
-            !call f_debug_blank()
-            call f_debug('RK', (/2._8/))
             call new_state(h / 2)
 
             call get_flux(h / 2)
             call update_aver(2)
-            !call f_debug_blank()
-            call f_debug('RK', (/3._8/))
             call new_state(h / 2)
 
             call get_flux(h / 2)
             call update_aver(2)
-            !call f_debug_blank()
-            call f_debug('RK', (/4._8/))
             call new_state(h)
 
             call get_flux(h)
@@ -300,11 +295,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                         if (Q_ts(jt, iq)>0) then
                             js = jt * n_substeps
                             dW_ts(jt, ip, iq) = dW_ts(jt, ip, iq) &
-                                    + sum(fsQ_aver((js+k):(js+n_substeps-1), ip, iq))/Q_ts(jt, iq) * norm * dt
-                            if (carryover) then
-                                dW_ts(jt, ip, iq) = dW_ts(jt, ip, iq) &
-                                        + sum(fsQ_aver((js):(js+k-1), ip, iq))/Q_ts(jt, iq) * norm * dt
-                            endif
+                                    + sum(fsQ_aver(js:(js+n_substeps-1), ip, iq))/Q_ts(jt, iq) * norm * dt
                         endif
                     enddo
                 enddo
@@ -314,11 +305,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                             if (Q_ts(jt, iq)>0) then
                                 js = jt * n_substeps
                                 dW_ts(jt, ip, iq) = dW_ts(jt, ip, iq) &
-                                        + sum(fs_aver((js+k):(js+n_substeps-1), ip))/Q_ts(jt, iq) * norm * dt
-                                if (carryover) then
-                                    dW_ts(jt, ip, iq) = dW_ts(jt, ip, iq) &
-                                            + sum(fs_aver((js):(js+k-1), ip))/Q_ts(jt, iq) * norm * dt
-                                endif
+                                        + sum(fs_aver(js:(js+n_substeps-1), ip))/Q_ts(jt, iq) * norm * dt
                             endif
                         enddo
                     enddo
@@ -336,11 +323,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                             if (Q_ts(jt, iq)>0) then
                                 js = jt * n_substeps
                                 dC_ts(jt, ip, iq, s) = dC_ts(jt, ip, iq, s) &
-                                        + sum(fmQ_aver((js+k):(js+n_substeps-1), ip, iq, s))/Q_ts(jt, iq) * norm * dt
-                                if (carryover) then
-                                    dC_ts(jt, ip, iq, s) = dC_ts(jt, ip, iq, s) &
-                                            + sum(fmQ_aver((js):(js+k-1), ip, iq, s))/Q_ts(jt, iq) * norm * dt
-                                endif
+                                        + sum(fmQ_aver(js:(js+n_substeps-1), ip, iq, s))/Q_ts(jt, iq) * norm * dt
                             endif
                         enddo
                     enddo
@@ -350,11 +333,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                                 if (Q_ts(jt, iq)>0) then
                                     js = jt * n_substeps
                                     dC_ts(jt, ip, iq, s) = dC_ts(jt, ip, iq, s) &
-                                            + sum(fm_aver((js+k):(js+n_substeps-1), ip, s))/Q_ts(jt, iq) * norm * dt
-                                    if (carryover) then
-                                        dC_ts(jt, ip, iq, s) = dC_ts(jt, ip, iq, s) &
-                                                + sum(fm_aver((js):(js+k-1), ip, s))/Q_ts(jt, iq) * norm * dt
-                                    endif
+                                            + sum(fm_aver(js:(js+n_substeps-1), ip, s))/Q_ts(jt, iq) * norm * dt
                                 endif
                             enddo
                         enddo
