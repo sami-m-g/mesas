@@ -378,9 +378,9 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, Q, SAS_lookup, P_list, weights, sT_init, dt,
+            J, Q.T, SAS_lookup, P_list, weights.T, sT_init, dt,
             verbose, debug, warning,
-            mT_init, C_J, alpha, k1, C_eq, C_old,
+            mT_init, C_J.T, alpha.T, k1.T, C_eq.T, C_old,
             n_substeps, nC_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nP_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
@@ -391,16 +391,9 @@ class Model:
         else:
             self._result = {}
         self._result.update({'sT': sT, 'pQ': pQ, 'WaterBalance': WaterBalance, 'dsTdSj':dsTdSj})
-        self._result['last_T'] = np.ones(self._timeseries_length + 1, dtype=int) * (self._max_age - 1)
-        if np.any(sT[:, 0] > 0):
-            self._result['last_T'][0] = np.nonzero(sT_init > 0)[0].max()
-            off_diag = np.arange(self._result['last_T'][0]+1, self._timeseries_length - 1)
-        else:
-            self._result['last_T'][0] = 0
-            off_diag = np.arange(1, self._timeseries_length - 1)
-        self._result['last_T'][1:len(off_diag)+1] = off_diag-1
         if numsol > 0:
-            self._result.update({'mT': mT, 'mQ': mQ, 'mR': mR, 'SoluteBalance': SoluteBalance, 'dmTdSj':dmTdSj, 'dCdSj':dCdSj})
+            self._result.update({'mT': mT, 'mQ': mQ, 'mR': mR, 'SoluteBalance': SoluteBalance,
+                                 'dmTdSj':dmTdSj, 'dCdSj':np.moveaxis(dCdSj, 3, 0)})
 
     def get_jacobian(self, mode='segment', logtransform=True):
         J = None
