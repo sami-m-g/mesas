@@ -18,16 +18,16 @@ J_max = 1.0 / dt  # <-- steady-state flow rate
 C_J = 1000.
 C_std = 500.
 C_old = C_J
-N = 300
+N = 100
 burn = int(N*0.5)
-ST_max1 = 50.
-ST_max22 = 15.
-ST_max21 = 100.
 ST_min1 = 0.
+ST_max1 = 5.
 ST_min21 = 3.
-ST_min22 = 10.
+ST_max21 = 10.
+ST_min22 = 0.
+ST_max22 = 20.
 eps = 0.0000001
-n_substeps = 3
+n_substeps = 2
 
 n_segment = 2
 fQ = 0.3
@@ -35,7 +35,7 @@ fc = 0.5
 
 
 def create_true(iq=None, ic=None, j=None):
-    np.random.seed(1235)
+    np.random.seed(1234)
     data_df = pd.DataFrame()
     data_df['J'] = (np.random.rand(N+burn)**2) * J_max
     J_mean = data_df['J'].mean()
@@ -103,7 +103,9 @@ solute_parameters = {
         'observations': {'Q1':'Ca Q1', 'Q2':'Ca Q2'}
     }
 }
-inv_model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps)
+inv_model = Model(data_df, sas_blends, solute_parameters,
+                  debug=False, verbose=False,
+                  dt=dt, n_substeps=n_substeps, ST_largest_segment=1000.)
 
 # Run the recursive_split algorithm
 from mesas.me.recursive_split import run as recursive_split

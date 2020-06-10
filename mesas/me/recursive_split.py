@@ -96,7 +96,7 @@ def lookfor_new_components(initial_model, initial_rmse, new_components, segment_
             if segment < nsegment:
                 _verbose(f'Subdividing {flux} {label} segment {segment}')
 
-                largest_observed_ST = initial_model.result['sT'].sum(axis=0)
+                largest_observed_ST = (initial_model.result['sT'].sum(axis=0)*initial_model.options['dt']).max()
                 smallest_ST_in_subdivided_segment = initial_model.sas_blends[flux].components[label].sas_fun.ST[segment]
                 if smallest_ST_in_subdivided_segment > largest_observed_ST:
                     _verbose("Subdivision is beyond observed ST. Shouldn't make a difference.")
@@ -234,12 +234,6 @@ def increase_resolution_scanning(initial_model, initial_rmse, new_components, ma
 
                 else:
                     new_model, new_rmse = last_accepted_model, last_accepted_rmse
-
-                _verbose('Trimming unused ST')
-                print(new_model)
-                new_model.trim_unused_ST()
-                print(new_model)
-                _verbose('Trimmed unused ST')
 
                 # Optionally, make some plots
                 if incres_fun is not None:
@@ -407,6 +401,9 @@ def fit_model(model, include_C_old=True, learn_fun=None, index=None, jacobian_mo
     new_model.x_prev = None
 
     def update_parameters(x):
+
+        if np.any(x>xmax) or np.any(x<xmin):
+            return False
 
         if new_model.x_prev is not None and np.all(x == new_model.x_prev):
             return False

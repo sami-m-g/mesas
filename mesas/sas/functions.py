@@ -174,6 +174,10 @@ class Piecewise:
             assert np.all(np.diff(new_ST) > 0)
             assert len(new_ST) > 1
         except Exception as ex:
+            print('Problem with new ST')
+            print(f'Attempting to set ST = {new_ST}')
+            if not np.all(np.diff(new_ST) > 0):
+                print("   -- if ST values are not distinct, try changing 'ST_largest_segment' and/or 'ST_smallest_segment'")
             raise ex
         self._ST = new_ST
         self.ST_min = self._ST[0]
