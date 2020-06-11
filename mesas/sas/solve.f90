@@ -38,7 +38,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numsol - 1) :: mR_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1) :: WaterBalance_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numsol - 1) :: SoluteBalance_ts
-    integer :: kT, iT, jt, ik, jk, i_prev, kc
+    integer :: iT_substep, iT, jt, iT_k, jt_k, i_prev, jt_substep
     real(8) :: h
     real(8), dimension(0:numbreakpt_total-1, 0:numflux - 1, 0:timeseries_length-1) :: dW_ts
     real(8), dimension(0:numflux - 1, 0:timeseries_length - 1) :: P_old
@@ -168,17 +168,17 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     do iT = 0, max_age - 1
 
         ! Start the substep loop
-        do kT = 0, n_substeps - 1
+        do iT_substep = 0, n_substeps - 1
 
-            ik = iT * n_substeps + kT
+            iT_k = iT * n_substeps + iT_substep
 
             call f_debug_blank()
             call f_debug_blank()
-            call f_debug('Agestep, Substep', (/ iT * one8, kT * one8/))
+            call f_debug('Agestep, Substep', (/ iT * one8, iT_substep * one8/))
             call f_debug_blank()
 
             ! Initialize the value at t=0
-            if (ik>0) then
+            if (iT_k>0) then
                 sT_start(0) = sT_init_ts(i_prev)
                 mT_start(:, 0) = mT_init_ts(i_prev, :)
                 ds_start(:, 0) = 0.
@@ -196,16 +196,16 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             ! They are global variables modified by the new_state function
 
             do jt = 0, timeseries_length - 1
-                do kc = 0, n_substeps - 1
-                    jk = jt * n_substeps + kc
+                do jt_substep = 0, n_substeps - 1
+                    jt_k = jt * n_substeps + jt_substep
 
                     ! This is the Runge-Kutta 4th order algorithm
 
                     call f_debug('RK', (/1._8/))
-                    sT_temp(jk) = sT_start(jk)
-                    mT_temp(:, jk) = mT_start(:, jk)
-                    ds_temp(:, jk) = ds_start(:, jk)
-                    dm_temp(:, :, jk) = dm_start(:, :, jk)
+                    sT_temp(jt_k) = sT_start(jt_k)
+                    mT_temp(:, jt_k) = mT_start(:, jt_k)
+                    ds_temp(:, jt_k) = ds_start(:, jt_k)
+                    dm_temp(:, :, jt_k) = dm_start(:, :, jt_k)
                     call update_aver(0)
 
                     call get_flux(0.0D0)
@@ -226,45 +226,45 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     ! zero out the probabilities if there is no outflux this timestep
                     do iq = 0, numflux - 1
                         if (Q_ts(iq, jt)==0) then
-                            pQ_aver(iq, jk) = 0.
-                            mQ_aver(iq, :, jk) = 0.
+                            pQ_aver(iq, jt_k) = 0.
+                            mQ_aver(iq, :, jt_k) = 0.
                         end if
                     end do
 
                     ! Update the state with the new estimates
                     call update_aver(-1)
                     call new_state(h)
-                    sT_end(jk) = sT_temp(jk)
-                    mT_end(:, jk) = mT_temp(:, jk)
-                    ds_end(:, jk) = ds_temp(:, jk)
-                    dm_end(:, :, jk) = dm_temp(:, :, jk)
+                    sT_end(jt_k) = sT_temp(jt_k)
+                    mT_end(:, jt_k) = mT_temp(:, jt_k)
+                    ds_end(:, jt_k) = ds_temp(:, jt_k)
+                    dm_end(:, :, jt_k) = dm_temp(:, :, jt_k)
 
                     ! Aggregate flux data from substep to timestep
 
                     ! Get the timestep-averaged transit time distribution
                     norm = 1.0 / n_substeps / n_substeps
-                    if ((iT<max_age-1).and.(kc<kT)) then
+                    if ((iT<max_age-1).and.(jt_substep<iT_substep)) then
                         carry = 1
                     else
                         carry = 0
                     end if
-                    pQ_ts(iT+carry, jt, :) = pQ_ts(iT+carry, jt, :) + pQ_aver(:, jk) * norm
-                    mQ_ts(iT+carry, jt, :, :) = mQ_ts(iT+carry, jt, :, :) + mQ_aver(:, :, jk) * norm
-                    mR_ts(iT+carry, jt, :) = mR_ts(iT+carry, jt, :) + mR_aver(:, jk) * norm
+                    pQ_ts(iT+carry, jt, :) = pQ_ts(iT+carry, jt, :) + pQ_aver(:, jt_k) * norm
+                    mQ_ts(iT+carry, jt, :, :) = mQ_ts(iT+carry, jt, :, :) + mQ_aver(:, :, jt_k) * norm
+                    mR_ts(iT+carry, jt, :) = mR_ts(iT+carry, jt, :) + mR_aver(:, jt_k) * norm
                     do iq = 0, numflux - 1
                         if (Q_ts(iq, jt)>0) then
-                            dW_ts(:, iq, jt) = dW_ts(:, iq, jt) + fsQ_aver(:, iq, jk) / Q_ts(iq, jt) * norm * dt
+                            dW_ts(:, iq, jt) = dW_ts(:, iq, jt) + fsQ_aver(:, iq, jt_k) / Q_ts(iq, jt) * norm * dt
                             do ic = component_index_list(iq), component_index_list(iq+1) - 1
                                 do ip = breakpt_index_list(ic), breakpt_index_list(ic+1) - 1
-                                    dW_ts(ip, iq, jt) = dW_ts(ip, iq, jt) + fs_aver(ip, jk) / Q_ts(iq, jt) * norm * dt
+                                    dW_ts(ip, iq, jt) = dW_ts(ip, iq, jt) + fs_aver(ip, jt_k) / Q_ts(iq, jt) * norm * dt
                                 enddo
                             enddo
                             dC_ts(:, iq, :, jt) = dC_ts(:, iq, :, jt) &
-                                    + fmQ_aver(:, iq, :, jk) / Q_ts(iq, jt) * norm * dt
+                                    + fmQ_aver(:, iq, :, jt_k) / Q_ts(iq, jt) * norm * dt
                             do ic = component_index_list(iq), component_index_list(iq+1) - 1
                                 do ip = breakpt_index_list(ic), breakpt_index_list(ic+1) - 1
                                     dC_ts(ip, iq, :, jt) = dC_ts(ip, iq, :, jt) &
-                                            + fm_aver(ip, :, jk) / Q_ts(iq, jt) * norm * dt
+                                            + fm_aver(ip, :, jt_k) / Q_ts(iq, jt) * norm * dt
                                 enddo
                             enddo
                         end if
@@ -272,18 +272,18 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
 
                     ! Extract substep state at timesteps
                     ! age-ranked storage at the end of the timestep
-                    if (kc==n_substeps-1) then
-                        sT_ts(iT, jt+1) = sT_ts(iT, jt+1) + sT_end(jk) / n_substeps
+                    if (jt_substep==n_substeps-1) then
+                        sT_ts(iT, jt+1) = sT_ts(iT, jt+1) + sT_end(jt_k) / n_substeps
                         ! parameter sensitivity
                         do ip = 0, numbreakpt_total - 1
-                            ds_ts(iT, jt+1, ip) = ds_ts(iT, jt+1, ip) + ds_end(ip, jk) / n_substeps
+                            ds_ts(iT, jt+1, ip) = ds_ts(iT, jt+1, ip) + ds_end(ip, jt_k) / n_substeps
                         enddo
                         ! Age-ranked solute mass
                         do s = 0, numsol - 1
-                            mT_ts(iT, jt+1, s) = mT_ts(iT, jt+1, s) + mT_end( s, jk) / n_substeps
+                            mT_ts(iT, jt+1, s) = mT_ts(iT, jt+1, s) + mT_end( s, jt_k) / n_substeps
                             ! parameter sensitivity
                             do ip = 0, numbreakpt_total - 1
-                                dm_ts(iT, jt+1, ip, s) = dm_ts(iT, jt+1, ip, s) + dm_end(ip, s, jk) / n_substeps
+                                dm_ts(iT, jt+1, ip, s) = dm_ts(iT, jt+1, ip, s) + dm_end(ip, s, jt_k) / n_substeps
                             enddo
                         enddo
                     end if
@@ -291,10 +291,10 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             enddo
 
             ! Update the cumulative instantaneous trackers
-            if (ik>0) then
+            if (iT_k>0) then
                 STcum_prev(0) = STcum_prev(0) + sT_init_ts(i_prev) * h
-                do jk = 0, N - 1
-                    STcum_prev(jk+1) = STcum_prev(jk+1) + sT_end(jk) * h
+                do jt_k = 0, N - 1
+                    STcum_prev(jt_k+1) = STcum_prev(jt_k+1) + sT_end(jt_k) * h
                 end do
             end if
             i_prev = iT
@@ -484,32 +484,32 @@ contains
         integer, intent(in) :: coeff
         ! Average RK4 estimated change in the state variables
         if (coeff>0) then
-            pQ_aver(:, jk)  = pQ_aver(:, jk)  + coeff * pQ_temp(:, jk) / 6.
-            mQ_aver(:, :, jk)  = mQ_aver(:, :, jk)  + coeff * mQ_temp(:, :, jk) / 6.
-            mR_aver(:, jk)  = mR_aver(:, jk)  + coeff * mR_temp(:, jk) / 6.
-            fs_aver(:, jk)  = fs_aver(:, jk)  + coeff * fs_temp(:, jk) / 6.
-            fsQ_aver(:, :, jk) = fsQ_aver(:, :, jk) + coeff * fsQ_temp(:, :, jk) / 6.
-            fm_aver(:, :, jk)  = fm_aver(:, :, jk)  + coeff * fm_temp(:, :, jk) / 6.
-            fmQ_aver(:, :, :, jk) = fmQ_aver(:, :, :, jk) + coeff * fmQ_temp(:, :, :, jk) / 6.
-            fmR_aver(:, :, jk) = fmR_aver(:, :, jk) + coeff * fmR_temp(:, :, jk) / 6.
+            pQ_aver(:, jt_k)  = pQ_aver(:, jt_k)  + coeff * pQ_temp(:, jt_k) / 6.
+            mQ_aver(:, :, jt_k)  = mQ_aver(:, :, jt_k)  + coeff * mQ_temp(:, :, jt_k) / 6.
+            mR_aver(:, jt_k)  = mR_aver(:, jt_k)  + coeff * mR_temp(:, jt_k) / 6.
+            fs_aver(:, jt_k)  = fs_aver(:, jt_k)  + coeff * fs_temp(:, jt_k) / 6.
+            fsQ_aver(:, :, jt_k) = fsQ_aver(:, :, jt_k) + coeff * fsQ_temp(:, :, jt_k) / 6.
+            fm_aver(:, :, jt_k)  = fm_aver(:, :, jt_k)  + coeff * fm_temp(:, :, jt_k) / 6.
+            fmQ_aver(:, :, :, jt_k) = fmQ_aver(:, :, :, jt_k) + coeff * fmQ_temp(:, :, :, jt_k) / 6.
+            fmR_aver(:, :, jt_k) = fmR_aver(:, :, jt_k) + coeff * fmR_temp(:, :, jt_k) / 6.
         else if (coeff==-1) then
-            pQ_temp(:, jk)  = pQ_aver(:, jk)
-            mQ_temp(:, :, jk)  = mQ_aver(:, :, jk)
-            mR_temp(:, jk)  = mR_aver(:, jk)
-            fs_temp(:, jk)  = fs_aver(:, jk)
-            fsQ_temp(:, :, jk) = fsQ_aver(:, :, jk)
-            fm_temp(:, :, jk)  = fm_aver(:, :, jk)
-            fmQ_temp(:, :, :, jk) = fmQ_aver(:, :, :, jk)
-            fmR_temp(:, :, jk) = fmR_aver(:, :, jk)
+            pQ_temp(:, jt_k)  = pQ_aver(:, jt_k)
+            mQ_temp(:, :, jt_k)  = mQ_aver(:, :, jt_k)
+            mR_temp(:, jt_k)  = mR_aver(:, jt_k)
+            fs_temp(:, jt_k)  = fs_aver(:, jt_k)
+            fsQ_temp(:, :, jt_k) = fsQ_aver(:, :, jt_k)
+            fm_temp(:, :, jt_k)  = fm_aver(:, :, jt_k)
+            fmQ_temp(:, :, :, jt_k) = fmQ_aver(:, :, :, jt_k)
+            fmR_temp(:, :, jt_k) = fmR_aver(:, :, jt_k)
         else
-            pQ_aver(:, jk)  = 0.
-            mQ_aver(:, :, jk)  = 0.
-            mR_aver(:, jk)  = 0.
-            fs_aver(:, jk)  = 0.
-            fsQ_aver(:, :, jk) = 0.
-            fm_aver(:, :, jk)  = 0.
-            fmQ_aver(:, :, :, jk) = 0.
-            fmR_aver(:, :, jk) = 0.
+            pQ_aver(:, jt_k)  = 0.
+            mQ_aver(:, :, jt_k)  = 0.
+            mR_aver(:, jt_k)  = 0.
+            fs_aver(:, jt_k)  = 0.
+            fsQ_aver(:, :, jt_k) = 0.
+            fm_aver(:, :, jt_k)  = 0.
+            fmQ_aver(:, :, :, jt_k) = 0.
+            fmR_aver(:, :, jt_k) = 0.
         end if
     end subroutine
 
@@ -517,40 +517,40 @@ contains
         ! Calculates the fluxes in the given the curent state
         implicit none
         real(8), intent(in) :: hr
-        integer iq, s, ip, kk, leftbreakpt
+        integer iq, s, ip, leftbreakpt
         !call f_debug('get_flux', (/hr/))
 
         ! Use the SAS function lookup table to convert age-rank storage to the fraction of discharge of age T at each t
 
         ! First get the cumulative age-ranked storage
-        if (ik==0) then
+        if (iT_k==0) then
             if (hr==0) then
-                STcum_top(jk) = jk
-                PQcum_top(:, jk) = 0
-                leftbreakpt_top(:, jk) = -1
-                STcum_bot(jk) = 0
-                PQcum_bot(:, jk) = 0
-                leftbreakpt_bot(:, jk) = -1
-                pQ_temp(:, jk) = 0
+                STcum_top(jt_k) = jt_k
+                PQcum_top(:, jt_k) = 0
+                leftbreakpt_top(:, jt_k) = -1
+                STcum_bot(jt_k) = 0
+                PQcum_bot(:, jt_k) = 0
+                leftbreakpt_bot(:, jt_k) = -1
+                pQ_temp(:, jt_k) = 0
             else
-                STcum_top(jk) = 0
-                PQcum_top(:, jk) = 0
-                leftbreakpt_top(:, jk) = -1
-                STcum_bot(jk) = 0 + sT_temp(jk) * hr
-                call get_SAS(STcum_bot(jk), PQcum_bot(:, jk), leftbreakpt_bot(:, jk), jk)
-                pQ_temp(:, jk) = (PQcum_bot(:, jk) - PQcum_top(:, jk)) / hr
+                STcum_top(jt_k) = 0
+                PQcum_top(:, jt_k) = 0
+                leftbreakpt_top(:, jt_k) = -1
+                STcum_bot(jt_k) = 0 + sT_temp(jt_k) * hr
+                call get_SAS(STcum_bot(jt_k), PQcum_bot(:, jt_k), leftbreakpt_bot(:, jt_k), jt_k)
+                pQ_temp(:, jt_k) = (PQcum_bot(:, jt_k) - PQcum_top(:, jt_k)) / hr
             end if
         else
-            STcum_top(jk) = STcum_prev(jk) * (1-hr/h) + (STcum_prev(jk+1) + sT_end(jk) * h) * (hr/h)
-            call get_SAS(STcum_top(jk), PQcum_top(:, jk), leftbreakpt_top(:, jk), jk)
-            STcum_bot(jk) = STcum_top(jk) + sT_temp(jk) * h
-            call get_SAS(STcum_bot(jk), PQcum_bot(:, jk), leftbreakpt_bot(:, jk), jk)
-            pQ_temp(:, jk) = (PQcum_bot(:, jk) - PQcum_top(:, jk)) / h
+            STcum_top(jt_k) = STcum_prev(jt_k) * (1-hr/h) + (STcum_prev(jt_k+1) + sT_end(jt_k) * h) * (hr/h)
+            call get_SAS(STcum_top(jt_k), PQcum_top(:, jt_k), leftbreakpt_top(:, jt_k), jt_k)
+            STcum_bot(jt_k) = STcum_top(jt_k) + sT_temp(jt_k) * h
+            call get_SAS(STcum_bot(jt_k), PQcum_bot(:, jt_k), leftbreakpt_bot(:, jt_k), jt_k)
+            pQ_temp(:, jt_k) = (PQcum_bot(:, jt_k) - PQcum_top(:, jt_k)) / h
         end if
 
         do iq = 0, numflux - 1
-            if (sT_temp(jk)==0) then
-                pQ_temp(iq, jk) = 0
+            if (sT_temp(jt_k)==0) then
+                pQ_temp(iq, jt_k) = 0
             end if
         end do
 
@@ -560,13 +560,13 @@ contains
             do s = 0, numsol - 1
 
                 ! Get the mass flux out
-                if (sT_temp(jk)>0) then
-                    mQ_temp(iq, s, jk) = mT_temp( s, jk) * alpha_ts(iq, s, jt) * Q_ts(iq, jt) &
-                            * pQ_temp(iq, jk) / sT_temp(jk)
+                if (sT_temp(jt_k)>0) then
+                    mQ_temp(iq, s, jt_k) = mT_temp( s, jt_k) * alpha_ts(iq, s, jt) * Q_ts(iq, jt) &
+                            * pQ_temp(iq, jt_k) / sT_temp(jt_k)
 
                     ! unless there is nothing in storage
                 else
-                    mQ_temp(iq, s, jk) = 0.
+                    mQ_temp(iq, s, jt_k) = 0.
 
                 end if
             enddo
@@ -574,44 +574,44 @@ contains
 
         ! Reaction mass accounting
         ! If there are first-order reactions, get the total mass rate
-        mR_temp(:, jk) = k1_ts(:, jt) * (C_eq_ts(:, jt) * sT_temp(jk) - mT_temp(:, jk))
+        mR_temp(:, jt_k) = k1_ts(:, jt) * (C_eq_ts(:, jt) * sT_temp(jt_k) - mT_temp(:, jt_k))
 
-        fs_temp(:, jk) = 0.
-        fsQ_temp(:, :, jk) = 0.
-        if (sT_temp( jk)>0) then
+        fs_temp(:, jt_k) = 0.
+        fsQ_temp(:, :, jt_k) = 0.
+        if (sT_temp( jt_k)>0) then
             do iq = 0, numflux - 1
-                fsQ_temp(:, iq, jk) = fsQ_temp(:, iq, jk) + ds_temp(:, jk) * pQ_temp(iq, jk) * Q_ts(iq, jt) / sT_temp(jk)
+                fsQ_temp(:, iq, jt_k) = fsQ_temp(:, iq, jt_k) + ds_temp(:, jt_k) * pQ_temp(iq, jt_k) * Q_ts(iq, jt) / sT_temp(jt_k)
             end do
         end if
         do iq = 0, numflux - 1
             do ic = component_index_list(iq), component_index_list(iq+1) - 1
                 ! sensitivity to point before the start
-                if ((leftbreakpt_top(ic, jk)>=0).and.(leftbreakpt_top(ic, jk)<numbreakpt_list(ic)-1)) then
-                    ip = breakpt_index_list(ic) + leftbreakpt_top(ic, jk)
-                    !call f_debug('iq, ic, ip, jk ', (/iq*one8, ic*one8, ip*one8, jk*one8/))
+                if ((leftbreakpt_top(ic, jt_k)>=0).and.(leftbreakpt_top(ic, jt_k)<numbreakpt_list(ic)-1)) then
+                    ip = breakpt_index_list(ic) + leftbreakpt_top(ic, jt_k)
+                    !call f_debug('iq, ic, ip, jt_k ', (/iq*one8, ic*one8, ip*one8, jt_k*one8/))
                     dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
                     dP = P_list(ip+1, jt) - P_list(ip, jt)
                     !call f_debug('dP/dS start    ', (/dP/dS/))
-                    fs_temp(ip, jk) = fs_temp(ip, jk) &
-                            + dP / (dS*dS) * sT_temp(jk) * weights_ts(ic, jt) * Q_ts(iq, jt)
+                    fs_temp(ip, jt_k) = fs_temp(ip, jt_k) &
+                            + dP / (dS*dS) * sT_temp(jt_k) * weights_ts(ic, jt) * Q_ts(iq, jt)
                 end if
                 ! sensitivity to point after the end
-                if ((leftbreakpt_bot(ic, jk)+1>0).and.(leftbreakpt_bot(ic, jk)+1<=numbreakpt_list(ic)-1)) then
-                    ip = breakpt_index_list(ic) + leftbreakpt_bot(ic, jk) + 1
-                    !call f_debug('iq, ic, ip, jk ', (/iq*one8, ic*one8, ip*one8, jk*one8/))
+                if ((leftbreakpt_bot(ic, jt_k)+1>0).and.(leftbreakpt_bot(ic, jt_k)+1<=numbreakpt_list(ic)-1)) then
+                    ip = breakpt_index_list(ic) + leftbreakpt_bot(ic, jt_k) + 1
+                    !call f_debug('iq, ic, ip, jt_k ', (/iq*one8, ic*one8, ip*one8, jt_k*one8/))
                     dS = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
                     dP = P_list(ip, jt) - P_list(ip-1, jt)
                     !call f_debug('dP/dS end      ', (/dP/dS/))
-                    fs_temp(ip, jk) = fs_temp(ip, jk) &
-                            - dP / (dS*dS) * sT_temp(jk) * weights_ts(ic, jt) * Q_ts(iq, jt)
+                    fs_temp(ip, jt_k) = fs_temp(ip, jt_k) &
+                            - dP / (dS*dS) * sT_temp(jt_k) * weights_ts(ic, jt) * Q_ts(iq, jt)
                 end if
                 ! sensitivity to point within
-                if (leftbreakpt_bot(ic, jk)>leftbreakpt_top(ic, jk)) then
+                if (leftbreakpt_bot(ic, jt_k)>leftbreakpt_top(ic, jt_k)) then
                     call f_debug('leftbreakpt_bot, _start', &
-                            (/leftbreakpt_bot(ic, jk)*one8, leftbreakpt_top(ic, jk)*one8/))
-                    do leftbreakpt=leftbreakpt_top(ic, jk)+1, leftbreakpt_bot(ic, jk)
+                            (/leftbreakpt_bot(ic, jt_k)*one8, leftbreakpt_top(ic, jt_k)*one8/))
+                    do leftbreakpt=leftbreakpt_top(ic, jt_k)+1, leftbreakpt_bot(ic, jt_k)
                         ip = breakpt_index_list(ic) + leftbreakpt
-                        call f_debug('iq, ic, ip, jk ', (/iq*one8, ic*one8, ip*one8, jk*one8/))
+                        call f_debug('iq, ic, ip, jt_k ', (/iq*one8, ic*one8, ip*one8, jt_k*one8/))
                         if (leftbreakpt>0) then
                             dSs = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
                             dPs = P_list(ip, jt) - P_list(ip-1, jt)
@@ -627,47 +627,47 @@ contains
                             dPe = 0.
                         end if
                         call f_debug('dP/dS middle   ', (/dPe/dSe , dPs/dSs/))
-                        fs_temp(ip, jk) = fs_temp(ip, jk) &
+                        fs_temp(ip, jt_k) = fs_temp(ip, jt_k) &
                                 - (dPe/dSe - dPs/dSs) / h * weights_ts(ic, jt) * Q_ts(iq, jt)
                     end do
                 end if
             end do
         end do
-        fm_temp(:, :, jk) = 0
-        fmQ_temp(:, :, :, jk) = 0
+        fm_temp(:, :, jt_k) = 0
+        fmQ_temp(:, :, :, jt_k) = 0
         do iq = 0, numflux - 1
             do ip = 0, numbreakpt_total - 1
-                if (sT_temp(jk)>0) then
-                    fmQ_temp(ip, iq, :, jk) = fmQ_temp(ip, iq, :, jk) &
-                            + dm_temp(ip, :, jk) * alpha_ts(iq,:, jt) * Q_ts(iq, jt) * pQ_temp(iq, jk) / sT_temp(jk)
+                if (sT_temp(jt_k)>0) then
+                    fmQ_temp(ip, iq, :, jt_k) = fmQ_temp(ip, iq, :, jt_k) &
+                            + dm_temp(ip, :, jt_k) * alpha_ts(iq,:, jt) * Q_ts(iq, jt) * pQ_temp(iq, jt_k) / sT_temp(jt_k)
                 end if
-                fmR_temp(ip, :, jk) = fmR_temp(ip, :, jk) &
-                        + k1_ts(:, jt) * (C_eq_ts(:, jt) * ds_temp(ip, jk) - dm_temp(ip, :, jk))
+                fmR_temp(ip, :, jt_k) = fmR_temp(ip, :, jt_k) &
+                        + k1_ts(:, jt) * (C_eq_ts(:, jt) * ds_temp(ip, jt_k) - dm_temp(ip, :, jt_k))
             end do
         end do
         do iq = 0, numflux - 1
             do ic = component_index_list(iq), component_index_list(iq+1) - 1
                 ! sensitivity to point before the start
-                if ((leftbreakpt_top(ic, jk)>=0).and.(leftbreakpt_top(ic, jk)<numbreakpt_list(ic)-1)) then
-                    ip = breakpt_index_list(ic) + leftbreakpt_top(ic, jk)
+                if ((leftbreakpt_top(ic, jt_k)>=0).and.(leftbreakpt_top(ic, jt_k)<numbreakpt_list(ic)-1)) then
+                    ip = breakpt_index_list(ic) + leftbreakpt_top(ic, jt_k)
                     dS = SAS_lookup(ip+1, jt) - SAS_lookup(ip, jt)
                     dP = P_list(ip+1, jt) - P_list(ip, jt)
-                    fm_temp(ip, :, jk) = fm_temp(ip, :, jk) &
-                            + dP / (dS*dS) * mT_temp(:, jk)&
+                    fm_temp(ip, :, jt_k) = fm_temp(ip, :, jt_k) &
+                            + dP / (dS*dS) * mT_temp(:, jt_k)&
                                     * alpha_ts(iq, :, jt) * weights_ts(ic, jt) * Q_ts(iq, jt)
                 end if
                 ! sensitivity to point after the end
-                if ((leftbreakpt_bot(ic, jk) + 1>0).and.(leftbreakpt_bot(ic, jk) + 1<=numbreakpt_list(ic)-1)) then
-                    ip = breakpt_index_list(ic) + leftbreakpt_bot(ic, jk) + 1
+                if ((leftbreakpt_bot(ic, jt_k) + 1>0).and.(leftbreakpt_bot(ic, jt_k) + 1<=numbreakpt_list(ic)-1)) then
+                    ip = breakpt_index_list(ic) + leftbreakpt_bot(ic, jt_k) + 1
                     dS = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
                     dP = P_list(ip, jt) - P_list(ip-1, jt)
-                    fm_temp(ip, :, jk) = fm_temp(ip, :, jk) &
-                            - dP / (dS*dS) * mT_temp(:, jk)&
+                    fm_temp(ip, :, jt_k) = fm_temp(ip, :, jt_k) &
+                            - dP / (dS*dS) * mT_temp(:, jt_k)&
                                     * alpha_ts(iq, :, jt) * weights_ts(ic, jt) * Q_ts(iq, jt)
                 end if
                 ! sensitivity to point within
-                if (leftbreakpt_bot(ic, jk)>leftbreakpt_top(ic, jk)) then
-                    do leftbreakpt = leftbreakpt_top(ic, jk)+1, leftbreakpt_bot(ic, jk)
+                if (leftbreakpt_bot(ic, jt_k)>leftbreakpt_top(ic, jt_k)) then
+                    do leftbreakpt = leftbreakpt_top(ic, jt_k)+1, leftbreakpt_bot(ic, jt_k)
                         ip = breakpt_index_list(ic) + leftbreakpt
                         if (leftbreakpt>0) then
                             dSs = SAS_lookup(ip, jt) - SAS_lookup(ip-1, jt)
@@ -683,8 +683,8 @@ contains
                             dSe = 1.
                             dPe = 0.
                         end if
-                        fm_temp(ip, :, jk) = fm_temp(ip, :, jk) &
-                                - (dPe/dSe - dPs/dSs) * mT_temp(:, jk) / sT_temp(jk) / h &
+                        fm_temp(ip, :, jt_k) = fm_temp(ip, :, jt_k) &
+                                - (dPe/dSe - dPs/dSs) * mT_temp(:, jt_k) / sT_temp(jt_k) / h &
                                         * weights_ts(ic, jt) * Q_ts(iq, jt)
                     end do
                 end if
@@ -702,23 +702,23 @@ contains
         !call f_debug('new_state', (/0._8/))
 
         ! Calculate the new age-ranked storage
-        sT_temp(jk) = sT_start(jk) ! Initial value
-        mT_temp(:, jk) = mT_start(:, jk) + mR_temp(:, jk) * hr ! Initial value + reaction
+        sT_temp(jt_k) = sT_start(jt_k) ! Initial value
+        mT_temp(:, jt_k) = mT_start(:, jt_k) + mR_temp(:, jt_k) * hr ! Initial value + reaction
         ! Fluxes in & out
-        if (ik == 0) then
-            sT_temp(jk) = sT_temp(jk) + J_ts(jt) * hr / h
-            mT_temp(:, jk) = mT_temp(:, jk) + J_ts(jt) * C_J_ts(:, jt) * (hr/h)
+        if (iT_k == 0) then
+            sT_temp(jt_k) = sT_temp(jt_k) + J_ts(jt) * hr / h
+            mT_temp(:, jt_k) = mT_temp(:, jt_k) + J_ts(jt) * C_J_ts(:, jt) * (hr/h)
         end if
-        sT_temp(jk) = sT_temp(jk) - sum(Q_ts(:, jt) * pQ_temp(:, jk)) * hr
-        mT_temp(:, jk) = mT_temp(:, jk) - sum(mQ_temp(:, :, jk), dim=1) * hr
-        if (sT_temp(jk)<0) then
+        sT_temp(jt_k) = sT_temp(jt_k) - sum(Q_ts(:, jt) * pQ_temp(:, jt_k)) * hr
+        mT_temp(:, jt_k) = mT_temp(:, jt_k) - sum(mQ_temp(:, :, jt_k), dim=1) * hr
+        if (sT_temp(jt_k)<0) then
             call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
         end if
 
         ! Calculate new parameter sensitivity
-        ds_temp(:, jk) = ds_start(:, jk) - fs_temp(:, jk) * hr - sum(fsQ_temp(:, :, jk), dim=2) * hr
-        dm_temp(:, :, jk) = dm_start(:, :, jk) - fm_temp(:, :, jk) * hr - sum(fmQ_temp(:, :, :, jk), dim=3) * hr &
-                + fmR_temp(:, :, jk) * hr
+        ds_temp(:, jt_k) = ds_start(:, jt_k) - fs_temp(:, jt_k) * hr - sum(fsQ_temp(:, :, jt_k), dim=2) * hr
+        dm_temp(:, :, jt_k) = dm_start(:, :, jt_k) - fm_temp(:, :, jt_k) * hr - sum(fmQ_temp(:, :, :, jt_k), dim=3) * hr &
+                + fmR_temp(:, :, jt_k) * hr
 
     end subroutine new_state
 
