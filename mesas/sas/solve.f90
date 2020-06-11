@@ -47,10 +47,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), dimension(0:timeseries_length * n_substeps) :: STcum_prev
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: STcum_bot
     real(8), dimension(0:timeseries_length * n_substeps - 1) :: STcum_top
-    real(8), dimension(0:numflux - 1, 0:timeseries_length * n_substeps) :: PQcum_prev
     real(8), dimension(0:numflux - 1, 0:timeseries_length * n_substeps - 1) :: PQcum_bot
     real(8), dimension(0:numflux - 1, 0:timeseries_length * n_substeps - 1) :: PQcum_top
-    integer, dimension(0:numcomponent_total-1, 0:timeseries_length * n_substeps) :: leftbreakpt_prev
     integer, dimension(0:numcomponent_total-1, 0:timeseries_length * n_substeps - 1) :: leftbreakpt_bot
     integer, dimension(0:numcomponent_total-1, 0:timeseries_length * n_substeps - 1) :: leftbreakpt_top
     real(8), dimension(0:numflux - 1, 0:timeseries_length * n_substeps - 1) :: pQ_temp
@@ -108,10 +106,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     STcum_prev = 0.
     STcum_bot = 0.
     STcum_top = 0.
-    PQcum_prev = 0.
     PQcum_bot = 0.
     PQcum_top = 0.
-    leftbreakpt_prev = 0
     leftbreakpt_bot = 0
     leftbreakpt_top = 0
     pQ_temp = 0.
@@ -300,9 +296,6 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 do jk = 0, N - 1
                     STcum_prev(jk+1) = STcum_prev(jk+1) + sT_end(jk) * h
                 end do
-                do jk = 0, N
-                    call get_SAS(STcum_prev(jk), PQcum_prev(:, jk), leftbreakpt_prev(:, jk), jk)
-                end do
             end if
             i_prev = iT
 
@@ -440,23 +433,21 @@ contains
                         STcum_in, &
                         PQcum_component, &
                         leftbreakpt_out(ic), &
-                        leftbreakpt_prev(ic, jks), &
-                        numbreakpt_list(ic), 1)
+                        numbreakpt_list(ic))
                 PQcum_out(iq) = PQcum_out(iq) + weights_ts(ic, jts) * PQcum_component
             enddo
         enddo
-        end subroutine get_SAS
+    end subroutine get_SAS
 
-    subroutine lookup(xa, ya, x, y, ia, i0, na, n)
+    subroutine lookup(xa, ya, x, y, ia, na)
         ! A simple lookup table
         implicit none
-        integer, intent(in) :: na, n
+        integer, intent(in) :: na
         real(8), intent(in), dimension(0:na - 1) :: xa
         real(8), intent(in), dimension(0:na - 1) :: ya
         real(8), intent(in) :: x
         real(8), intent(inout) :: y
         integer, intent(inout) :: ia
-        integer, intent(inout) :: i0
         integer :: i
         real(8) :: dif, grad
         logical :: foundit
@@ -571,7 +562,7 @@ contains
                 ! Get the mass flux out
                 if (sT_temp(jk)>0) then
                     mQ_temp(iq, s, jk) = mT_temp( s, jk) * alpha_ts(iq, s, jt) * Q_ts(iq, jt) &
-                                                * pQ_temp(iq, jk) / sT_temp(jk)
+                            * pQ_temp(iq, jk) / sT_temp(jk)
 
                     ! unless there is nothing in storage
                 else
