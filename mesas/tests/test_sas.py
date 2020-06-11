@@ -380,7 +380,7 @@ def test_multiple():
     for iq, ic, ip0 in [(0,0,0*(n_segment+1)), (1,0,1*(n_segment+1)), (1,1,2*(n_segment+1))]:
         for j in range(n_segment+1):
             ip = ip0 + j
-            #print(iq, ic, j, ip)
+            print(iq, ic, j, ip)
             modelp = steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=iq, ic=ic, j=j, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
             rdfp = modelp.result
             SAS_lookupp, _, _, _, _, _, _ = modelp._create_sas_lookup()
@@ -390,7 +390,7 @@ def test_multiple():
             printcheck(rdf, rdfp, 'dmTdSj', 'mT', Q_0 * C_J, ip)
             for iqq in range(2):
                 for s in range(2):
-                    print(iq, ic, j, iqq, s)
+                    print(iq, ic, j, ip, iqq, s)
                     printcheckC(rdf, rdfp, 'dCdSj', 'C_Q', ip, iqq, s)
 
 
