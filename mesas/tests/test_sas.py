@@ -19,9 +19,9 @@ N = 10
 S_0 = 5.
 S_m = 0.601
 eps = 0.000000001
-n_substeps=10
+n_substeps=20
 
-n_segment=10
+n_segment=5
 fQ=0.3
 fc=0.1
 
@@ -70,6 +70,7 @@ def steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0
     return model
 
 def test_steady_uniform():
+    print('running test_steady_uniform')
 
     n = np.arange(N)
     T_0 = S_0 / Q_0
@@ -164,6 +165,7 @@ def test_steady_uniform():
     printcheck(rdf, rdf2, 'dCdSj', 'C_Q', dCQdSjdisc)
 
 def test_steady_piston_uniform():
+    print('running test_steady_piston_uniform')
 
     n = np.arange(N)
     T_0 = S_0 / Q_0
@@ -233,8 +235,8 @@ def test_steady_piston_uniform():
         assert np.nanmax(np.abs(err)) < 5.0E-2
         print('')
 
-    printcheck(rdf, 'pQ', pQdisc)
     printcheck(rdf, 'sT', sTdisc)
+    printcheck(rdf, 'pQ', pQdisc)
     printcheck(rdf, 'mQ', mQdisc)
     printcheck(rdf, 'mT', mTdisc)
     printcheck(rdf, 'C_Q', CQdisc)
@@ -288,6 +290,7 @@ def test_steady_piston_uniform():
     printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
 
 def test_multiple():
+    print('running test_multiple')
 
     n = np.arange(N)
     T_0 = S_0 / Q_0
@@ -352,29 +355,29 @@ def test_multiple():
 
     def printcheck(rdfi, rdfp, varstr, ostr, norm, ip):
         var = rdfi[varstr][:,:,ip,...]
-        print(f'{varstr} ip={ip} eps check:')
+        #print(f'{varstr} ip={ip} eps check:')
         dnum = (rdfp[ostr] - rdfi[ostr]) / dSj
-        print(dnum.T)
-        print(f'{varstr} ip={ip} Got:')
-        print(var.T)
-        print(f'{varstr} ip={ip} Difference/norm')
+        #print(dnum.T)
+        #print(f'{varstr} ip={ip} Got:')
+        #print(var.T)
+        #print(f'{varstr} ip={ip} Difference/norm')
         err = (dnum - var) / norm
-        print(err[..., -3:].T)
+        #print(err[..., -3:].T)
         assert np.nanmax(np.abs(err)) < 5.0E-2
-        print('')
+        #print('')
 
     def printcheckC(rdfi, rdfp, varstr, ostr, ip, iq, s):
         var = rdfi[varstr][:,ip,iq,s]
-        print(f'{varstr} ip={ip} eps check:')
+        #print(f'{varstr} ip={ip} eps check:')
         dnum = (rdfp[ostr][:,iq,s] - rdfi[ostr][:,iq,s]) / dSj
-        print(dnum.T)
-        print(f'{varstr} ip={ip} Got:')
-        print(var.T)
-        print(f'{varstr} ip={ip} Difference/CJ:')
+        #print(dnum.T)
+        #print(f'{varstr} ip={ip} Got:')
+        #print(var.T)
+        #print(f'{varstr} ip={ip} Difference/CJ:')
         err = (dnum - var) / C_J
-        print(err[..., :].T)
+        #print(err[..., :].T)
         assert np.nanmax(np.abs(err)) < 5.0E-2
-        print('')
+        #print('')
 
     SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
     for iq, ic, ip0 in [(0,0,0*(n_segment+1)), (1,0,1*(n_segment+1)), (1,1,2*(n_segment+1))]:
@@ -390,7 +393,7 @@ def test_multiple():
             printcheck(rdf, rdfp, 'dmTdSj', 'mT', Q_0 * C_J, ip)
             for iqq in range(2):
                 for s in range(2):
-                    print(iq, ic, j, ip, iqq, s)
+                    #print(iq, ic, j, ip, iqq, s)
                     printcheckC(rdf, rdfp, 'dCdSj', 'C_Q', ip, iqq, s)
 
 
