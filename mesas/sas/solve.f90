@@ -202,28 +202,40 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     !$acc copyin(P_list(:,:)) &
     !$acc copyin(C_eq_ts(:numsol-1,:)) &
     !$acc copyin(numbreakpt_list(:)) &
-    !$acc copyin(sT_init_ts(:),mT_init_ts(:,:numsol-1))
-    !!$acc copy(fmQ_temp(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1)) &
-    !!$acc copy(mQ_temp(:numflux-1,:numsol-1,:n-1)) &
-    !!$acc copy(fmR_temp(:numbreakpt_total-1,:numsol-1,:n-1)) &
-    !!$acc copy(fs_temp(:,:n-1)) &
-    !!$acc copy(fm_temp(:,:numsol-1,:n-1)) &
-    !!$acc copy(fmQ_temp(:numbreakpt_total-1,:,:,:n-1)) &
-    !!$acc copy(fsQ_temp(:numbreakpt_total-1,:numflux-1,:n-1)) &
-    !!$acc copy(pQ_temp(:numflux-1,:n-1)) &
-    !!$acc copy(mR_temp(:numsol-1,:n-1)) &
-    !!$acc copy(dm_temp(:numbreakpt_total-1,:numsol-1,:n-1)) &
-    !!$acc copy(mT_temp(:numsol-1,:n-1)) &
-    !!$acc copy(sT_temp(:n-1)) &
-    !!$acc copy(ds_temp(:numbreakpt_total-1,:n-1)) &
-    !!$acc copy(leftbreakpt_top(:,:n-1)) &
-    !!$acc copy(leftbreakpt_bot(:,:n-1)) &
-    !!$acc copy(STcum_bot(:n-1)) &
-    !!$acc copy(PQcum_bot(:numflux-1,:n-1)) &
-    !!$acc copy(STcum_top(:n-1)) &
-    !!$acc copy(PQcum_top(:numflux-1,:n-1)) &
-    !!$acc copy(STcum_bot_start(:)) &
-    !!$acc copy(STcum_top_start(:))
+    !$acc copyin(sT_init_ts(:),mT_init_ts(:,:numsol-1)) &
+    !$acc copyin(dm_start(:numbreakpt_total-1,:numsol-1,:n-1)) &
+    !$acc copyin(ds_start(:numbreakpt_total-1,:n-1)) &
+    !$acc copyin(sT_start(:n-1)) &
+    !$acc copyin(mT_start(:numsol-1,:n-1)) &
+    !$acc create(fmR_aver(:numbreakpt_total-1,:numsol-1,:n-1)) &
+    !$acc create(fm_aver(:,:numsol-1,:n-1)) &
+    !$acc create(fmQ_aver(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1)) &
+    !$acc create(fsQ_aver(:numbreakpt_total-1,:numflux-1,:n-1)) &
+    !$acc create(mR_aver(:numsol-1,:n-1)) &
+    !$acc create(pQ_aver(:numflux-1,:n-1)) &
+    !$acc create(mQ_aver(:numflux-1,:numsol-1,:n-1)) &
+    !$acc create(fs_aver(:,:n-1)) &
+    !$acc create(fmQ_temp(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1)) &
+    !$acc create(mQ_temp(:numflux-1,:numsol-1,:n-1)) &
+    !$acc create(fmR_temp(:numbreakpt_total-1,:numsol-1,:n-1)) &
+    !$acc create(fs_temp(:,:n-1)) &
+    !$acc create(fm_temp(:,:numsol-1,:n-1)) &
+    !$acc create(fmQ_temp(:numbreakpt_total-1,:,:,:n-1)) &
+    !$acc create(fsQ_temp(:numbreakpt_total-1,:numflux-1,:n-1)) &
+    !$acc create(pQ_temp(:numflux-1,:n-1)) &
+    !$acc create(mR_temp(:numsol-1,:n-1)) &
+    !$acc create(dm_temp(:numbreakpt_total-1,:numsol-1,:n-1)) &
+    !$acc create(mT_temp(:numsol-1,:n-1)) &
+    !$acc create(sT_temp(:n-1)) &
+    !$acc create(ds_temp(:numbreakpt_total-1,:n-1)) &
+    !$acc create(leftbreakpt_top(:,:n-1)) &
+    !$acc create(leftbreakpt_bot(:,:n-1)) &
+    !$acc create(STcum_bot(:n-1)) &
+    !$acc create(PQcum_bot(:numflux-1,:n-1)) &
+    !$acc create(STcum_top(:n-1)) &
+    !$acc create(PQcum_top(:numflux-1,:n-1)) &
+    !$acc copyin(STcum_bot_start(:)) &
+    !$acc copyin(STcum_top_start(:))
     !!$acc copy(ds_ts_iT(:,:numbreakpt_total-1)) &
     !!$acc copy(dm_ts_iT(:,:numbreakpt_total-1,:numsol-1)) &
     !!$acc copy(sT_ts_iT(:)) &
@@ -251,56 +263,56 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     STcum_top_start(jt_s+1) = STcum_bot_start(jt_s+1)
                     STcum_bot_start(jt_s+1) = STcum_bot_start(jt_s+1) + sT_start(c) * h
                 end do
-                !!$acc update device(STcum_bot_start(:)) &
-                !!$acc update device(STcum_top_start(:)) &
+                !$acc update device(STcum_bot_start(:))
+                !$acc update device(STcum_top_start(:))
             end if
 
             !$acc kernels loop &
-            !$acc present_or_copyin(component_index_list(:numflux)) &
-            !$acc present_or_copyin(rk_coeff(:5)) &
-            !$acc present_or_copyin(SAS_lookup(:,:)) &
-            !$acc present_or_copyin(J_ts(:)) &
-            !$acc present_or_copyin(breakpt_index_list(:)) &
-            !$acc present_or_copyin(k1_ts(:numsol-1,:)) &
-            !$acc present_or_copyin(C_J_ts(:numsol-1,:)) &
-            !$acc present_or_copyin(weights_ts(:,:)) &
-            !$acc present_or_copyin(alpha_ts(:numflux-1,:numsol-1,:)) &
-            !$acc present_or_copyin(rk_time(:)) &
-            !$acc present_or_copyin(Q_ts(:numflux-1,:)) &
-            !$acc present_or_copyin(P_list(:,:)) &
-            !$acc present_or_copyin(C_eq_ts(:numsol-1,:)) &
-            !$acc present_or_copyin(numbreakpt_list(:)) &
-            !$acc copy(dm_start(:numbreakpt_total-1,:numsol-1,:n-1)) &
-            !$acc copy(ds_start(:numbreakpt_total-1,:n-1)) &
-            !$acc copy(sT_start(:n-1)) &
-            !$acc copy(mT_start(:numsol-1,:n-1)) &
-            !$acc copy(fmR_aver(:numbreakpt_total-1,:numsol-1,:n-1)) &
-            !$acc copy(fm_aver(:,:numsol-1,:n-1)) &
-            !$acc copy(fmQ_aver(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1)) &
-            !$acc copy(fsQ_aver(:numbreakpt_total-1,:numflux-1,:n-1)) &
-            !$acc copy(mR_aver(:numsol-1,:n-1)) &
-            !$acc copy(pQ_aver(:numflux-1,:n-1)) &
-            !$acc copy(mQ_aver(:numflux-1,:numsol-1,:n-1)) &
-            !$acc copy(fs_aver(:,:n-1)) &
-            !$acc copy(fmQ_temp(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1)) &
-            !$acc copy(mQ_temp(:numflux-1,:numsol-1,:n-1)) &
-            !$acc copy(fmR_temp(:numbreakpt_total-1,:numsol-1,:n-1)) &
-            !$acc copy(fs_temp(:,:n-1)) &
-            !$acc copy(fm_temp(:,:numsol-1,:n-1)) &
-            !$acc copy(fmQ_temp(:numbreakpt_total-1,:,:,:n-1)) &
-            !$acc copy(fsQ_temp(:numbreakpt_total-1,:numflux-1,:n-1)) &
-            !$acc copy(pQ_temp(:numflux-1,:n-1)) &
-            !$acc copy(mR_temp(:numsol-1,:n-1)) &
-            !$acc copy(dm_temp(:numbreakpt_total-1,:numsol-1,:n-1)) &
-            !$acc copy(mT_temp(:numsol-1,:n-1)) &
-            !$acc copy(sT_temp(:n-1)) &
-            !$acc copy(ds_temp(:numbreakpt_total-1,:n-1)) &
-            !$acc copy(leftbreakpt_top(:,:n-1)) &
-            !$acc copy(leftbreakpt_bot(:,:n-1)) &
-            !$acc copy(STcum_bot(:n-1)) &
-            !$acc copy(PQcum_bot(:numflux-1,:n-1)) &
-            !$acc copy(STcum_top(:n-1)) &
-            !$acc copy(PQcum_top(:numflux-1,:n-1)) &
+            !$acc present(component_index_list(:numflux)) &
+            !$acc present(rk_coeff(:5)) &
+            !$acc present(SAS_lookup(:,:)) &
+            !$acc present(J_ts(:)) &
+            !$acc present(breakpt_index_list(:)) &
+            !$acc present(k1_ts(:numsol-1,:)) &
+            !$acc present(C_J_ts(:numsol-1,:)) &
+            !$acc present(weights_ts(:,:)) &
+            !$acc present(alpha_ts(:numflux-1,:numsol-1,:)) &
+            !$acc present(rk_time(:)) &
+            !$acc present(Q_ts(:numflux-1,:)) &
+            !$acc present(P_list(:,:)) &
+            !$acc present(C_eq_ts(:numsol-1,:)) &
+            !$acc present(numbreakpt_list(:)) &
+            !$acc present(dm_start(:numbreakpt_total-1,:numsol-1,:n-1)) &
+            !$acc present(ds_start(:numbreakpt_total-1,:n-1)) &
+            !$acc present(sT_start(:n-1)) &
+            !$acc present(mT_start(:numsol-1,:n-1)) &
+            !$acc present(fmR_aver(:numbreakpt_total-1,:numsol-1,:n-1)) &
+            !$acc present(fm_aver(:,:numsol-1,:n-1)) &
+            !$acc present(fmQ_aver(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1)) &
+            !$acc present(fsQ_aver(:numbreakpt_total-1,:numflux-1,:n-1)) &
+            !$acc present(mR_aver(:numsol-1,:n-1)) &
+            !$acc present(pQ_aver(:numflux-1,:n-1)) &
+            !$acc present(mQ_aver(:numflux-1,:numsol-1,:n-1)) &
+            !$acc present(fs_aver(:,:n-1)) &
+            !$acc present(fmQ_temp(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1)) &
+            !$acc present(mQ_temp(:numflux-1,:numsol-1,:n-1)) &
+            !$acc present(fmR_temp(:numbreakpt_total-1,:numsol-1,:n-1)) &
+            !$acc present(fs_temp(:,:n-1)) &
+            !$acc present(fm_temp(:,:numsol-1,:n-1)) &
+            !$acc present(fmQ_temp(:numbreakpt_total-1,:,:,:n-1)) &
+            !$acc present(fsQ_temp(:numbreakpt_total-1,:numflux-1,:n-1)) &
+            !$acc present(pQ_temp(:numflux-1,:n-1)) &
+            !$acc present(mR_temp(:numsol-1,:n-1)) &
+            !$acc present(dm_temp(:numbreakpt_total-1,:numsol-1,:n-1)) &
+            !$acc present(mT_temp(:numsol-1,:n-1)) &
+            !$acc present(sT_temp(:n-1)) &
+            !$acc present(ds_temp(:numbreakpt_total-1,:n-1)) &
+            !$acc present(leftbreakpt_top(:,:n-1)) &
+            !$acc present(leftbreakpt_bot(:,:n-1)) &
+            !$acc present(STcum_bot(:n-1)) &
+            !$acc present(PQcum_bot(:numflux-1,:n-1)) &
+            !$acc present(STcum_top(:n-1)) &
+            !$acc present(PQcum_top(:numflux-1,:n-1)) &
             !$acc copy(STcum_bot_start(:)) &
             !$acc copy(STcum_top_start(:))
             do c = 0, N - 1
@@ -628,6 +640,18 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 ds_start(:, c) = ds_temp(:, c)
                 dm_start(:, :, c) = dm_temp(:, :, c)
             end do
+            !$acc update self(fmR_aver(:numbreakpt_total-1,:numsol-1,:n-1))
+            !$acc update self(fm_aver(:,:numsol-1,:n-1))
+            !$acc update self(fmQ_aver(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1))
+            !$acc update self(fsQ_aver(:numbreakpt_total-1,:numflux-1,:n-1))
+            !$acc update self(mR_aver(:numsol-1,:n-1))
+            !$acc update self(pQ_aver(:numflux-1,:n-1))
+            !$acc update self(mQ_aver(:numflux-1,:numsol-1,:n-1))
+            !$acc update self(fs_aver(:,:n-1))
+            !$acc update self(dm_start(:numbreakpt_total-1,:numsol-1,:n-1))
+            !$acc update self(ds_start(:numbreakpt_total-1,:n-1))
+            !$acc update self(sT_start(:n-1))
+            !$acc update self(mT_start(:numsol-1,:n-1))
 
             pQ_ts_iT = 0
             mQ_ts_iT = 0
@@ -636,6 +660,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             ds_ts_iT = 0
             mT_ts_iT = 0
             dm_ts_iT = 0
+
 
             do c = 0, N - 1
                 jt_s = mod(c + iT_s, N)

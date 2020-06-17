@@ -69,6 +69,7 @@ def steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0
     model.run()
     return model
 
+#def test_steady_uniform(benchmark):
 def test_steady_uniform():
     print('running test_steady_uniform')
 
@@ -96,6 +97,7 @@ def test_steady_uniform():
     mTdisc = np.c_[np.zeros(N), mTdisc]
     mTdisc = np.array([mTdisc.T]).T
 
+    #model = benchmark(steady_run, N, dt, Q_0, S_0, C_J)
     model = steady_run(N, dt, Q_0, S_0, C_J)
     rdf = model.result
 
