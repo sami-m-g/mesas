@@ -11,7 +11,7 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
-N = 10
+N = 500
 dt = 0.001
 Q_0 = 1.0/N / dt  # <-- steady-state flow rate
 C_J = 1000.
@@ -19,11 +19,25 @@ C_old = 2000.
 S_0 = 10
 S_m = 0.601/N
 eps = 0.000000001
-n_substeps=20
-
+n_substeps=5
 n_segment=5
 fQ=0.3
 fc=0.1
+jacobian = False
+
+print(f'N = {N}')
+print(f'dt = {dt}')
+print(f'Q_0 = {Q_0}')
+print(f'C_J = {C_J}')
+print(f'C_old = {C_old}')
+print(f'S_0 = {S_0}')
+print(f'S_m = {S_m}')
+print(f'eps = {eps}')
+print(f'n_substeps = {n_substeps}')
+print(f'n_segment = {n_segment}')
+print(f'fQ = {fQ}')
+print(f'fc = {fc}')
+print(f'jacobian = {jacobian}')
 
 
 def steady_run(N, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=10, n_segment=1):
@@ -37,7 +51,7 @@ def steady_run(N, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=10, n_segment
     sas_fun1 = Piecewise(ST=ST)
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps)
+    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian)
     model.run()
     return model
 
@@ -65,12 +79,13 @@ def steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0
             sas_fun22 = Piecewise(ST=STp)
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df)), 'Q2': Weighted({'c21':sas_fun21, 'c22':sas_fun22}, weights_df=data_df)}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1', 'Q2']}, 'Cb': {'C_old': C_old, 'observations': ['Q1', 'Q2']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps)
+    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian)
     model.run()
     return model
 
 def test_steady_uniform(benchmark):
 #def test_steady_uniform():
+    print('')
     print('running test_steady_uniform')
 
     n = np.arange(N)
@@ -137,47 +152,49 @@ def test_steady_uniform(benchmark):
             raise
 
 
-    dsTdSjdisc = -((Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
-    dmTdSjdisc = -((C_J * Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
-    dCQdSjdisc = ((C_J - C_old) *Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 *Delta)
+    if jacobian:
 
-    dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [N, 1])).T
-    dsTdSjdisc = np.c_[np.zeros(N), dsTdSjdisc]
-    dmTdSjdisc = np.tril(np.tile(dmTdSjdisc, [N, 1])).T
-    dmTdSjdisc = np.c_[np.zeros(N), dmTdSjdisc]
-    dmTdSjdisc = np.array([dmTdSjdisc.T]).T
-    dCQdSjdisc = np.array([[dCQdSjdisc]]).T
+        dsTdSjdisc = -((Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
+        dmTdSjdisc = -((C_J * Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
+        dCQdSjdisc = ((C_J - C_old) *Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 *Delta)
 
-    model2 = steady_run(N, dt, Q_0, S_0, C_J, j=1)
-    rdf2 = model2.result
-    SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
-    SAS_lookup2, _, _, _, _, _, _ = model2._create_sas_lookup()
-    j = 1
-    dSj = SAS_lookup2[j, N - 1] - SAS_lookup[j, N - 1]
+        dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [N, 1])).T
+        dsTdSjdisc = np.c_[np.zeros(N), dsTdSjdisc]
+        dmTdSjdisc = np.tril(np.tile(dmTdSjdisc, [N, 1])).T
+        dmTdSjdisc = np.c_[np.zeros(N), dmTdSjdisc]
+        dmTdSjdisc = np.array([dmTdSjdisc.T]).T
+        dCQdSjdisc = np.array([[dCQdSjdisc]]).T
 
-    def printcheck(rdfi, rdfp, varstr, ostr, analy):
-        if varstr=='dCdSj':
-            var = rdfi[varstr][:,1,...]
-        else:
-            var = rdfi[varstr][:,:,1,...]
-        err = (analy - var) / analy
-        try:
-            assert np.nanmax(np.abs(err)) < 1.0E-4
-        except AssertionError:
-            print(f'{varstr} Expected:')
-            print(analy.T)
-            print(f'{varstr} eps check:')
-            print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
-            print(f'{varstr} Got:')
-            print(var.T)
-            print(f'{varstr} Difference/expected:')
-            print(err[..., -3:].T)
-            print('')
-            raise
+        model2 = steady_run(N, dt, Q_0, S_0, C_J, j=1)
+        rdf2 = model2.result
+        SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
+        SAS_lookup2, _, _, _, _, _, _ = model2._create_sas_lookup()
+        j = 1
+        dSj = SAS_lookup2[j, N - 1] - SAS_lookup[j, N - 1]
 
-    printcheck(rdf, rdf2, 'dsTdSj', 'sT', dsTdSjdisc)
-    printcheck(rdf, rdf2, 'dmTdSj', 'mT', dmTdSjdisc)
-    printcheck(rdf, rdf2, 'dCdSj', 'C_Q', dCQdSjdisc)
+        def printcheck(rdfi, rdfp, varstr, ostr, analy):
+            if varstr=='dCdSj':
+                var = rdfi[varstr][:,1,...]
+            else:
+                var = rdfi[varstr][:,:,1,...]
+            err = (analy - var) / analy
+            try:
+                assert np.nanmax(np.abs(err)) < 1.0E-4
+            except AssertionError:
+                print(f'{varstr} Expected:')
+                print(analy.T)
+                print(f'{varstr} eps check:')
+                print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
+                print(f'{varstr} Got:')
+                print(var.T)
+                print(f'{varstr} Difference/expected:')
+                print(err[..., -3:].T)
+                print('')
+                raise
+
+        printcheck(rdf, rdf2, 'dsTdSj', 'sT', dsTdSjdisc)
+        printcheck(rdf, rdf2, 'dmTdSj', 'mT', dmTdSjdisc)
+        printcheck(rdf, rdf2, 'dCdSj', 'C_Q', dCQdSjdisc)
 
 def notest_steady_piston_uniform():
     print('running test_steady_piston_uniform')
@@ -274,47 +291,49 @@ def notest_steady_piston_uniform():
             print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
             raise
 
-    def printcheck(rdfi, rdfp, varstr, ostr, analy, ip):
-        if varstr=='dCdSj':
-            var = rdfi[varstr][:,ip,...]
-        else:
-            var = rdfi[varstr][:,:,ip,...]
-        err = (analy - var) / analy
-        try:
-            assert np.nanmax(np.abs(err)) < 2.0E-1
-        except AssertionError:
-            print(f'{varstr} j={j}  Expected:')
-            print(analy.T)
-            print(f'{varstr} j={j}  eps check:')
-            print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
-            print(f'{varstr} j={j}  Got:')
-            print(var.T)
-            print(f'{varstr} j={j}  Difference/expected:')
-            print(err[..., -3:].T)
-            print('')
-            raise
+    if jacobian:
 
-    model0 = steady_run(N, dt, Q_0, S_0, C_J, j=1, ST_min=S_m, n_substeps=n_substeps)
-    rdf0 = model0.result
-    SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
-    SAS_lookup0, _, _, _, _, _, _ = model0._create_sas_lookup()
-    j = 1
-    dSj = SAS_lookup0[j, N - 1] - SAS_lookup[j, N - 1]
+        def printcheck(rdfi, rdfp, varstr, ostr, analy, ip):
+            if varstr=='dCdSj':
+                var = rdfi[varstr][:,ip,...]
+            else:
+                var = rdfi[varstr][:,:,ip,...]
+            err = (analy - var) / analy
+            try:
+                assert np.nanmax(np.abs(err)) < 2.0E-1
+            except AssertionError:
+                print(f'{varstr} j={j}  Expected:')
+                print(analy.T)
+                print(f'{varstr} j={j}  eps check:')
+                print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
+                print(f'{varstr} j={j}  Got:')
+                print(var.T)
+                print(f'{varstr} j={j}  Difference/expected:')
+                print(err[..., -3:].T)
+                print('')
+                raise
 
-    printcheck(rdf, rdf0, 'dsTdSj', 'sT', dsTdSjdisc, j)
-    printcheck(rdf, rdf0, 'dmTdSj', 'mT', dmTdSjdisc, j)
-    printcheck(rdf, rdf0, 'dCdSj', 'C_Q', dCQdSjdisc, j)
+        model0 = steady_run(N, dt, Q_0, S_0, C_J, j=1, ST_min=S_m, n_substeps=n_substeps)
+        rdf0 = model0.result
+        SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
+        SAS_lookup0, _, _, _, _, _, _ = model0._create_sas_lookup()
+        j = 1
+        dSj = SAS_lookup0[j, N - 1] - SAS_lookup[j, N - 1]
 
-    modelm = steady_run(N, dt, Q_0, S_0, C_J, j=0, ST_min=S_m, n_substeps=n_substeps)
-    rdfm = modelm.result
-    SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
-    SAS_lookupm, _, _, _, _, _, _ = modelm._create_sas_lookup()
-    j = 0
-    dSj = SAS_lookupm[j, N - 1] - SAS_lookup[j, N - 1]
+        printcheck(rdf, rdf0, 'dsTdSj', 'sT', dsTdSjdisc, j)
+        printcheck(rdf, rdf0, 'dmTdSj', 'mT', dmTdSjdisc, j)
+        printcheck(rdf, rdf0, 'dCdSj', 'C_Q', dCQdSjdisc, j)
 
-    printcheck(rdf, rdfm, 'dmTdSj', 'mT', dmTdSmdisc, j)
-    printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
-    printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
+        modelm = steady_run(N, dt, Q_0, S_0, C_J, j=0, ST_min=S_m, n_substeps=n_substeps)
+        rdfm = modelm.result
+        SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
+        SAS_lookupm, _, _, _, _, _, _ = modelm._create_sas_lookup()
+        j = 0
+        dSj = SAS_lookupm[j, N - 1] - SAS_lookup[j, N - 1]
+
+        printcheck(rdf, rdfm, 'dmTdSj', 'mT', dmTdSmdisc, j)
+        printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
+        printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
 
 def notest_multiple():
     print('running test_multiple')
@@ -389,54 +408,56 @@ def notest_multiple():
             print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
             raise
 
-    def printcheck(rdfi, rdfp, varstr, ostr, norm, ip):
-        var = rdfi[varstr][:,:,ip,...]
-        dnum = (rdfp[ostr] - rdfi[ostr]) / dSj
-        err = (dnum - var) / norm
-        try:
-            assert np.nanmax(np.abs(err)) < 5.0E-2
-        except AssertionError:
-            print(f'{varstr} ip={ip} eps check:')
-            print(dnum.T)
-            print(f'{varstr} ip={ip} Got:')
-            print(var.T)
-            print(f'{varstr} ip={ip} Difference/norm')
-            print(err[..., -3:].T)
-            print('')
-            raise
+    if jacobian:
 
-    def printcheckC(rdfi, rdfp, varstr, ostr, ip, iq, s):
-        var = rdfi[varstr][:,ip,iq,s]
-        dnum = (rdfp[ostr][:,iq,s] - rdfi[ostr][:,iq,s]) / dSj
-        err = (dnum - var) / C_J
-        try:
-            assert np.nanmax(np.abs(err)) < 5.0E-2
-        except:
-            print(f'{varstr} ip={ip} eps check:')
-            print(dnum.T)
-            print(f'{varstr} ip={ip} Got:')
-            print(var.T)
-            print(f'{varstr} ip={ip} Difference/CJ:')
-            print(err[..., :].T)
-            print('')
-            raise
+        def printcheck(rdfi, rdfp, varstr, ostr, norm, ip):
+            var = rdfi[varstr][:,:,ip,...]
+            dnum = (rdfp[ostr] - rdfi[ostr]) / dSj
+            err = (dnum - var) / norm
+            try:
+                assert np.nanmax(np.abs(err)) < 5.0E-2
+            except AssertionError:
+                print(f'{varstr} ip={ip} eps check:')
+                print(dnum.T)
+                print(f'{varstr} ip={ip} Got:')
+                print(var.T)
+                print(f'{varstr} ip={ip} Difference/norm')
+                print(err[..., -3:].T)
+                print('')
+                raise
 
-    SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
-    for iq, ic, ip0 in [(0,0,0*(n_segment+1)), (1,0,1*(n_segment+1)), (1,1,2*(n_segment+1))]:
-        for j in range(n_segment+1):
-            ip = ip0 + j
-            print(iq, ic, j, ip)
-            modelp = steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=iq, ic=ic, j=j, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
-            rdfp = modelp.result
-            SAS_lookupp, _, _, _, _, _, _ = modelp._create_sas_lookup()
-            dSj = SAS_lookupp[ip, N - 1] - SAS_lookup[ip, N - 1]
+        def printcheckC(rdfi, rdfp, varstr, ostr, ip, iq, s):
+            var = rdfi[varstr][:,ip,iq,s]
+            dnum = (rdfp[ostr][:,iq,s] - rdfi[ostr][:,iq,s]) / dSj
+            err = (dnum - var) / C_J
+            try:
+                assert np.nanmax(np.abs(err)) < 5.0E-2
+            except:
+                print(f'{varstr} ip={ip} eps check:')
+                print(dnum.T)
+                print(f'{varstr} ip={ip} Got:')
+                print(var.T)
+                print(f'{varstr} ip={ip} Difference/CJ:')
+                print(err[..., :].T)
+                print('')
+                raise
 
-            printcheck(rdf, rdfp, 'dsTdSj', 'sT', Q_0, ip)
-            printcheck(rdf, rdfp, 'dmTdSj', 'mT', Q_0 * C_J, ip)
-            for iqq in range(2):
-                for s in range(2):
-                    #print(iq, ic, j, ip, iqq, s)
-                    printcheckC(rdf, rdfp, 'dCdSj', 'C_Q', ip, iqq, s)
+        SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
+        for iq, ic, ip0 in [(0,0,0*(n_segment+1)), (1,0,1*(n_segment+1)), (1,1,2*(n_segment+1))]:
+            for j in range(n_segment+1):
+                ip = ip0 + j
+                print(iq, ic, j, ip)
+                modelp = steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=iq, ic=ic, j=j, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
+                rdfp = modelp.result
+                SAS_lookupp, _, _, _, _, _, _ = modelp._create_sas_lookup()
+                dSj = SAS_lookupp[ip, N - 1] - SAS_lookup[ip, N - 1]
+
+                printcheck(rdf, rdfp, 'dsTdSj', 'sT', Q_0, ip)
+                printcheck(rdf, rdfp, 'dmTdSj', 'mT', Q_0 * C_J, ip)
+                for iqq in range(2):
+                    for s in range(2):
+                        #print(iq, ic, j, ip, iqq, s)
+                        printcheckC(rdf, rdfp, 'dCdSj', 'C_Q', ip, iqq, s)
 
 
 #def test_Jacobian():

@@ -33,6 +33,7 @@ class Model:
             'verbose': False,
             'debug': False,
             'warning': True,
+            'jacobian': False,
             'n_substeps': 1,
             'max_age': None,
             'sT_init': None,
@@ -158,6 +159,7 @@ class Model:
             'verbose': False
             'debug': False
             'warning': True
+            'jacobian': False
             'n_substeps': 1
             'max_age': None
             'sT_init': None
@@ -373,13 +375,14 @@ class Model:
         verbose = self.options['verbose']
         debug = self.options['debug']
         warning = self.options['warning']
+        jacobian = self.options['jacobian']
         n_substeps = self.options['n_substeps']
         max_age = self.options['max_age']
 
         # call the Fortran code
         fresult = solve(
             J, Q.T, SAS_lookup, P_list, weights.T, sT_init, dt,
-            verbose, debug, warning,
+            verbose, debug, warning, jacobian,
             mT_init, C_J.T, alpha.T, k1.T, C_eq.T, C_old,
             n_substeps, nC_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nP_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
