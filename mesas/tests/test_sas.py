@@ -11,13 +11,13 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
+N = 10
 dt = 0.001
-Q_0 = 1.0 / dt  # <-- steady-state flow rate
+Q_0 = 1.0/N / dt  # <-- steady-state flow rate
 C_J = 1000.
 C_old = 2000.
-N = 10
-S_0 = 5.
-S_m = 0.601
+S_0 = 10
+S_m = 0.601/N
 eps = 0.000000001
 n_substeps=20
 
@@ -69,8 +69,8 @@ def steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0
     model.run()
     return model
 
-#def test_steady_uniform(benchmark):
-def test_steady_uniform():
+def test_steady_uniform(benchmark):
+#def test_steady_uniform():
     print('running test_steady_uniform')
 
     n = np.arange(N)
@@ -97,20 +97,23 @@ def test_steady_uniform():
     mTdisc = np.c_[np.zeros(N), mTdisc]
     mTdisc = np.array([mTdisc.T]).T
 
-    #model = benchmark(steady_run, N, dt, Q_0, S_0, C_J)
-    model = steady_run(N, dt, Q_0, S_0, C_J)
+    model = benchmark(steady_run, N, dt, Q_0, S_0, C_J)
+    #model = steady_run(N, dt, Q_0, S_0, C_J)
     rdf = model.result
 
     def printcheck(rdf, varstr, analy):
-        print(f'{varstr} Expected:')
-        print(analy.T)
-        print(f'{varstr} Got:')
-        print(rdf[varstr].T)
-        print(f'{varstr} Difference/expected:')
         err = (analy - rdf[varstr]) / analy
-        print(err[..., -3:].T)
-        assert np.nanmax(np.abs(err)) < 1.0E-4
-        print('')
+        try:
+            assert np.nanmax(np.abs(err)) < 1.0E-4
+        except AssertionError:
+            print(f'{varstr} Expected:')
+            print(analy.T)
+            print(f'{varstr} Got:')
+            print(rdf[varstr].T)
+            print(f'{varstr} Difference/expected:')
+            print(err[..., -3:].T)
+            print('')
+            raise
 
     printcheck(rdf, 'sT', sTdisc)
     printcheck(rdf, 'pQ', pQdisc)
@@ -118,14 +121,21 @@ def test_steady_uniform():
     printcheck(rdf, 'mQ', mQdisc)
     printcheck(rdf, 'C_Q', CQdisc)
 
-    print('Water Balance:')
-    print(rdf['WaterBalance'][:, -3:] / Q_0)
-    assert np.abs(rdf['WaterBalance'] / Q_0).max() < 1.0E-6
+    try:
+        assert np.abs(rdf['WaterBalance'] / Q_0).max() < 1.0E-6
+    except AssertionError:
+        print('Water Balance:')
+        print(rdf['WaterBalance'][:, -3:] / Q_0)
+        raise
 
-    print('Solute Balance:')
     for s in range(1):
-        print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
-    assert np.abs(rdf['SoluteBalance'] / (Q_0 * C_J)).max() < 1.0E-6
+        try:
+            assert np.abs(rdf['SoluteBalance'] / (Q_0 * C_J)).max() < 1.0E-6
+        except AssertionError:
+            print(f'Solute Balance {s}:')
+            print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
+            raise
+
 
     dsTdSjdisc = -((Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
     dmTdSjdisc = -((C_J * Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
@@ -150,23 +160,26 @@ def test_steady_uniform():
             var = rdfi[varstr][:,1,...]
         else:
             var = rdfi[varstr][:,:,1,...]
-        print(f'{varstr} Expected:')
-        print(analy.T)
-        print(f'{varstr} eps check:')
-        print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
-        print(f'{varstr} Got:')
-        print(var.T)
-        print(f'{varstr} Difference/expected:')
         err = (analy - var) / analy
-        print(err[..., -3:].T)
-        assert np.nanmax(np.abs(err)) < 1.0E-4
-        print('')
+        try:
+            assert np.nanmax(np.abs(err)) < 1.0E-4
+        except AssertionError:
+            print(f'{varstr} Expected:')
+            print(analy.T)
+            print(f'{varstr} eps check:')
+            print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
+            print(f'{varstr} Got:')
+            print(var.T)
+            print(f'{varstr} Difference/expected:')
+            print(err[..., -3:].T)
+            print('')
+            raise
 
     printcheck(rdf, rdf2, 'dsTdSj', 'sT', dsTdSjdisc)
     printcheck(rdf, rdf2, 'dmTdSj', 'mT', dmTdSjdisc)
     printcheck(rdf, rdf2, 'dCdSj', 'C_Q', dCQdSjdisc)
 
-def test_steady_piston_uniform():
+def notest_steady_piston_uniform():
     print('running test_steady_piston_uniform')
 
     n = np.arange(N)
@@ -227,15 +240,18 @@ def test_steady_piston_uniform():
     rdf = model.result
 
     def printcheck(rdfi, varstr, analy):
-        print(f'{varstr} Expected:')
-        print(analy.T)
-        print(f'{varstr} Got:')
-        print(rdfi[varstr].T)
-        print(f'{varstr} Difference/expected:')
         err = (analy - rdfi[varstr]) / analy
-        print(err[..., -3:].T)
-        assert np.nanmax(np.abs(err)) < 5.0E-2
-        print('')
+        try:
+            assert np.nanmax(np.abs(err)) < 5.0E-2
+        except AssertionError:
+            print(f'{varstr} Expected:')
+            print(analy.T)
+            print(f'{varstr} Got:')
+            print(rdfi[varstr].T)
+            print(f'{varstr} Difference/expected:')
+            print(err[..., -3:].T)
+            print('')
+            raise
 
     printcheck(rdf, 'sT', sTdisc)
     printcheck(rdf, 'pQ', pQdisc)
@@ -243,31 +259,40 @@ def test_steady_piston_uniform():
     printcheck(rdf, 'mT', mTdisc)
     printcheck(rdf, 'C_Q', CQdisc)
 
-    print('Water Balance:')
-    print(rdf['WaterBalance'][:, -3:] / Q_0)
-    assert np.abs(rdf['WaterBalance'] / Q_0).max() < 1.0E-6
+    try:
+        assert np.abs(rdf['WaterBalance'] / Q_0).max() < 1.0E-6
+    except AssertionError:
+        print('Water Balance:')
+        print(rdf['WaterBalance'][:, -3:] / Q_0)
+        raise
 
-    print('Solute Balance:')
     for s in range(1):
-        print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
-    assert np.abs(rdf['SoluteBalance'] / (Q_0 * C_J)).max() < 1.0E-6
+        try:
+            assert np.abs(rdf['SoluteBalance'] / (Q_0 * C_J)).max() < 1.0E-6
+        except AssertionError:
+            print(f'Solute Balance {s}:')
+            print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
+            raise
 
     def printcheck(rdfi, rdfp, varstr, ostr, analy, ip):
         if varstr=='dCdSj':
             var = rdfi[varstr][:,ip,...]
         else:
             var = rdfi[varstr][:,:,ip,...]
-        print(f'{varstr} j={j}  Expected:')
-        print(analy.T)
-        print(f'{varstr} j={j}  eps check:')
-        print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
-        print(f'{varstr} j={j}  Got:')
-        print(var.T)
-        print(f'{varstr} j={j}  Difference/expected:')
         err = (analy - var) / analy
-        print(err[..., -3:].T)
-        assert np.nanmax(np.abs(err)) < 2.0E-1
-        print('')
+        try:
+            assert np.nanmax(np.abs(err)) < 2.0E-1
+        except AssertionError:
+            print(f'{varstr} j={j}  Expected:')
+            print(analy.T)
+            print(f'{varstr} j={j}  eps check:')
+            print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
+            print(f'{varstr} j={j}  Got:')
+            print(var.T)
+            print(f'{varstr} j={j}  Difference/expected:')
+            print(err[..., -3:].T)
+            print('')
+            raise
 
     model0 = steady_run(N, dt, Q_0, S_0, C_J, j=1, ST_min=S_m, n_substeps=n_substeps)
     rdf0 = model0.result
@@ -291,7 +316,7 @@ def test_steady_piston_uniform():
     printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
     printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
 
-def test_multiple():
+def notest_multiple():
     print('running test_multiple')
 
     n = np.arange(N)
@@ -330,15 +355,18 @@ def test_multiple():
             analy = analy * fQ
         else:
             var = rdfi[varstr]
-        print(f'{varstr} Expected:')
-        print(analy.T)
-        print(f'{varstr} Got:')
-        print(var.T)
-        print(f'{varstr} Difference/expected:')
         err = (analy - var) / analy
-        print(err[..., -3:].T)
-        assert np.nanmax(np.abs(err)) < 5.0E-2
-        print('')
+        try:
+            assert np.nanmax(np.abs(err)) < 5.0E-2
+        except AssertionError:
+            print(f'{varstr} Expected:')
+            print(analy.T)
+            print(f'{varstr} Got:')
+            print(var.T)
+            print(f'{varstr} Difference/expected:')
+            print(err[..., -3:].T)
+            print('')
+            raise
 
     printcheck(rdf, 'pQ', pQdisc)
     printcheck(rdf, 'sT', sTdisc)
@@ -346,40 +374,52 @@ def test_multiple():
     printcheck(rdf, 'mT', mTdisc)
     printcheck(rdf, 'C_Q', CQdisc)
 
-    print('Water Balance:')
-    print(rdf['WaterBalance'][:, -3:] / Q_0)
-    assert np.abs(rdf['WaterBalance'] / Q_0).max() < 1.0E-6
+    try:
+        assert np.abs(rdf['WaterBalance'] / Q_0).max() < 1.0E-6
+    except AssertionError:
+        print('Water Balance:')
+        print(rdf['WaterBalance'][:, -3:] / Q_0)
+        raise
 
-    print('Solute Balance:')
     for s in range(1):
-        print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
-    assert np.abs(rdf['SoluteBalance'] / (Q_0 * C_J)).max() < 1.0E-6
+        try:
+            assert np.abs(rdf['SoluteBalance'] / (Q_0 * C_J)).max() < 1.0E-6
+        except AssertionError:
+            print(f'Solute Balance {s}:')
+            print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
+            raise
 
     def printcheck(rdfi, rdfp, varstr, ostr, norm, ip):
         var = rdfi[varstr][:,:,ip,...]
-        #print(f'{varstr} ip={ip} eps check:')
         dnum = (rdfp[ostr] - rdfi[ostr]) / dSj
-        #print(dnum.T)
-        #print(f'{varstr} ip={ip} Got:')
-        #print(var.T)
-        #print(f'{varstr} ip={ip} Difference/norm')
         err = (dnum - var) / norm
-        #print(err[..., -3:].T)
-        assert np.nanmax(np.abs(err)) < 5.0E-2
-        #print('')
+        try:
+            assert np.nanmax(np.abs(err)) < 5.0E-2
+        except AssertionError:
+            print(f'{varstr} ip={ip} eps check:')
+            print(dnum.T)
+            print(f'{varstr} ip={ip} Got:')
+            print(var.T)
+            print(f'{varstr} ip={ip} Difference/norm')
+            print(err[..., -3:].T)
+            print('')
+            raise
 
     def printcheckC(rdfi, rdfp, varstr, ostr, ip, iq, s):
         var = rdfi[varstr][:,ip,iq,s]
-        #print(f'{varstr} ip={ip} eps check:')
         dnum = (rdfp[ostr][:,iq,s] - rdfi[ostr][:,iq,s]) / dSj
-        #print(dnum.T)
-        #print(f'{varstr} ip={ip} Got:')
-        #print(var.T)
-        #print(f'{varstr} ip={ip} Difference/CJ:')
         err = (dnum - var) / C_J
-        #print(err[..., :].T)
-        assert np.nanmax(np.abs(err)) < 5.0E-2
-        #print('')
+        try:
+            assert np.nanmax(np.abs(err)) < 5.0E-2
+        except:
+            print(f'{varstr} ip={ip} eps check:')
+            print(dnum.T)
+            print(f'{varstr} ip={ip} Got:')
+            print(var.T)
+            print(f'{varstr} ip={ip} Difference/CJ:')
+            print(err[..., :].T)
+            print('')
+            raise
 
     SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
     for iq, ic, ip0 in [(0,0,0*(n_segment+1)), (1,0,1*(n_segment+1)), (1,1,2*(n_segment+1))]:

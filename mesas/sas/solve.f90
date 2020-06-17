@@ -30,19 +30,12 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), intent(out), dimension(0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: C_Q_ts
     real(8), intent(out), dimension(0:numbreakpt_total-1, 0:numflux - 1, 0:numsol - 1, 0:timeseries_length - 1) :: dC_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length) :: sT_ts
-    real(8), dimension(0:timeseries_length) :: sT_ts_iT
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length, 0:numsol - 1) :: mT_ts
-    real(8), dimension(0:timeseries_length, 0:numsol - 1) :: mT_ts_iT
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length, 0:numbreakpt_total-1) :: ds_ts
-    real(8), dimension(0:timeseries_length, 0:numbreakpt_total-1) :: ds_ts_iT
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length, 0:numbreakpt_total-1, 0:numsol - 1) :: dm_ts
-    real(8), dimension(0:timeseries_length, 0:numbreakpt_total-1, 0:numsol - 1) :: dm_ts_iT
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numflux - 1) :: pQ_ts
-    real(8), dimension(0:1, 0:timeseries_length - 1, 0:numflux - 1) :: pQ_ts_iT
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: mQ_ts
-    real(8), dimension(0:1, 0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: mQ_ts_iT
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numsol - 1) :: mR_ts
-    real(8), dimension(0:1, 0:timeseries_length - 1, 0:numsol - 1) :: mR_ts_iT
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1) :: WaterBalance_ts
     real(8), intent(out), dimension(0:max_age - 1, 0:timeseries_length - 1, 0:numsol - 1) :: SoluteBalance_ts
     real(8), dimension(0:numbreakpt_total-1, 0:numflux - 1, 0:timeseries_length-1) :: dW_ts
@@ -104,6 +97,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     one8 = 1.0
     rk_time = (/0.0D0, 0.5D0, 0.5D0, 1.0D0, 1.0D0/)
     rk_coeff = (/1, 2, 2, 1/)
+    norm = 1.0 / n_substeps / n_substeps
 
 
     C_Q_ts = 0.
@@ -111,10 +105,6 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     mT_ts = 0.
     ds_ts = 0.
     dm_ts = 0.
-    sT_ts_iT = 0.
-    mT_ts_iT = 0.
-    ds_ts_iT = 0.
-    dm_ts_iT = 0.
     dC_ts = 0.
     dW_ts = 0.
     pQ_ts = 0.
@@ -157,9 +147,6 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     ds_temp = 0.
     dm_start = 0.
     dm_temp = 0.
-    pQ_ts_iT = 0.
-    mQ_ts_iT = 0.
-    mR_ts_iT = 0.
     iT_prev = -1
 
     ! The list of probabilities in each sas function is a 1-D array.
@@ -235,16 +222,18 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     !$acc create(STcum_top(:n-1)) &
     !$acc create(PQcum_top(:numflux-1,:n-1)) &
     !$acc copyin(STcum_bot_start(:)) &
-    !$acc copyin(STcum_top_start(:))
-    !!$acc copy(ds_ts_iT(:,:numbreakpt_total-1)) &
-    !!$acc copy(dm_ts_iT(:,:numbreakpt_total-1,:numsol-1)) &
-    !!$acc copy(sT_ts_iT(:)) &
-    !!$acc copy(pQ_ts_iT(:,:,:numflux-1)) &
-    !!$acc copy(mT_ts_iT(:,:numsol-1)) &
-    !!$acc copy(mQ_ts_iT(:,:,:numflux-1,:numsol-1)) &
-    !!$acc copy(mR_ts_iT(:,:,:numsol-1))
-    !!$acc copy(dW_ts(:,:numflux-1,:)) &
-    !!$acc copy(dC_ts(:,:numflux-1,:numsol-1,:))
+    !$acc copyin(STcum_top_start(:)) &
+    !$acc copyin(dW_ts(:,:numflux-1,:)) &
+    !$acc copyin(dC_ts(:,:numflux-1,:numsol-1,:)) &
+    !$acc copyin(sT_ts) &
+    !$acc copyin(mT_ts) &
+    !$acc copyin(ds_ts) &
+    !$acc copyin(dm_ts) &
+    !$acc copyin(dC_ts) &
+    !$acc copyin(dW_ts) &
+    !$acc copyin(pQ_ts) &
+    !$acc copyin(mQ_ts) &
+    !$acc copyin(mR_ts)
 
     !call f_verbose('...Starting main loop...')
     do iT = 0, max_age - 1
@@ -253,19 +242,6 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
         do iT_substep = 0, n_substeps - 1
 
             iT_s = iT * n_substeps +  iT_substep
-
-            if (iT_s>0) then
-                STcum_top_start(0) = STcum_bot_start(0)
-                STcum_bot_start(0) = STcum_bot_start(0) + sT_init_ts(iT_prev) * h
-                !!$acc kernels loop independent&
-                do c = 0, N - 1
-                    jt_s = mod(c + iT_s, N)
-                    STcum_top_start(jt_s+1) = STcum_bot_start(jt_s+1)
-                    STcum_bot_start(jt_s+1) = STcum_bot_start(jt_s+1) + sT_start(c) * h
-                end do
-                !$acc update device(STcum_bot_start(:))
-                !$acc update device(STcum_top_start(:))
-            end if
 
             !$acc kernels loop &
             !$acc present(component_index_list(:numflux)) &
@@ -313,8 +289,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             !$acc present(PQcum_bot(:numflux-1,:n-1)) &
             !$acc present(STcum_top(:n-1)) &
             !$acc present(PQcum_top(:numflux-1,:n-1)) &
-            !$acc copy(STcum_bot_start(:)) &
-            !$acc copy(STcum_top_start(:))
+            !$acc present(STcum_bot_start(:)) &
+            !$acc present(STcum_top_start(:))
             do c = 0, N - 1
                 jt_s = mod(c + iT_s, N)
                 jt_substep = mod(jt_s, n_substeps)
@@ -640,102 +616,96 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 ds_start(:, c) = ds_temp(:, c)
                 dm_start(:, :, c) = dm_temp(:, :, c)
             end do
-            !$acc update self(fmR_aver(:numbreakpt_total-1,:numsol-1,:n-1))
-            !$acc update self(fm_aver(:,:numsol-1,:n-1))
-            !$acc update self(fmQ_aver(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1))
-            !$acc update self(fsQ_aver(:numbreakpt_total-1,:numflux-1,:n-1))
-            !$acc update self(mR_aver(:numsol-1,:n-1))
-            !$acc update self(pQ_aver(:numflux-1,:n-1))
-            !$acc update self(mQ_aver(:numflux-1,:numsol-1,:n-1))
-            !$acc update self(fs_aver(:,:n-1))
-            !$acc update self(dm_start(:numbreakpt_total-1,:numsol-1,:n-1))
-            !$acc update self(ds_start(:numbreakpt_total-1,:n-1))
-            !$acc update self(sT_start(:n-1))
-            !$acc update self(mT_start(:numsol-1,:n-1))
 
-            pQ_ts_iT = 0
-            mQ_ts_iT = 0
-            mR_ts_iT = 0
-            sT_ts_iT = 0
-            ds_ts_iT = 0
-            mT_ts_iT = 0
-            dm_ts_iT = 0
+            ! Aggregate data from substep to timestep
+            !$acc kernels &
+            !$acc present(fmR_aver(:numbreakpt_total-1,:numsol-1,:n-1)) &
+            !$acc present(fm_aver(:,:numsol-1,:n-1)) &
+            !$acc present(fmQ_aver(:numbreakpt_total-1,:numflux-1,:numsol-1,:n-1)) &
+            !$acc present(fsQ_aver(:numbreakpt_total-1,:numflux-1,:n-1)) &
+            !$acc present(mR_aver(:numsol-1,:n-1)) &
+            !$acc present(pQ_aver(:numflux-1,:n-1)) &
+            !$acc present(mQ_aver(:numflux-1,:numsol-1,:n-1)) &
+            !$acc present(fs_aver(:,:n-1)) &
+            !$acc present(dm_start(:numbreakpt_total-1,:numsol-1,:n-1)) &
+            !$acc present(ds_start(:numbreakpt_total-1,:n-1)) &
+            !$acc present(sT_start(:n-1)) &
+            !$acc present(mT_start(:numsol-1,:n-1)) &
+            !$acc present(sT_ts) &
+            !$acc present(mT_ts) &
+            !$acc present(ds_ts) &
+            !$acc present(dm_ts) &
+            !$acc present(dC_ts) &
+            !$acc present(dW_ts) &
+            !$acc present(pQ_ts) &
+            !$acc present(mQ_ts) &
+            !$acc present(mR_ts) &
+            !$acc present(STcum_bot_start(:)) &
+            !$acc present(STcum_top_start(:))
+            STcum_top_start(0) = STcum_bot_start(0)
+            STcum_bot_start(0) = STcum_bot_start(0) + sT_init_ts(iT) * h
+            do jt_substep = 0, n_substeps - 1
+                !$acc loop independent
+                do jt = 0, timeseries_length - 1
+                    jt_s = jt * n_substeps +  jt_substep
+                    c = mod(N + jt_s - iT_s, N)
+
+                    STcum_top_start(jt_s+1) = STcum_bot_start(jt_s+1)
+                    STcum_bot_start(jt_s+1) = STcum_bot_start(jt_s+1) + sT_start(c) * h
 
 
-            do c = 0, N - 1
-                jt_s = mod(c + iT_s, N)
-                jt_substep = mod(jt_s, n_substeps)
-                jt = (jt_s-jt_substep) / n_substeps
-            ! Aggregate flux data from substep to timestep
+                    ! Get the timestep-averaged transit time distribution
+                    !carry = ((iT<max_age-1).and.(jt_substep<iT_substep)) ! This gives incorrect result with PGI compiler
+                    if ((iT<max_age-1).and.(jt_substep<iT_substep)) then
+                        carry = 1
+                    else
+                        carry = 0
+                    end if
 
+                    pQ_ts(iT+carry, jt, :) =    pQ_ts(iT+carry, jt, :) + pQ_aver(:, c) * norm
+                    mQ_ts(iT+carry, jt, :, :) = mQ_ts(iT+carry, jt, :, :) + mQ_aver(:, :, c) * norm
+                    mR_ts(iT+carry, jt, :) =    mR_ts(iT+carry, jt, :) + mR_aver(:, c) * norm
 
-                norm = 1.0 / n_substeps / n_substeps
-
-                ! Get the timestep-averaged transit time distribution
-                !carry = ((iT<max_age-1).and.(jt_substep<iT_substep)) ! This gives incorrect result with PGI compiler
-                if ((iT<max_age-1).and.(jt_substep<iT_substep)) then
-                    carry = 1
-                else
-                    carry = 0
-                end if
-
-                pQ_ts_iT(carry, jt, :) =    pQ_ts_iT(carry, jt, :) + pQ_aver(:, c) * norm
-                mQ_ts_iT(carry, jt, :, :) = mQ_ts_iT(carry, jt, :, :) + mQ_aver(:, :, c) * norm
-                mR_ts_iT(carry, jt, :) =    mR_ts_iT(carry, jt, :) + mR_aver(:, c) * norm
-
-                do iq = 0, numflux - 1
-                    if (Q_ts(iq, jt)>0) then
-                        dW_ts(:, iq, jt) = dW_ts(:, iq, jt) + fsQ_aver(:, iq, c) / Q_ts(iq, jt) * norm * dt
-                        do ic = component_index_list(iq), component_index_list(iq+1) - 1
-                            do ip = breakpt_index_list(ic), breakpt_index_list(ic+1) - 1
-                                dW_ts(ip, iq, jt) = dW_ts(ip, iq, jt) + fs_aver(ip, c) / Q_ts(iq, jt) * norm * dt
+                    do iq = 0, numflux - 1
+                        if (Q_ts(iq, jt)>0) then
+                            dW_ts(:, iq, jt) = dW_ts(:, iq, jt) + fsQ_aver(:, iq, c) / Q_ts(iq, jt) * norm * dt
+                            do ic = component_index_list(iq), component_index_list(iq+1) - 1
+                                do ip = breakpt_index_list(ic), breakpt_index_list(ic+1) - 1
+                                    dW_ts(ip, iq, jt) = dW_ts(ip, iq, jt) + fs_aver(ip, c) / Q_ts(iq, jt) * norm * dt
+                                enddo
                             enddo
+                            dC_ts(:, iq, :, jt) = dC_ts(:, iq, :, jt) &
+                                    + fmQ_aver(:, iq, :, c) / Q_ts(iq, jt) * norm * dt
+                            do ic = component_index_list(iq), component_index_list(iq+1) - 1
+                                do ip = breakpt_index_list(ic), breakpt_index_list(ic+1) - 1
+                                    dC_ts(ip, iq, :, jt) = dC_ts(ip, iq, :, jt) &
+                                            + fm_aver(ip, :, c) / Q_ts(iq, jt) * norm * dt
+                                enddo
+                            enddo
+                        end if
+                    enddo
+
+
+                    ! Extract substep state at timesteps
+                    ! age-ranked storage at the end of the timestep
+                    if (jt_substep==n_substeps-1) then
+                        sT_ts(iT,jt+1) = sT_ts(iT,jt+1) + sT_start(c) / n_substeps
+                        ! parameter sensitivity
+                        do ip = 0, numbreakpt_total - 1
+                            ds_ts(iT,jt+1, ip) = ds_ts(iT,jt+1, ip) + ds_start(ip, c) / n_substeps
                         enddo
-                        dC_ts(:, iq, :, jt) = dC_ts(:, iq, :, jt) &
-                                + fmQ_aver(:, iq, :, c) / Q_ts(iq, jt) * norm * dt
-                        do ic = component_index_list(iq), component_index_list(iq+1) - 1
-                            do ip = breakpt_index_list(ic), breakpt_index_list(ic+1) - 1
-                                dC_ts(ip, iq, :, jt) = dC_ts(ip, iq, :, jt) &
-                                        + fm_aver(ip, :, c) / Q_ts(iq, jt) * norm * dt
+                        ! Age-ranked solute mass
+                        do s = 0, numsol - 1
+                            mT_ts(iT,jt+1, s) = mT_ts(iT,jt+1, s) + mT_start( s, c) / n_substeps
+                            ! parameter sensitivity
+                            do ip = 0, numbreakpt_total - 1
+                                dm_ts(iT,jt+1, ip, s) = dm_ts(iT,jt+1, ip, s) + dm_start(ip, s, c) / n_substeps
                             enddo
                         enddo
                     end if
                 enddo
-
-
-                ! Extract substep state at timesteps
-                ! age-ranked storage at the end of the timestep
-                if (jt_substep==n_substeps-1) then
-                    sT_ts_iT(jt+1) = sT_ts_iT(jt+1) + sT_start(c) / n_substeps
-                    ! parameter sensitivity
-                    do ip = 0, numbreakpt_total - 1
-                        ds_ts_iT(jt+1, ip) = ds_ts_iT(jt+1, ip) + ds_start(ip, c) / n_substeps
-                    enddo
-                    ! Age-ranked solute mass
-                    do s = 0, numsol - 1
-                        mT_ts_iT(jt+1, s) = mT_ts_iT(jt+1, s) + mT_start( s, c) / n_substeps
-                        ! parameter sensitivity
-                        do ip = 0, numbreakpt_total - 1
-                            dm_ts_iT(jt+1, ip, s) = dm_ts_iT(jt+1, ip, s) + dm_start(ip, s, c) / n_substeps
-                        enddo
-                    enddo
-                end if
             enddo
-
-            if (iT<max_age-1) then
-                pQ_ts(iT:iT+1, :, :)    = pQ_ts(iT:iT+1, :, :)    + pQ_ts_iT
-                mQ_ts(iT:iT+1, :, :, :) = mQ_ts(iT:iT+1, :, :, :) + mQ_ts_iT
-                mR_ts(iT:iT+1, :, :)    = mR_ts(iT:iT+1, :, :)    + mR_ts_iT
-            else
-                pQ_ts(iT, :, :)    = pQ_ts(iT, :, :)    + pQ_ts_iT(0, :, :)
-                mQ_ts(iT, :, :, :) = mQ_ts(iT, :, :, :) + mQ_ts_iT(0, :, :, :)
-                mR_ts(iT, :, :)    = mR_ts(iT, :, :)    + mR_ts_iT(0, :, :)
-            end if
-            sT_ts(iT, :) = sT_ts(iT, :) + sT_ts_iT
-            mT_ts(iT, :, :) = mT_ts(iT, :, :) + mT_ts_iT
-            ds_ts(iT, :, :) = ds_ts(iT, :, :) + ds_ts_iT
-            dm_ts(iT, :, :, :) = dm_ts(iT, :, :, :) + dm_ts_iT
-
+            !$acc end kernels
 
             !call f_debug('sT_ts(iT, :)     ', sT_ts(iT, :))
             !call f_debug('pQ_aver0         ', pQ_aver(0,:))
@@ -746,9 +716,20 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             iT_prev = iT
 
         enddo
+    enddo
+    !$acc update self(sT_ts)
+    !$acc update self(mT_ts)
+    !$acc update self(ds_ts)
+    !$acc update self(dm_ts)
+    !$acc update self(dC_ts)
+    !$acc update self(dW_ts)
+    !$acc update self(pQ_ts)
+    !$acc update self(mQ_ts)
+    !$acc update self(mR_ts)
 
-        ! Calculate a water balance
-        ! Difference of starting and ending age-ranked storage
+    ! Calculate a water balance
+    ! Difference of starting and ending age-ranked storage
+    do iT = 0, max_age - 1
         do jt = 0, timeseries_length - 1
             if (iT==0) then
                 WaterBalance_ts(iT, jt) = J_ts(jt) - sT_ts(iT, jt+1)
