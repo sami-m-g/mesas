@@ -381,9 +381,10 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, Q.T, SAS_lookup, P_list, weights.T, sT_init, dt,
-            verbose, debug, warning, jacobian,
-            mT_init, C_J.T, alpha.T, k1.T, C_eq.T, C_old,
+            J, np.asfortranarray(Q.T), np.asfortranarray(SAS_lookup), np.asfortranarray(P_list), np.asfortranarray(weights.T),
+            sT_init, dt, verbose, debug, warning, jacobian,
+            mT_init, np.asfortranarray(C_J.T), np.asfortranarray(np.moveaxis(alpha,0,2)), np.asfortranarray(k1.T),
+            np.asfortranarray(C_eq.T), C_old,
             n_substeps, nC_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nP_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 

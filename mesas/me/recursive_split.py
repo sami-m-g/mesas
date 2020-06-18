@@ -125,7 +125,7 @@ def lookfor_new_components(initial_model, initial_rmse, new_components, segment_
                         _verbose(new_model)
                         rmse_change = np.mean(new_rmse - initial_rmse)
                         rmse_pvalue = ttest_rel(new_rmse, initial_rmse).pvalue
-                        subdivision_accepted = rmse_pvalue<0.9 and rmse_change<0
+                        subdivision_accepted = rmse_pvalue<0.95 and rmse_change<0
 
                         _verbose(f'Initial rmse = {initial_rmse}')
                         _verbose(f'Candidate rmse     = {new_rmse}')

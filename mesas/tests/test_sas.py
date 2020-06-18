@@ -11,15 +11,16 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
-N = 500
-dt = 0.001
+fac = 1
+N = int(128*fac)
+dt = 0.01
 Q_0 = 1.0/N / dt  # <-- steady-state flow rate
 C_J = 1000.
 C_old = 2000.
-S_0 = 10
+S_0 = 20
 S_m = 0.601/N
 eps = 0.000000001
-n_substeps=5
+n_substeps=int(16/fac)
 n_segment=5
 fQ=0.3
 fc=0.1
@@ -40,7 +41,7 @@ print(f'fc = {fc}')
 print(f'jacobian = {jacobian}')
 
 
-def steady_run(N, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=10, n_segment=1):
+def steady_run(N, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=n_substeps, n_segment=n_segment):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(N) * Q_0
     data_df['J'] = np.ones(N) * Q_0
@@ -55,7 +56,7 @@ def steady_run(N, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=10, n_segment
     model.run()
     return model
 
-def steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0., n_substeps=10, fQ=0.1, fc=fc, n_segment = 5):
+def steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0., n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment = n_segment):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(N) * Q_0 * fQ
     data_df['Q2'] = np.ones(N) * Q_0 * (1-fQ)
@@ -112,8 +113,8 @@ def test_steady_uniform(benchmark):
     mTdisc = np.c_[np.zeros(N), mTdisc]
     mTdisc = np.array([mTdisc.T]).T
 
-    model = benchmark(steady_run, N, dt, Q_0, S_0, C_J)
-    #model = steady_run(N, dt, Q_0, S_0, C_J)
+    model = benchmark(steady_run, N, dt, Q_0, S_0, C_J, n_segment=1)
+    #model = steady_run(N, dt, Q_0, S_0, C_J, n_segment=1)
     rdf = model.result
 
     def printcheck(rdf, varstr, analy):
@@ -165,7 +166,7 @@ def test_steady_uniform(benchmark):
         dmTdSjdisc = np.array([dmTdSjdisc.T]).T
         dCQdSjdisc = np.array([[dCQdSjdisc]]).T
 
-        model2 = steady_run(N, dt, Q_0, S_0, C_J, j=1)
+        model2 = steady_run(N, dt, Q_0, S_0, C_J, j=1, n_segment=1)
         rdf2 = model2.result
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookup2, _, _, _, _, _, _ = model2._create_sas_lookup()
@@ -253,7 +254,7 @@ def notest_steady_piston_uniform():
     dCQdSmdisc = np.array([[dCQdSmdisc]]).T
 
 
-    model = steady_run(N, dt, Q_0, S_0, C_J, ST_min=S_m, n_substeps=n_substeps)
+    model = steady_run(N, dt, Q_0, S_0, C_J, ST_min=S_m, n_segment=1)
     rdf = model.result
 
     def printcheck(rdfi, varstr, analy):
@@ -313,7 +314,7 @@ def notest_steady_piston_uniform():
                 print('')
                 raise
 
-        model0 = steady_run(N, dt, Q_0, S_0, C_J, j=1, ST_min=S_m, n_substeps=n_substeps)
+        model0 = steady_run(N, dt, Q_0, S_0, C_J, j=1, ST_min=S_m)
         rdf0 = model0.result
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookup0, _, _, _, _, _, _ = model0._create_sas_lookup()
@@ -324,7 +325,7 @@ def notest_steady_piston_uniform():
         printcheck(rdf, rdf0, 'dmTdSj', 'mT', dmTdSjdisc, j)
         printcheck(rdf, rdf0, 'dCdSj', 'C_Q', dCQdSjdisc, j)
 
-        modelm = steady_run(N, dt, Q_0, S_0, C_J, j=0, ST_min=S_m, n_substeps=n_substeps)
+        modelm = steady_run(N, dt, Q_0, S_0, C_J, j=0, ST_min=S_m)
         rdfm = modelm.result
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookupm, _, _, _, _, _, _ = modelm._create_sas_lookup()

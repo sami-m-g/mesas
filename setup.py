@@ -34,6 +34,7 @@ config = {
 }
 #extra_f90_compile_args=["-Ofast", '-fno-stack-arrays'],
 #extra_f90_compile_args=["-fast", '-acc', '-Minfo', '-Mvect=levels:10', '-ta=tesla:cc35'],
+#extra_f90_compile_args=["-fast", '-acc', '-Minfo', '-ta=multicore'],
 #extra_link_args=['-acc'],
 #extra_f90_compile_args=["-fbacktrace", '-fcheck=all'],
 

@@ -18,8 +18,8 @@ J_max = 1.0 / dt  # <-- steady-state flow rate
 C_J = 1000.
 C_std = 500.
 C_old = C_J
-N = 100
-burn = int(N*0.5)
+N = 500
+burn = 0 #int(N*0.5)
 ST_min1 = 0.
 ST_max1 = 5.
 ST_min21 = 3.
@@ -68,7 +68,7 @@ def create_true(iq=None, ic=None, j=None):
             'observations': ['Q1', 'Q2']
         }
     }
-    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=True, dt=dt, n_substeps=n_substeps)
+    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=True, dt=dt, n_substeps=n_substeps, jacobian=False)
     model.run()
     data_df['Ca Q1'] = model.result['C_Q'][:,0,0]
     data_df['Ca Q2'] = model.result['C_Q'][:,1,0]
@@ -78,12 +78,11 @@ def create_true(iq=None, ic=None, j=None):
 
 true_model, data_df = create_true()
 
-plt.subplot2grid((1,2), (0,0))
-plt.plot(data_df['J'], label='J', alpha=0.5)
-plt.plot(data_df['Q1'], label='Q1')
-plt.plot(data_df['Q2'], label='Q2')
+axP = plt.subplot2grid((1,2), (0,0))
+true_model.sas_blends['Q1'].plot(ax=axP)
+true_model.sas_blends['Q2'].plot(ax=axP)
 
-plt.subplot2grid((1,2), (0,1))
+axC = plt.subplot2grid((1,2), (0,1))
 plt.plot(data_df['Ca'], label='Ca', alpha=0.5)
 plt.plot(data_df['Ca Q1'], label='Ca Q1')
 plt.plot(data_df['Ca Q2'], label='Ca Q2')
@@ -105,8 +104,14 @@ solute_parameters = {
 }
 inv_model = Model(data_df, sas_blends, solute_parameters,
                   debug=False, verbose=False,
-                  dt=dt, n_substeps=n_substeps, ST_largest_segment=1000.)
+                  dt=dt, n_substeps=n_substeps, ST_largest_segment=1000., jacobian=True)
 
 # Run the recursive_split algorithm
 from mesas.me.recursive_split import run as recursive_split
-recursive_split(inv_model, n_splits=5, search_mode='scanning')
+can_model = recursive_split(inv_model, n_splits=5, search_mode='scanning')
+
+axC.plot(data_df.index, can_model.result['C_Q'][:,0,0], '--', label='Ca Q1 pred')
+axC.plot(data_df.index, can_model.result['C_Q'][:,1,0], '--', label='Ca Q2 pred')
+
+can_model.sas_blends['Q1'].plot(ax=axP, ls='--')
+can_model.sas_blends['Q2'].plot(ax=axP, ls='--')

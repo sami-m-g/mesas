@@ -92,6 +92,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     integer :: i
     real(8) :: dif, grad
     logical :: foundit
+    real :: start, finish, finish2
 
     !call f_verbose('...Initializing arrays...')
     one8 = 1.0
@@ -243,7 +244,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
         do iT_substep = 0, n_substeps - 1
 
             iT_s = iT * n_substeps +  iT_substep
-
+            call cpu_time(start)
             !$acc kernels loop &
             !$acc present(component_index_list(:numflux)) &
             !$acc present(rk_coeff(:5)) &
@@ -480,7 +481,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                             fsQ_temp(:, :, c) = 0.
                             if (sT_temp( c)>0) then
                                 do iq = 0, numflux - 1
-                                    fsQ_temp(:, iq, c) = fsQ_temp(:, iq, c) + ds_temp(:, c) * pQ_temp(iq, c) * Q_ts(iq, jt) / sT_temp(c)
+                                    fsQ_temp(:, iq, c) = fsQ_temp(:, iq, c) &
+                                            + ds_temp(:, c) * pQ_temp(iq, c) * Q_ts(iq, jt) / sT_temp(c)
                                 end do
                             end if
                             do iq = 0, numflux - 1
@@ -539,7 +541,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                                 do ip = 0, numbreakpt_total - 1
                                     if (sT_temp(c)>0) then
                                         fmQ_temp(ip, iq, :, c) = fmQ_temp(ip, iq, :, c) &
-                                                + dm_temp(ip, :, c) * alpha_ts(iq,:, jt) * Q_ts(iq, jt) * pQ_temp(iq, c) / sT_temp(c)
+                                                + dm_temp(ip, :, c) * alpha_ts(iq,:, jt) * Q_ts(iq, jt) &
+                                                        * pQ_temp(iq, c) / sT_temp(c)
                                     end if
                                     fmR_temp(ip, :, c) = fmR_temp(ip, :, c) &
                                             + k1_ts(:, jt) * (C_eq_ts(:, jt) * ds_temp(ip, c) - dm_temp(ip, :, c))
@@ -634,7 +637,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     dm_start(:, :, c) = dm_temp(:, :, c)
                 end if
             end do
-
+            call cpu_time(finish)
+            !print '("Calc time for ",i6," steps = ",f6.3," milliseconds.")',N,1000*(finish-start)
             ! Aggregate data from substep to timestep
             !$acc kernels &
             !$acc present(fmR_aver(:numbreakpt_total-1,:numsol-1,:n-1)) &
@@ -739,6 +743,9 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
 
             iT_prev = iT
 
+            call cpu_time(finish2)
+            !print '("Stor time for ",i6," steps = ",f6.3," milliseconds.")',N,1000*(finish2-finish)
+
         enddo
     enddo
     !$acc update self(sT_ts)
@@ -841,9 +848,9 @@ contains
         !implicit none
         !!$acc routine seq
         !character(len = *), intent(in) :: debugstring
-        !real(8), dimension(:), intent(in) :: debugdblepr
+        !real(8), dimension(:), intent(in) :: diebugdblepr
         !if (debug) then
-            !print 1, debugstring, debugdblepr
+            !print 1, debugstring, diebugdblepr
             !1 format (A26, *(f16.10))
         !endif
     !end subroutine f_debug
