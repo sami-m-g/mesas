@@ -11,7 +11,7 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
-timeseries_length = 500
+timeseries_length =  50
 max_age = 10 #timeseries_length
 dt = 0.01
 Q_0 = 1.0/timeseries_length / dt  # <-- steady-state flow rate
@@ -203,7 +203,7 @@ def test_steady_uniform(benchmark):
         printcheck(rdf, rdf2, 'dmTdSj', 'mT', dmTdSjdisc)
         printcheck(rdf, rdf2, 'dCdSj', 'C_Q', dCQdSjdisc)
 
-def notest_steady_piston_uniform():
+def test_steady_piston_uniform():
     print('running test_steady_piston_uniform')
 
     n = np.arange(timeseries_length)
@@ -343,7 +343,7 @@ def notest_steady_piston_uniform():
         printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
         printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
 
-def notest_multiple():
+def test_multiple():
     print('running test_multiple')
 
     n = np.arange(timeseries_length)

@@ -523,9 +523,9 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     !$acc end kernels
                     call cpu_time(finish)
                     runtime(14) = runtime(14) + 1000*(finish-start)
-                    do topbot = 1, 2
+                    do topbot = 0, 1
                         ! Main lookup loop
-                        if (topbot==1) then
+                        if (topbot==0) then
                             call cpu_time(start)
                             !$acc kernels
                             !$acc loop independent
@@ -547,39 +547,37 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                             runtime(16) = runtime(16) + 1000*(finish-start)
                         end if
                         call cpu_time(start)
-                        !$acc kernels
                         do iq = 0, numflux - 1
                             do ic = component_index_list(iq), component_index_list(iq+1) - 1
+                                !$acc kernels
                                 !$acc loop independent
                                 do c = 0, N - 1
-                                    jt_this = jt(c)!min(timeseries_length - 1, jt)
-                                    if (STcum_in(c).le.SAS_lookup( jt_this, breakpt_index_list(ic))) then
-                                        if (topbot==1) then
-                                            PQcum_component = P_list( jt_this, breakpt_index_list(ic))
-                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt_this, ic) * PQcum_component
+                                    if (STcum_in(c).le.SAS_lookup( jt(c), breakpt_index_list(ic))) then
+                                        if (topbot==0) then
+                                            PQcum_component = P_list( jt(c), breakpt_index_list(ic))
+                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
                                             leftbreakpt_top(c, ic) = -1
                                         else
-                                            PQcum_component = P_list( jt_this, breakpt_index_list(ic))
-                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt_this, ic) * PQcum_component
+                                            PQcum_component = P_list( jt(c), breakpt_index_list(ic))
+                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
                                             leftbreakpt_bot(c, ic) = -1
                                         end if
-                                    else if (STcum_in(c).ge.SAS_lookup( jt_this, breakpt_index_list(ic + 1) - 1)) then
-                                        if (topbot==1) then
-                                            PQcum_component = P_list( jt_this, breakpt_index_list(ic + 1) - 1)
-                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt_this, ic) * PQcum_component
-                                            leftbreakpt_top(c, ic) = numbreakpt_list(ic) - 1
-                                        else
-                                            PQcum_component = P_list( jt_this, breakpt_index_list(ic + 1) - 1)
-                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt_this, ic) * PQcum_component
-                                            leftbreakpt_bot(c, ic) = numbreakpt_list(ic) - 1
-                                        end if
+                                    !else if (STcum_in(c).ge.SAS_lookup( jt(c), breakpt_index_list(ic + 1) - 1)) then
+                                    !    if (topbot==0) then
+                                    !        PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
+                                    !        PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                    !        leftbreakpt_top(c, ic) = numbreakpt_list(ic) - 1
+                                    !    else
+                                    !        PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
+                                    !        PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                    !        leftbreakpt_bot(c, ic) = numbreakpt_list(ic) - 1
+                                    !    end if
                                     else
                                         na = numbreakpt_list(ic)
                                         ia = 0
                                         foundit = .FALSE.
-                                        !$acc loop seq
                                         do i = 0, na - 1
-                                            if (STcum_in(c).lt.SAS_lookup( jt_this, breakpt_index_list(ic) + i)) then
+                                            if (STcum_in(c).lt.SAS_lookup( jt(c), breakpt_index_list(ic) + i)) then
                                                 ia = i - 1
                                                 foundit = .TRUE.
                                                 exit
@@ -587,28 +585,28 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                                         enddo
                                         if (.not. foundit) then
                                             !call f_warning('I could not find the ST value. This should never happen!!!')
-                                            PQcum_component = P_list( jt_this, breakpt_index_list(ic + 1) - 1)
+                                            PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
                                             ia = na - 1
                                         else
-                                            dif = STcum_in(c) - SAS_lookup( jt_this, breakpt_index_list(ic) + ia)
-                                            grad = (P_list( jt_this, breakpt_index_list(ic) + ia + 1) &
-                                            - P_list( jt_this, breakpt_index_list(ic) + ia)) &
-                                            / (SAS_lookup( jt_this, breakpt_index_list(ic) + ia + 1) &
-                                            - SAS_lookup( jt_this, breakpt_index_list(ic) + ia))
-                                            PQcum_component = P_list( jt_this, breakpt_index_list(ic) + ia) + dif * grad
+                                            dif = STcum_in(c) - SAS_lookup( jt(c), breakpt_index_list(ic) + ia)
+                                            grad = (P_list( jt(c), breakpt_index_list(ic) + ia + 1) &
+                                            - P_list( jt(c), breakpt_index_list(ic) + ia)) &
+                                            / (SAS_lookup( jt(c), breakpt_index_list(ic) + ia + 1) &
+                                            - SAS_lookup( jt(c), breakpt_index_list(ic) + ia))
+                                            PQcum_component = P_list( jt(c), breakpt_index_list(ic) + ia) + dif * grad
                                         endif
-                                        if (topbot==1) then
-                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt_this, ic) * PQcum_component
+                                        if (topbot==0) then
+                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
                                             leftbreakpt_top(c, ic) = ia
                                         else
-                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt_this, ic) * PQcum_component
+                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
                                             leftbreakpt_bot(c, ic) = ia
                                         end if
                                     endif
                                 enddo
+                                !$acc end kernels
                             enddo
                         end do
-                        !$acc end kernels
                         call cpu_time(finish)
                         runtime(17) = runtime(17) + 1000*(finish-start)
                     end do
