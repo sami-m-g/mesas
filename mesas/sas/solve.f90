@@ -96,6 +96,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     logical :: foundit
     real(8) :: start, finish
     real(8), dimension(37) :: runtime
+    runtime = 0.
 
     !call f_verbose('...Initializing arrays...')
     one8 = 1.0
@@ -255,6 +256,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
 
             call cpu_time(start)
             !$acc kernels
+            !$acc loop independent
             do c = 0, N - 1
                 jt_s(c) = mod(c + iT_s, N)
                 jt_substep = mod(jt_s(c), n_substeps)
@@ -274,8 +276,18 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 sT_start(N - iT_s) = sT_init_ts(iT_prev)
                 mT_start(N - iT_s, :) = mT_init_ts(iT_prev, :)
             end if
-            sT_temp = sT_start
-            mT_temp = mT_start
+
+            !$acc loop independent
+            do c = 0, N - 1
+                sT_temp(c) = sT_start(c)
+            end do
+            !$acc loop independent
+            do s = 0, numsol - 1
+                !$acc loop independent
+                do c = 0, N - 1
+                    mT_temp(c, s) = mT_start(c, s)
+                end do
+            end do
 
             !$acc end kernels
             call cpu_time(finish)
@@ -303,8 +315,23 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 end if
                 call cpu_time(start)
                 !$acc kernels
-                ds_temp = ds_start
-                dm_temp = dm_start
+                !$acc loop independent
+                do ip = 0, numbreakpt_total - 1
+                    !$acc loop independent
+                    do c = 0, N - 1
+                        ds_temp(c, ip) = ds_start(c, ip)
+                    end do
+                end do
+                !$acc loop independent
+                do s = 0, numsol - 1
+                    !$acc loop independent
+                    do ip = 0, numbreakpt_total - 1
+                        !$acc loop independent
+                        do c = 0, N - 1
+                            dm_temp(c, ip, s) = dm_start(c, ip, s)
+                        end do
+                    end do
+                end do
                 !$acc end kernels
                 call cpu_time(finish)
                 runtime(5) = runtime(5) + 1000*(finish-start)
@@ -326,8 +353,17 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 ! Calculate the new age-ranked storage
                 call cpu_time(start)
                 !$acc kernels
-                sT_temp = sT_start ! Initial value
-                mT_temp = mT_start + mR_temp * hr ! Initial value + reaction
+                !$acc loop independent
+                do c = 0, N - 1
+                    sT_temp(c) = sT_start(c) ! Initial value
+                end do
+                !$acc loop independent
+                do s = 0, numsol - 1
+                    !$acc loop independent
+                    do c = 0, N - 1
+                        mT_temp(c, s) = mT_start(c, s) + mR_temp(c, s) * hr ! Initial value + reaction
+                    end do
+                end do
                 !$acc end kernels
                 call cpu_time(finish)
                 runtime(6) = runtime(6) + 1000*(finish-start)
@@ -337,9 +373,16 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 if (iT_s == 0) then
                     call cpu_time(start)
                     !$acc kernels
+                    !$acc loop independent
                     do c = 0, N - 1
                         sT_temp(c) = sT_temp(c) + J_ts(jt(c)) * hr / h
-                        mT_temp(c, :) = mT_temp(c, :) + J_ts(jt(c)) * C_J_ts(jt(c), :) * (hr/h)
+                    end do
+                    !$acc loop independent
+                    do s = 0, numsol - 1
+                        !$acc loop independent
+                        do c = 0, N - 1
+                            mT_temp(c, s) = mT_temp(c, s) + J_ts(jt(c)) * C_J_ts(jt(c), s) * (hr/h)
+                        end do
                     end do
                     !$acc end kernels
                     call f_debug('sT_temp 2              ', sT_temp(:))
@@ -348,15 +391,25 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 end if
                 call cpu_time(start)
                 !$acc kernels
+                !$acc loop independent
                 do iq = 0, numflux - 1
                     !$acc loop independent
                     do c = 0, N - 1
                         sT_temp(c) = sT_temp(c) - Q_ts(jt(c), iq) * pQ_temp(c, iq) * hr
+                        !if (sT_temp(c)<0) then
+                            !call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
+                        !end if
                     end do
-                    !if (sT_temp(c)<0) then
-                        !call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
-                    !end if
-                    mT_temp = mT_temp - mQ_temp( :, iq, :) * hr
+                end do
+                !$acc loop independent
+                do s = 0, numsol - 1
+                    !$acc loop independent
+                    do iq = 0, numflux - 1
+                        !$acc loop independent
+                        do c = 0, N - 1
+                            mT_temp(c, s) = mT_temp(c, s) - mQ_temp( c, iq, s) * hr
+                        end do
+                    end do
                 end do
                 !$acc end kernels
                 call cpu_time(finish)
@@ -364,23 +417,52 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 call f_debug('sT_temp 3              ', sT_temp(:))
                 if (jacobian) then
                     ! Calculate new parameter sensitivity
+                    call cpu_time(start)
+                    !$acc kernels
+                    !$acc loop independent
                     do iq = 0, numflux - 1
-                        call cpu_time(start)
-                        !$acc kernels
-                        !$acc loop private(fsQ_temp, fmQ_temp)
-                        do c = 0, N - 1
-                            ds_temp(c, :) = ds_start(c, :) - fsQ_temp(c, :, iq) * hr
-                            dm_temp(c, :, :) = dm_start(c, :, :) - fmQ_temp(c, :, iq, :) * hr
+                        !$acc loop independent
+                        do ip = 0, numbreakpt_total - 1
+                            !$acc loop independent
+                            do c = 0, N - 1
+                                ds_temp(c, ip) = ds_start(c, ip) - fsQ_temp(c, ip, iq) * hr
+                            end do
                         end do
-                        !$acc end kernels
                     end do
+                    !$acc loop independent
+                    do s = 0, numsol - 1
+                        !$acc loop independent
+                        do iq = 0, numflux - 1
+                            !$acc loop independent
+                            do ip = 0, numbreakpt_total - 1
+                                !$acc loop independent
+                                do c = 0, N - 1
+                                    dm_temp(c, ip, s) = dm_start(c, ip, s) - fmQ_temp(c, ip, iq, s) * hr
+                                end do
+                            end do
+                        end do
+                    end do
+                    !$acc end kernels
                     call cpu_time(finish)
                     runtime(9) = runtime(9) + 1000*(finish-start)
                     call cpu_time(start)
                     !$acc kernels
-                    do c = 0, N - 1
-                        ds_temp(c, :) = ds_temp(c, :) - fs_temp(c, :) * hr
-                        dm_temp(c, :, :) = dm_temp(c, :, :) - fm_temp(c, :, :) * hr - fmR_temp(c, :, :) * hr
+                    !$acc loop independent
+                    do ip = 0, numbreakpt_total - 1
+                        !$acc loop independent
+                        do c = 0, N - 1
+                            ds_temp(c, ip) = ds_temp(c, ip) - fs_temp(c, ip) * hr
+                        end do
+                    end do
+                    !$acc loop independent
+                    do s = 0, numsol - 1
+                        !$acc loop independent
+                        do ip = 0, numbreakpt_total - 1
+                            !$acc loop independent
+                            do c = 0, N - 1
+                                dm_temp(c, ip, s) = dm_temp(c, ip, s) - fm_temp(c, ip, s) * hr - fmR_temp(c, ip, s) * hr
+                            end do
+                        end do
                     end do
                     !$acc end kernels
                     call cpu_time(finish)
@@ -414,17 +496,21 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                         call cpu_time(start)
                         !$acc kernels
                         STcum_top = 0
-                        STcum_bot = STcum_top + sT_temp * hr
+                        !$acc loop independent
+                        do c = 0, N - 1
+                            STcum_bot(c) = STcum_top(c) + sT_temp(c) * hr
+                        end do
                         !$acc end kernels
                         call cpu_time(finish)
                         runtime(12) = runtime(12) + 1000*(finish-start)
                     else
                         call cpu_time(start)
                         !$acc kernels
+                        !$acc loop independent
                         do c = 0, N - 1
                             STcum_top(c) = STcum_top_start(jt_s(c)) * (1-hr/h) + STcum_bot_start(jt_s(c)+1) * (hr/h)
+                            STcum_bot(c) = STcum_top(c) + sT_temp(c) * h
                         end do
-                        STcum_bot = STcum_top + sT_temp * h
                         !$acc end kernels
                         call cpu_time(finish)
                         runtime(13) = runtime(13) + 1000*(finish-start)
@@ -442,14 +528,20 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                         if (topbot==1) then
                             call cpu_time(start)
                             !$acc kernels
-                            STcum_in = STcum_top
+                            !$acc loop independent
+                            do c = 0, N - 1
+                                STcum_in(c) = STcum_top(c)
+                            end do
                             !$acc end kernels
                             call cpu_time(finish)
                             runtime(15) = runtime(15) + 1000*(finish-start)
                         else
                             call cpu_time(start)
                             !$acc kernels
-                            STcum_in = STcum_bot
+                            !$acc loop independent
+                            do c = 0, N - 1
+                            STcum_in(c) = STcum_bot(c)
+                            end do
                             !$acc end kernels
                             call cpu_time(finish)
                             runtime(16) = runtime(16) + 1000*(finish-start)
@@ -485,6 +577,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                                         na = numbreakpt_list(ic)
                                         ia = 0
                                         foundit = .FALSE.
+                                        !$acc loop seq
                                         do i = 0, na - 1
                                             if (STcum_in(c).lt.SAS_lookup( jt_this, breakpt_index_list(ic) + i)) then
                                                 ia = i - 1
@@ -523,14 +616,26 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     if (iT_s==0) then
                         call cpu_time(start)
                         !$acc kernels
-                        pQ_temp = (PQcum_bot - PQcum_top) / hr
+                        !$acc loop independent
+                        do iq = 0, numflux - 1
+                            !$acc loop independent
+                            do c = 0, N - 1
+                                pQ_temp(c, iq) = (PQcum_bot(c, iq) - PQcum_top(c, iq)) / hr
+                            end do
+                        end do
                         !$acc end kernels
                         call cpu_time(finish)
                         runtime(18) = runtime(18) + 1000*(finish-start)
                     else
                         call cpu_time(start)
                         !$acc kernels
-                        pQ_temp = (PQcum_bot - PQcum_top) / h
+                        !$acc loop independent
+                        do iq = 0, numflux - 1
+                            !$acc loop independent
+                            do c = 0, N - 1
+                                pQ_temp(c, iq) = (PQcum_bot(c, iq) - PQcum_top(c, iq)) / h
+                            end do
+                        end do
                         !$acc end kernels
                         call cpu_time(finish)
                         runtime(19) = runtime(19) + 1000*(finish-start)
@@ -606,9 +711,9 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     call cpu_time(finish)
                     runtime(24) = runtime(24) + 1000*(finish-start)
                     call cpu_time(start)
-                    !$acc kernels
                     do iq = 0, numflux - 1
                         do ic = component_index_list(iq), component_index_list(iq+1) - 1
+                            !$acc kernels
                             !$acc loop independent
                             do c = 0, N - 1
                                 ! sensitivity to point before the start
@@ -658,9 +763,9 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                                     end do
                                 end if
                             end do
+                            !$acc end kernels
                         end do
                     end do
-                    !$acc end kernels
                     call cpu_time(finish)
                     runtime(25) = runtime(25) + 1000*(finish-start)
                     call cpu_time(start)
@@ -670,33 +775,46 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     !$acc end kernels
                     call cpu_time(finish)
                     runtime(26) = runtime(26) + 1000*(finish-start)
-                    do iq = 0, numflux - 1
-                        do ip = 0, numbreakpt_total - 1
-                            call cpu_time(start)
-                            !$acc kernels
+                    call cpu_time(start)
+                    !$acc kernels
+                    !$acc loop independent
+                    do s = 0, numsol - 1
+                        !$acc loop independent
+                        do iq = 0, numflux - 1
                             !$acc loop independent
-                            do c = 0, N - 1
-                                do s = 0, numsol - 1
+                            do ip = 0, numbreakpt_total - 1
+                                !$acc loop independent
+                                do c = 0, N - 1
                                     if (sT_temp(c)>0) then
                                         fmQ_temp(c, ip, iq, s) = fmQ_temp(c, ip, iq, s) &
                                             + dm_temp(c, ip, s) * alpha_ts(jt(c), iq,s) * Q_ts(jt(c), iq) &
                                             * pQ_temp(c, iq) / sT_temp(c)
                                     end if
-                                    fmR_temp(c, ip, s) = fmR_temp(c, ip, s) &
-                                        + k1_ts(jt(c), s) * (C_eq_ts(jt(c), s) * ds_temp(c, ip) - dm_temp(c, ip, s))
                                 end do
                             end do
-                            !$acc end kernels
-                            call cpu_time(finish)
-                            runtime(27) = runtime(27) + 1000*(finish-start)
                         end do
                     end do
-                    call cpu_time(start)
-                    !$acc kernels
                     !$acc loop independent
-                    do c = 0, N - 1
-                        do iq = 0, numflux - 1
-                            do ic = component_index_list(iq), component_index_list(iq+1) - 1
+                    do s = 0, numsol - 1
+                        !$acc loop independent
+                        do ip = 0, numbreakpt_total - 1
+                            !$acc loop independent
+                            do c = 0, N - 1
+                                fmR_temp(c, ip, s) = fmR_temp(c, ip, s) &
+                                    + k1_ts(jt(c), s) * (C_eq_ts(jt(c), s) * ds_temp(c, ip) - dm_temp(c, ip, s))
+                            end do
+                        end do
+                    end do
+                    !$acc end kernels
+                    call cpu_time(finish)
+                    runtime(27) = runtime(27) + 1000*(finish-start)
+                    call cpu_time(start)
+                    !$acc loop independent
+                    do iq = 0, numflux - 1
+                        do ic = component_index_list(iq), component_index_list(iq+1) - 1
+                            !$acc kernels
+                            !$acc loop independent
+                            do c = 0, N - 1
                             ! sensitivity to point before the start
                                 if ((leftbreakpt_top(c, ic)>=0).and.(leftbreakpt_top(c, ic)<numbreakpt_list(ic)-1)) then
                                     ip = breakpt_index_list(ic) + leftbreakpt_top(c, ic)
@@ -739,19 +857,40 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                                     end do
                                 end if
                             end do
+                            !$acc end kernels
+                            call cpu_time(finish)
+                            runtime(28) = runtime(28) + 1000*(finish-start)
                         end do
                     end do
-                    !$acc end kernels
-                    call cpu_time(finish)
-                    runtime(28) = runtime(28) + 1000*(finish-start)
                 end if
                 ! ########################## ^^ GET FLUX ^^ ##########################
 
                 call cpu_time(start)
                 !$acc kernels
-                pQ_aver  = pQ_aver  + rk_coeff(rk) * pQ_temp
-                mQ_aver  = mQ_aver  + rk_coeff(rk) * mQ_temp
-                mR_aver  = mR_aver  + rk_coeff(rk) * mR_temp
+                !$acc loop independent
+                do iq = 0, numflux - 1
+                    !$acc loop independent
+                    do c = 0, N - 1
+                        pQ_aver(c, iq)  = pQ_aver(c, iq)  + rk_coeff(rk) * pQ_temp(c, iq)
+                    end do
+                end do
+                !$acc loop independent
+                do s = 0, numsol - 1
+                    !$acc loop independent
+                    do iq = 0, numflux - 1
+                        !$acc loop independent
+                        do c = 0, N - 1
+                            mQ_aver(c, iq, s)  = mQ_aver(c, iq, s)  + rk_coeff(rk) * mQ_temp(c, iq, s)
+                        end do
+                    end do
+                end do
+                !$acc loop independent
+                do s = 0, numsol - 1
+                    !$acc loop independent
+                    do c = 0, N - 1
+                        mR_aver(c, s)  = mR_aver(c, s)  + rk_coeff(rk) * mR_temp(c, s)
+                    end do
+                end do
                 !$acc end kernels
                 call cpu_time(finish)
                 runtime(29) = runtime(29) + 1000*(finish-start)
@@ -759,20 +898,41 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     call cpu_time(start)
                     !$acc kernels
                     !$acc loop independent
-                    do c = 0, N - 1
+                    do ip = 0, numbreakpt_total - 1
+                        !$acc loop independent
+                        do c = 0, N - 1
+                            fs_aver  (c, ip)= fs_aver(c, ip)+ rk_coeff(rk) * fs_temp(c, ip)
+                        end do
+                    end do
+                    !$acc loop independent
+                    do iq = 0, numflux - 1
                         !$acc loop independent
                         do ip = 0, numbreakpt_total - 1
-                            fs_aver  (c, ip)= fs_aver(c, ip)+ rk_coeff(rk) * fs_temp(c, ip)
                             !$acc loop independent
-                            do iq = 0, numflux - 1
+                            do c = 0, N - 1
                                 fsQ_aver (c, ip, iq)= fsQ_aver(c, ip, iq)+ rk_coeff(rk) * fsQ_temp(c, ip, iq)
                             end do
+                        end do
+                    end do
+                    !$acc loop independent
+                    do s = 0, numsol - 1
+                        !$acc loop independent
+                        do ip = 0, numbreakpt_total - 1
                             !$acc loop independent
-                            do s = 0, numsol - 1
+                            do c = 0, N - 1
                                 fm_aver  (c, ip, s)= fm_aver(c, ip, s)+ rk_coeff(rk) * fm_temp(c, ip, s)
                                 fmR_aver (c, ip, s)= fmR_aver(c, ip, s)+ rk_coeff(rk) * fmR_temp(c, ip, s)
+                            end do
+                        end do
+                    end do
+                    !$acc loop independent
+                    do s = 0, numsol - 1
+                        !$acc loop independent
+                        do iq = 0, numflux - 1
+                            !$acc loop independent
+                            do ip = 0, numbreakpt_total - 1
                                 !$acc loop independent
-                                do iq = 0, numflux - 1
+                                do c = 0, N - 1
                                     fmQ_aver (c, ip, iq, s)= fmQ_aver(c, ip, iq, s)+ rk_coeff(rk) * fmQ_temp(c, ip, iq, s)
                                 end do
                             end do
@@ -965,7 +1125,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     call cpu_time(finish)
     runtime(37) = runtime(37) + 1000*(finish-start)
     do i = 1, 37
-        print '("Time for section ",i2," = :",f8.0,": milliseconds")', i, runtime(i)
+        print '("Time for section ",i2," = :",f10.0,": milliseconds")', i, runtime(i)
     end do
 
     ! Calculate a water balance
