@@ -28,8 +28,7 @@ config = {
     'name': 'mesas',
     'ext_modules': [Extension(name='solve', sources=[util.convert_path('./mesas/sas/solve.f90')],
                               include_dirs=[numpy.get_include()],
-                              extra_f90_compile_args=["-fast", '-acc', '-Minfo', '-ta=multicore'],
-                              extra_link_args=['-acc'],
+                              extra_f90_compile_args=["-fbacktrace", '-fcheck=all'],
                               libraries=None)],
 }
 #extra_f90_compile_args=["-Ofast", '-fno-stack-arrays'],

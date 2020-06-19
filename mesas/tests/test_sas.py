@@ -11,22 +11,22 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
-fac = 1
-N = int(128*fac)
+timeseries_length = 500
+max_age = 10 #timeseries_length
 dt = 0.01
-Q_0 = 1.0/N / dt  # <-- steady-state flow rate
+Q_0 = 1.0/timeseries_length / dt  # <-- steady-state flow rate
 C_J = 1000.
 C_old = 2000.
 S_0 = 20
-S_m = 0.601/N
-eps = 0.000000001
-n_substeps=int(16/fac)
-n_segment=5
+S_m = 0.601/timeseries_length
+eps = 0.0001/timeseries_length
+n_substeps = 20
+n_segment = 5
 fQ=0.3
 fc=0.1
-jacobian = False
+jacobian = True
 
-print(f'N = {N}')
+print(f'timeseries_length = {timeseries_length}')
 print(f'dt = {dt}')
 print(f'Q_0 = {Q_0}')
 print(f'C_J = {C_J}')
@@ -41,30 +41,30 @@ print(f'fc = {fc}')
 print(f'jacobian = {jacobian}')
 
 
-def steady_run(N, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=n_substeps, n_segment=n_segment):
+def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=n_substeps, n_segment=n_segment, max_age=max_age):
     data_df = pd.DataFrame()
-    data_df['Q1'] = np.ones(N) * Q_0
-    data_df['J'] = np.ones(N) * Q_0
-    data_df['Ca'] = np.ones(N) * C_J
+    data_df['Q1'] = np.ones(timeseries_length) * Q_0
+    data_df['J'] = np.ones(timeseries_length) * Q_0
+    data_df['Ca'] = np.ones(timeseries_length) * C_J
     ST = np.linspace(ST_min, S_0, n_segment+1)
     if j is not None:
         ST[j] = ST[j] + eps
     sas_fun1 = Piecewise(ST=ST)
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian)
+    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
     model.run()
     return model
 
-def steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0., n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment = n_segment):
+def steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0., n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment = n_segment):
     data_df = pd.DataFrame()
-    data_df['Q1'] = np.ones(N) * Q_0 * fQ
-    data_df['Q2'] = np.ones(N) * Q_0 * (1-fQ)
-    data_df['c21'] = np.ones(N) * fc
-    data_df['c22'] = np.ones(N) * (1-fc)
-    data_df['J'] = np.ones(N) * Q_0
-    data_df['Ca'] = np.ones(N) * C_J
-    data_df['Cb'] = np.ones(N) * C_J
+    data_df['Q1'] = np.ones(timeseries_length) * Q_0 * fQ
+    data_df['Q2'] = np.ones(timeseries_length) * Q_0 * (1-fQ)
+    data_df['c21'] = np.ones(timeseries_length) * fc
+    data_df['c22'] = np.ones(timeseries_length) * (1-fc)
+    data_df['J'] = np.ones(timeseries_length) * Q_0
+    data_df['Ca'] = np.ones(timeseries_length) * C_J
+    data_df['Cb'] = np.ones(timeseries_length) * C_J
     ST = np.linspace(ST_min, S_0, n_segment+1)
     sas_fun1 = Piecewise(ST=ST)
     sas_fun21 = Piecewise(ST=ST)
@@ -89,7 +89,7 @@ def test_steady_uniform(benchmark):
     print('')
     print('running test_steady_uniform')
 
-    n = np.arange(N)
+    n = np.arange(timeseries_length)
     T_0 = S_0 / Q_0
     Delta = dt / T_0
     Kappa = np.exp(-Delta)
@@ -103,38 +103,38 @@ def test_steady_uniform(benchmark):
     CQdisc = (C_J * (Delta + Eta * (-1 + Kappa)) - C_old *Eta * (-1 + Kappa)) / Delta
 
     CQdisc = np.array([[CQdisc]]).T
-    sTdisc = np.tril(np.tile(sTdisc, [N, 1])).T
-    sTdisc = np.c_[np.zeros(N), sTdisc]
-    pQdisc = np.tril(np.tile(pQdisc, [N, 1]))
+    sTdisc = np.tril(np.tile(sTdisc, [timeseries_length, 1])).T
+    sTdisc = np.c_[np.zeros(timeseries_length), sTdisc]
+    pQdisc = np.tril(np.tile(pQdisc, [timeseries_length, 1]))
     pQdisc = np.array([pQdisc]).T
-    mQdisc = np.tril(np.tile(mQdisc, [N, 1]))
+    mQdisc = np.tril(np.tile(mQdisc, [timeseries_length, 1]))
     mQdisc = np.array([[mQdisc]]).T
-    mTdisc = np.tril(np.tile(mTdisc, [N, 1])).T
-    mTdisc = np.c_[np.zeros(N), mTdisc]
+    mTdisc = np.tril(np.tile(mTdisc, [timeseries_length, 1])).T
+    mTdisc = np.c_[np.zeros(timeseries_length), mTdisc]
     mTdisc = np.array([mTdisc.T]).T
 
-    model = benchmark(steady_run, N, dt, Q_0, S_0, C_J, n_segment=1)
-    #model = steady_run(N, dt, Q_0, S_0, C_J, n_segment=1)
+    model = benchmark(steady_run, timeseries_length, dt, Q_0, S_0, C_J, n_segment=1, max_age=max_age)
+    #model = steady_run(timeseries_length, dt, Q_0, S_0, C_J, n_segment=1)
     rdf = model.result
 
     def printcheck(rdf, varstr, analy):
-        err = (analy - rdf[varstr]) / analy
+        err = (analy[:max_age, ...] - rdf[varstr][:max_age, ...]) / analy[:max_age, ...]
         try:
             assert np.nanmax(np.abs(err)) < 1.0E-4
         except AssertionError:
-            print(f'{varstr} Expected:')
-            print(analy.T)
-            print(f'{varstr} Got:')
-            print(rdf[varstr].T)
-            print(f'{varstr} Difference/expected:')
-            print(err[..., -3:].T)
-            print('')
+            #print(f'{varstr} Expected:')
+            #print(analy[:max_age, ...].T)
+            #print(f'{varstr} Got:')
+            #print(rdf[varstr][:max_age, ...].T)
+            #print(f'{varstr} Difference/expected:')
+            #print(err[..., :].T)
+            #print('')
             raise
 
-    printcheck(rdf, 'sT', sTdisc)
     printcheck(rdf, 'pQ', pQdisc)
-    printcheck(rdf, 'mT', mTdisc)
+    printcheck(rdf, 'sT', sTdisc)
     printcheck(rdf, 'mQ', mQdisc)
+    printcheck(rdf, 'mT', mTdisc)
     printcheck(rdf, 'C_Q', CQdisc)
 
     try:
@@ -159,37 +159,43 @@ def test_steady_uniform(benchmark):
         dmTdSjdisc = -((C_J * Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
         dCQdSjdisc = ((C_J - C_old) *Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 *Delta)
 
-        dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [N, 1])).T
-        dsTdSjdisc = np.c_[np.zeros(N), dsTdSjdisc]
-        dmTdSjdisc = np.tril(np.tile(dmTdSjdisc, [N, 1])).T
-        dmTdSjdisc = np.c_[np.zeros(N), dmTdSjdisc]
+        dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [timeseries_length, 1])).T
+        dsTdSjdisc = np.c_[np.zeros(timeseries_length), dsTdSjdisc]
+        dmTdSjdisc = np.tril(np.tile(dmTdSjdisc, [timeseries_length, 1])).T
+        dmTdSjdisc = np.c_[np.zeros(timeseries_length), dmTdSjdisc]
         dmTdSjdisc = np.array([dmTdSjdisc.T]).T
         dCQdSjdisc = np.array([[dCQdSjdisc]]).T
 
-        model2 = steady_run(N, dt, Q_0, S_0, C_J, j=1, n_segment=1)
+        model2 = steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=1, n_segment=1)
         rdf2 = model2.result
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookup2, _, _, _, _, _, _ = model2._create_sas_lookup()
         j = 1
-        dSj = SAS_lookup2[j, N - 1] - SAS_lookup[j, N - 1]
+        dSj = SAS_lookup2[j, timeseries_length - 1] - SAS_lookup[j, timeseries_length - 1]
 
         def printcheck(rdfi, rdfp, varstr, ostr, analy):
             if varstr=='dCdSj':
                 var = rdfi[varstr][:,1,...]
             else:
                 var = rdfi[varstr][:,:,1,...]
-            err = (analy - var) / analy
+            err = (analy[:max_age, ...] - var[:max_age, ...]) / analy[:max_age, ...]
+            check = (((rdfp[ostr] - rdfi[ostr]) / dSj))
+            errcheck = (analy[:max_age, ...] - check[:max_age, ...]) / analy[:max_age, ...]
             try:
-                assert np.nanmax(np.abs(err)) < 1.0E-4
+                assert np.nanmax(np.abs(err)) < 1.0E-3
+                assert np.nanmax(np.abs(errcheck)) < 1.0E-2
             except AssertionError:
                 print(f'{varstr} Expected:')
-                print(analy.T)
+                print(analy[:max_age, ...].T)
                 print(f'{varstr} eps check:')
-                print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
+                print(check[:max_age, ...].T)
                 print(f'{varstr} Got:')
-                print(var.T)
+                print(var[:max_age, ...].T)
                 print(f'{varstr} Difference/expected:')
                 print(err[..., -3:].T)
+                print('')
+                print(f'{varstr} Difference/expected check:')
+                print(errcheck[..., -3:].T)
                 print('')
                 raise
 
@@ -200,7 +206,7 @@ def test_steady_uniform(benchmark):
 def notest_steady_piston_uniform():
     print('running test_steady_piston_uniform')
 
-    n = np.arange(N)
+    n = np.arange(timeseries_length)
     T_0 = S_0 / Q_0
     Delta = dt / T_0
     Kappa = np.exp(-Delta)
@@ -229,43 +235,43 @@ def notest_steady_piston_uniform():
     dCQdSmdisc = ((C_J - C_old)*Kappa**((1 - m + n)/(1 - m*Delta))*(1 - m + n + (m - n)*Kappa**(1/(-1 + m*Delta))*HeavisideTheta(-m + n))* HeavisideTheta(1 - m + n))/(S_0*(-1 + m*Delta))
 
     CQdisc = np.array([[CQdisc]]).T
-    sTdisc = np.tril(np.tile(sTdisc, [N, 1])).T
-    sTdisc = np.c_[np.zeros(N), sTdisc]
-    pQdisc = np.tril(np.tile(pQdisc, [N, 1]))
+    sTdisc = np.tril(np.tile(sTdisc, [timeseries_length, 1])).T
+    sTdisc = np.c_[np.zeros(timeseries_length), sTdisc]
+    pQdisc = np.tril(np.tile(pQdisc, [timeseries_length, 1]))
     pQdisc = np.array([pQdisc]).T
-    mQdisc = np.tril(np.tile(mQdisc, [N, 1]))
+    mQdisc = np.tril(np.tile(mQdisc, [timeseries_length, 1]))
     mQdisc = np.array([[mQdisc]]).T
-    mTdisc = np.tril(np.tile(mTdisc, [N, 1])).T
-    mTdisc = np.c_[np.zeros(N), mTdisc]
+    mTdisc = np.tril(np.tile(mTdisc, [timeseries_length, 1])).T
+    mTdisc = np.c_[np.zeros(timeseries_length), mTdisc]
     mTdisc = np.array([mTdisc.T]).T
 
-    dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [N, 1])).T
-    dsTdSjdisc = np.c_[np.zeros(N), dsTdSjdisc]
-    dmTdSjdisc = np.tril(np.tile(dmTdSjdisc, [N, 1])).T
-    dmTdSjdisc = np.c_[np.zeros(N), dmTdSjdisc]
+    dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [timeseries_length, 1])).T
+    dsTdSjdisc = np.c_[np.zeros(timeseries_length), dsTdSjdisc]
+    dmTdSjdisc = np.tril(np.tile(dmTdSjdisc, [timeseries_length, 1])).T
+    dmTdSjdisc = np.c_[np.zeros(timeseries_length), dmTdSjdisc]
     dmTdSjdisc = np.array([dmTdSjdisc.T]).T
     dCQdSjdisc = np.array([[dCQdSjdisc]]).T
 
-    dsTdSmdisc = np.tril(np.tile(dsTdSmdisc, [N, 1])).T
-    dsTdSmdisc = np.c_[np.zeros(N), dsTdSmdisc]
-    dmTdSmdisc = np.tril(np.tile(dmTdSmdisc, [N, 1])).T
-    dmTdSmdisc = np.c_[np.zeros(N), dmTdSmdisc]
+    dsTdSmdisc = np.tril(np.tile(dsTdSmdisc, [timeseries_length, 1])).T
+    dsTdSmdisc = np.c_[np.zeros(timeseries_length), dsTdSmdisc]
+    dmTdSmdisc = np.tril(np.tile(dmTdSmdisc, [timeseries_length, 1])).T
+    dmTdSmdisc = np.c_[np.zeros(timeseries_length), dmTdSmdisc]
     dmTdSmdisc = np.array([dmTdSmdisc.T]).T
     dCQdSmdisc = np.array([[dCQdSmdisc]]).T
 
 
-    model = steady_run(N, dt, Q_0, S_0, C_J, ST_min=S_m, n_segment=1)
+    model = steady_run(timeseries_length, dt, Q_0, S_0, C_J, ST_min=S_m, n_segment=1)
     rdf = model.result
 
     def printcheck(rdfi, varstr, analy):
-        err = (analy - rdfi[varstr]) / analy
+        err = (analy[:max_age, ...] - rdfi[varstr][:max_age, ...]) / analy[:max_age, ...]
         try:
             assert np.nanmax(np.abs(err)) < 5.0E-2
         except AssertionError:
             print(f'{varstr} Expected:')
-            print(analy.T)
+            print(analy[:max_age, ...].T)
             print(f'{varstr} Got:')
-            print(rdfi[varstr].T)
+            print(rdfi[varstr][:max_age, ...].T)
             print(f'{varstr} Difference/expected:')
             print(err[..., -3:].T)
             print('')
@@ -299,14 +305,17 @@ def notest_steady_piston_uniform():
                 var = rdfi[varstr][:,ip,...]
             else:
                 var = rdfi[varstr][:,:,ip,...]
-            err = (analy - var) / analy
+            err = (analy[:max_age, ...] - var[:max_age, ...]) / analy[:max_age, ...]
+            check = (((rdfp[ostr] - rdfi[ostr]) / dSj))
+            errcheck = (analy[:max_age, ...] - check[:max_age, ...]) / analy[:max_age, ...]
             try:
                 assert np.nanmax(np.abs(err)) < 2.0E-1
+                assert np.nanmax(np.abs(errcheck)) < 2.0E-1
             except AssertionError:
                 print(f'{varstr} j={j}  Expected:')
                 print(analy.T)
                 print(f'{varstr} j={j}  eps check:')
-                print(((rdfp[ostr] - rdfi[ostr]).T / dSj))
+                print(check.T)
                 print(f'{varstr} j={j}  Got:')
                 print(var.T)
                 print(f'{varstr} j={j}  Difference/expected:')
@@ -314,24 +323,22 @@ def notest_steady_piston_uniform():
                 print('')
                 raise
 
-        model0 = steady_run(N, dt, Q_0, S_0, C_J, j=1, ST_min=S_m)
+        model0 = steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=1, ST_min=S_m, n_segment=1)
         rdf0 = model0.result
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookup0, _, _, _, _, _, _ = model0._create_sas_lookup()
         j = 1
-        dSj = SAS_lookup0[j, N - 1] - SAS_lookup[j, N - 1]
-
+        dSj = SAS_lookup0[j, timeseries_length - 1] - SAS_lookup[j, timeseries_length - 1]
         printcheck(rdf, rdf0, 'dsTdSj', 'sT', dsTdSjdisc, j)
         printcheck(rdf, rdf0, 'dmTdSj', 'mT', dmTdSjdisc, j)
         printcheck(rdf, rdf0, 'dCdSj', 'C_Q', dCQdSjdisc, j)
 
-        modelm = steady_run(N, dt, Q_0, S_0, C_J, j=0, ST_min=S_m)
+        modelm = steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=0, ST_min=S_m, n_segment=1)
         rdfm = modelm.result
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookupm, _, _, _, _, _, _ = modelm._create_sas_lookup()
         j = 0
-        dSj = SAS_lookupm[j, N - 1] - SAS_lookup[j, N - 1]
-
+        dSj = SAS_lookupm[j, timeseries_length - 1] - SAS_lookup[j, timeseries_length - 1]
         printcheck(rdf, rdfm, 'dmTdSj', 'mT', dmTdSmdisc, j)
         printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
         printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
@@ -339,7 +346,7 @@ def notest_steady_piston_uniform():
 def notest_multiple():
     print('running test_multiple')
 
-    n = np.arange(N)
+    n = np.arange(timeseries_length)
     T_0 = S_0 / Q_0
     Delta = dt / T_0
     Kappa = np.exp(-Delta)
@@ -357,16 +364,16 @@ def notest_multiple():
     CQdisc = C_old - ((C_J - C_old)*Kappa**(m/(-1 + m*Delta))* (-((-1 + Delta + n*Delta)*Kappa**(m/(1 - m*Delta))) + (-1 + m*Delta)*Kappa**((1 + n)/(1 - m*Delta)) + ((-1 + n*Delta)*Kappa**(m/(1 - m*Delta)) + (1 - m*Delta)*Kappa**(n/(1 - m*Delta)))*HeavisideTheta(-m + n))*HeavisideTheta(1 - m + n))/Delta
 
     CQdisc = np.array([[CQdisc]]).T
-    sTdisc = np.tril(np.tile(sTdisc, [N, 1])).T
-    sTdisc = np.c_[np.zeros(N), sTdisc]
-    pQdisc = np.tril(np.tile(pQdisc, [N, 1]))
+    sTdisc = np.tril(np.tile(sTdisc, [timeseries_length, 1])).T
+    sTdisc = np.c_[np.zeros(timeseries_length), sTdisc]
+    pQdisc = np.tril(np.tile(pQdisc, [timeseries_length, 1]))
     pQdisc = np.array([pQdisc]).T
-    mQdisc = np.tril(np.tile(mQdisc, [N, 1])).T
-    mTdisc = np.tril(np.tile(mTdisc, [N, 1])).T
-    mTdisc = np.c_[np.zeros(N), mTdisc]
+    mQdisc = np.tril(np.tile(mQdisc, [timeseries_length, 1])).T
+    mTdisc = np.tril(np.tile(mTdisc, [timeseries_length, 1])).T
+    mTdisc = np.c_[np.zeros(timeseries_length), mTdisc]
     mTdisc = np.array([mTdisc.T]).T
 
-    model = steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment = n_segment)
+    model = steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment = n_segment)
     rdf = model.result
 
     def printcheck(rdfi, varstr, analy):
@@ -375,14 +382,14 @@ def notest_multiple():
             analy = analy * fQ
         else:
             var = rdfi[varstr]
-        err = (analy - var) / analy
+        err = (analy[:max_age, ...] - var[:max_age, ...]) / analy[:max_age, ...]
         try:
             assert np.nanmax(np.abs(err)) < 5.0E-2
         except AssertionError:
             print(f'{varstr} Expected:')
-            print(analy.T)
+            print(analy[:max_age, ...].T)
             print(f'{varstr} Got:')
-            print(var.T)
+            print(var[:max_age, ...].T)
             print(f'{varstr} Difference/expected:')
             print(err[..., -3:].T)
             print('')
@@ -413,15 +420,15 @@ def notest_multiple():
 
         def printcheck(rdfi, rdfp, varstr, ostr, norm, ip):
             var = rdfi[varstr][:,:,ip,...]
-            dnum = (rdfp[ostr] - rdfi[ostr]) / dSj
-            err = (dnum - var) / norm
+            check = (rdfp[ostr] - rdfi[ostr]) / dSj
+            err = (check[:max_age, ...] - var[:max_age, ...]) / norm
             try:
                 assert np.nanmax(np.abs(err)) < 5.0E-2
             except AssertionError:
                 print(f'{varstr} ip={ip} eps check:')
-                print(dnum.T)
+                print(check[:max_age, ...].T)
                 print(f'{varstr} ip={ip} Got:')
-                print(var.T)
+                print(var[:max_age, ...].T)
                 print(f'{varstr} ip={ip} Difference/norm')
                 print(err[..., -3:].T)
                 print('')
@@ -429,13 +436,13 @@ def notest_multiple():
 
         def printcheckC(rdfi, rdfp, varstr, ostr, ip, iq, s):
             var = rdfi[varstr][:,ip,iq,s]
-            dnum = (rdfp[ostr][:,iq,s] - rdfi[ostr][:,iq,s]) / dSj
-            err = (dnum - var) / C_J
+            check = (rdfp[ostr][:,iq,s] - rdfi[ostr][:,iq,s]) / dSj
+            err = (check - var) / C_J
             try:
                 assert np.nanmax(np.abs(err)) < 5.0E-2
             except:
                 print(f'{varstr} ip={ip} eps check:')
-                print(dnum.T)
+                print(check.T)
                 print(f'{varstr} ip={ip} Got:')
                 print(var.T)
                 print(f'{varstr} ip={ip} Difference/CJ:')
@@ -448,10 +455,10 @@ def notest_multiple():
             for j in range(n_segment+1):
                 ip = ip0 + j
                 print(iq, ic, j, ip)
-                modelp = steady_run_multiple(N, dt, Q_0, S_0, C_J, iq=iq, ic=ic, j=j, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
+                modelp = steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=iq, ic=ic, j=j, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
                 rdfp = modelp.result
                 SAS_lookupp, _, _, _, _, _, _ = modelp._create_sas_lookup()
-                dSj = SAS_lookupp[ip, N - 1] - SAS_lookup[ip, N - 1]
+                dSj = SAS_lookupp[ip, timeseries_length - 1] - SAS_lookup[ip, timeseries_length - 1]
 
                 printcheck(rdf, rdfp, 'dsTdSj', 'sT', Q_0, ip)
                 printcheck(rdf, rdfp, 'dmTdSj', 'mT', Q_0 * C_J, ip)
@@ -462,7 +469,7 @@ def notest_multiple():
 
 
 #def test_Jacobian():
-#    n = np.arange(N)
+#    n = np.arange(timeseries_length)
 #    T_0 = S_0 / Q_0
 #    Delta = dt / T_0
 #    Kappa = np.exp(-Delta)
@@ -479,26 +486,26 @@ def notest_multiple():
 #    dmTdSjdisc = -((C_J * Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
 #    dCQdSjdisc = ((C_J + C_old) * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta)
 #
-#    dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [N, 1])).T
-#    dsTdSjdisc = np.c_[np.zeros(N), dsTdSjdisc]
+#    dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [timeseries_length, 1])).T
+#    dsTdSjdisc = np.c_[np.zeros(timeseries_length), dsTdSjdisc]
 #    dCQdSjdisc = np.array([[dCQdSjdisc]]).T
-#    dpQdSjdisc = np.tril(np.tile(dpQdSjdisc, [N, 1]))
+#    dpQdSjdisc = np.tril(np.tile(dpQdSjdisc, [timeseries_length, 1]))
 #    dpQdSjdisc = np.array([dpQdSjdisc]).T
-#    dmQdSjdisc = np.tril(np.tile(dmQdSjdisc, [N, 1]))
+#    dmQdSjdisc = np.tril(np.tile(dmQdSjdisc, [timeseries_length, 1]))
 #    dmQdSjdisc = np.array([[dmQdSjdisc]]).T
-#    dmTdSjdisc = np.tril(np.tile(dmTdSjdisc, [N, 1])).T
-#    dmTdSjdisc = np.c_[np.zeros(N), dmTdSjdisc]
+#    dmTdSjdisc = np.tril(np.tile(dmTdSjdisc, [timeseries_length, 1])).T
+#    dmTdSjdisc = np.c_[np.zeros(timeseries_length), dmTdSjdisc]
 #    dmTdSjdisc = np.array([dmTdSjdisc.T]).T
 #
 #    ST_min = 1.5
-#    model = steady_run(N, dt, Q_0, S_0, C_J, ST_min=ST_min)
+#    model = steady_run(timeseries_length, dt, Q_0, S_0, C_J, ST_min=ST_min)
 #    rdf = model.result
 #    modeps = [[0, 0], [0, 0]]
 #    rdfeps = [[0, 0], [0, 0]]
-#    modeps[0][0] = steady_run(N, dt, Q_0, S_0, C_J, eps1=[eps, 0], ST_min=ST_min)
-#    modeps[0][1] = steady_run(N, dt, Q_0, S_0, C_J, eps1=[0, eps], ST_min=ST_min)
-#    # modeps[1][0] = steady_run(N, dt, Q_0, S_0, C_J, eps2=[eps, 0], ST_min=ST_min)
-#    # modeps[1][1] = steady_run(N, dt, Q_0, S_0, C_J, eps2=[0, eps], ST_min=ST_min)
+#    modeps[0][0] = steady_run(timeseries_length, dt, Q_0, S_0, C_J, eps1=[eps, 0], ST_min=ST_min)
+#    modeps[0][1] = steady_run(timeseries_length, dt, Q_0, S_0, C_J, eps1=[0, eps], ST_min=ST_min)
+#    # modeps[1][0] = steady_run(timeseries_length, dt, Q_0, S_0, C_J, eps2=[eps, 0], ST_min=ST_min)
+#    # modeps[1][1] = steady_run(timeseries_length, dt, Q_0, S_0, C_J, eps2=[0, eps], ST_min=ST_min)
 #    for i in range(1):
 #        for j in range(2):
 #            rdfeps[i][j] = modeps[i][j].result

@@ -178,6 +178,7 @@ class Model:
         self._options.update(new_options)
         if self._options['max_age'] is None:
             self._options['max_age'] = self._timeseries_length
+        assert self._options['max_age'] <= self._timeseries_length
         if self._options['sT_init'] is None:
             self._options['sT_init'] = np.zeros(self._options['max_age'])
         else:
@@ -381,10 +382,10 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, np.asfortranarray(Q.T), np.asfortranarray(SAS_lookup), np.asfortranarray(P_list), np.asfortranarray(weights.T),
+            J, np.asfortranarray(Q), np.asfortranarray(SAS_lookup.T), np.asfortranarray(P_list.T), np.asfortranarray(weights),
             sT_init, dt, verbose, debug, warning, jacobian,
-            mT_init, np.asfortranarray(C_J.T), np.asfortranarray(np.moveaxis(alpha,0,2)), np.asfortranarray(k1.T),
-            np.asfortranarray(C_eq.T), C_old,
+            mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
+            np.asfortranarray(C_eq), C_old,
             n_substeps, nC_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nP_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
@@ -394,10 +395,12 @@ class Model:
             self._result = {'C_Q': C_Q}
         else:
             self._result = {}
-        self._result.update({'sT': sT, 'pQ': pQ, 'WaterBalance': WaterBalance, 'dsTdSj':dsTdSj})
+        self._result.update({'sT': np.moveaxis(sT, -1, 0), 'pQ': np.moveaxis(pQ, -1, 0),
+                             'WaterBalance': np.moveaxis(WaterBalance, -1, 0), 'dsTdSj':np.moveaxis(dsTdSj, -1, 0)})
         if numsol > 0:
-            self._result.update({'mT': mT, 'mQ': mQ, 'mR': mR, 'SoluteBalance': SoluteBalance,
-                                 'dmTdSj':dmTdSj, 'dCdSj':np.moveaxis(dCdSj, 3, 0)})
+            self._result.update({'mT': np.moveaxis(mT, -1, 0), 'mQ': np.moveaxis(mQ, -1, 0), 'mR': np.moveaxis(mR, -1, 0),
+            'SoluteBalance': np.moveaxis(SoluteBalance, -1, 0),
+                                 'dmTdSj':np.moveaxis(dmTdSj, -1, 0), 'dCdSj':dCdSj})
 
     def get_jacobian(self, mode='segment', logtransform=True):
         J = None
