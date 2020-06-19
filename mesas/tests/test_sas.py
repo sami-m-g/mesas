@@ -11,13 +11,13 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
-timeseries_length =  50
-max_age = 10 #timeseries_length
+timeseries_length =  500
+max_age = 10#timeseries_length
 dt = 0.01
 Q_0 = 1.0/timeseries_length / dt  # <-- steady-state flow rate
 C_J = 1000.
 C_old = 2000.
-S_0 = 20
+S_0 = 5
 S_m = 0.601/timeseries_length
 eps = 0.0001/timeseries_length
 n_substeps = 20
@@ -52,7 +52,7 @@ def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_subste
     sas_fun1 = Piecewise(ST=ST)
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
+    model = Model(data_df, sas_blends, solute_parameters, debug=True, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
     model.run()
     return model
 
@@ -122,13 +122,13 @@ def test_steady_uniform(benchmark):
         try:
             assert np.nanmax(np.abs(err)) < 1.0E-4
         except AssertionError:
-            #print(f'{varstr} Expected:')
-            #print(analy[:max_age, ...].T)
-            #print(f'{varstr} Got:')
-            #print(rdf[varstr][:max_age, ...].T)
-            #print(f'{varstr} Difference/expected:')
-            #print(err[..., :].T)
-            #print('')
+            print(f'{varstr} Expected:')
+            print(analy[:max_age, ...].T)
+            print(f'{varstr} Got:')
+            print(rdf[varstr][:max_age, ...].T)
+            print(f'{varstr} Difference/expected:')
+            print(err[..., :].T)
+            print('')
             raise
 
     printcheck(rdf, 'pQ', pQdisc)
@@ -203,7 +203,7 @@ def test_steady_uniform(benchmark):
         printcheck(rdf, rdf2, 'dmTdSj', 'mT', dmTdSjdisc)
         printcheck(rdf, rdf2, 'dCdSj', 'C_Q', dCQdSjdisc)
 
-def test_steady_piston_uniform():
+def notest_steady_piston_uniform():
     print('running test_steady_piston_uniform')
 
     n = np.arange(timeseries_length)
@@ -343,7 +343,7 @@ def test_steady_piston_uniform():
         printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
         printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
 
-def test_multiple():
+def notest_multiple():
     print('running test_multiple')
 
     n = np.arange(timeseries_length)
