@@ -1,0 +1,241 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.colors as colors
+from collections import OrderedDict
+
+
+def plot_transport_column(model, flux, sol, i, ax=None, dST=None, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=None,
+                          ST_max=None, omega_max=None, valvegap=0.3, hspace=0.015, artists_dict=OrderedDict(), do_init=True):
+    dt = model.options['dt']
+    Q = model.data_df[flux].iloc[i]
+    C_old = model.solute_parameters[sol]['C_old']
+
+    ST_mod = np.r_[0., model.sas_blends['Q1'].ST[:, i]]
+    PQ_mod = np.r_[0., model.sas_blends['Q1'].P[:, i]]
+    omega_mod = np.diff(PQ_mod) / np.diff(ST_mod)
+    if omega_max is None:
+        omega_max = omega_mod.max() * 1.1
+    if ST_max is None:
+        ST_max = ST_mod[-1] * 1.1
+
+    sTs = np.r_[0, model.result['sT'][:-1, i]]
+    mTs = np.r_[0, model.result['mT'][:-1, i, list(model._solorder).index(sol)]]
+    sTe = model.result['sT'][:, i+1]
+    mTe = model.result['mT'][:, i+1, list(model._solorder).index(sol)]
+    sT = (sTs + sTe) / 2
+    mT = (mTs + mTe) / 2
+    pQ = model.result['pQ'][:, i, list(model._fluxorder).index(flux)]
+    mQ = model.result['mQ'][:, i, list(model._fluxorder).index(flux), list(model._solorder).index(sol)]
+    ST = np.r_[0, np.cumsum(sT)] * dt
+    PQ = np.r_[0, np.cumsum(pQ)] * dt
+    MT = np.r_[0, np.cumsum(mT)] * dt
+    MQ = np.r_[0, np.cumsum(mQ)] * dt
+
+    CS = np.where(sT > 0, mT / sT, 0)
+
+    if dST is None:
+        ST_reg = np.linspace(0, ST_mod[-1], nST + 1)
+    else:
+        nST = int(ST_mod[-1] / dST) + 1
+        ST_reg = np.arange(nST + 1) * dST
+    sT_reg = np.diff(ST_reg) / dt
+    spacer = sT_reg[0] * dt * valvegap
+
+    PQ_reg = np.interp(ST_reg, ST, PQ, right=np.NaN)
+    MQ_reg = np.interp(ST_reg, ST, MQ, right=np.NaN)
+
+    CQ_reg = np.diff(MQ_reg) / (Q * np.diff(PQ_reg))
+    CQ_reg[np.isnan(CQ_reg)] = C_old
+
+    PQ_regmod = np.interp(ST_reg, ST_mod, PQ_mod, right=np.NaN)
+    omega_reg = np.diff(PQ_regmod) / dt / sT_reg
+
+    cmap = plt.get_cmap(cmap)
+    if vrange is None:
+        vmin, vmax = CS.min(), CS.max()
+    else:
+        vmin, vmax = vrange
+    norm = colors.Normalize(vmin=vmin, vmax=vmax)
+
+    if do_init:
+        if ax is None:
+            ax = plt.subplot(111)
+        ax.xaxis.set_visible(False)
+        ax.yaxis.set_visible(False)
+        for loc, spine in ax.spines.items():
+            spine.set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax1 = ax.inset_axes([0, 0, TC_frac, 1])
+        ax2 = ax.inset_axes([TC_frac + hspace, 0, 1 - TC_frac - hspace, 1])
+        ax1.set_visible(True)
+        ax2.set_visible(True)
+
+        ax1.spines['bottom'].set_visible(False)
+        ax1.spines['top'].set_visible(False)
+        ax1.spines['left'].set_position(('outward', 10))
+        ax1.spines['right'].set_visible(False)
+        ax1.xaxis.set_visible(False)
+
+        ax2.spines['bottom'].set_position(('outward', 10))
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['right'].set_visible(False)
+        ax2.spines['left'].set_visible(False)
+        ax2.yaxis.set_visible(False)
+
+    if do_init:
+        for j in range(len(sT)):
+            artists_dict[f'TCpatch {j}'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='None', clip_on=False, visible=False)
+            ax1.add_patch(artists_dict[f'TCpatch {j}'])
+        artists_dict[f'TCpatch C_old'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='0.5', clip_on=False, visible=False, hatch=r"///")
+        ax1.add_patch(artists_dict[f'TCpatch C_old'])
+
+    for j in range(len(sT)):
+        if sT[j] > 0:
+            artists_dict[f'TCpatch {j}'].set_bounds((0, ST[j], 1, sT[j] * dt))
+            artists_dict[f'TCpatch {j}'].set_facecolor(cmap(norm(CS[j])))
+            artists_dict[f'TCpatch {j}'].set_visible(True)
+    artists_dict[f'TCpatch C_old'].set_bounds((0, ST[-1], 1, ST_max - ST[-1]))
+    artists_dict[f'TCpatch C_old'].set_facecolor(cmap(norm(C_old)))
+    artists_dict[f'TCpatch C_old'].set_visible(True)
+
+    if do_init:
+        for n in range(nST):
+            artists_dict[f'TQpatch {n}'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='0.8', clip_on=False, visible=False)
+            ax2.add_patch(artists_dict[f'TQpatch {n}'])
+
+    for n in range(nST):
+        artists_dict[f'TQpatch {n}'].set_bounds((0, ST_reg[n], omega_reg[n], sT_reg[n] * dt))
+        artists_dict[f'TQpatch {n}'].set_facecolor(cmap(norm(CQ_reg[n])))
+        artists_dict[f'TQpatch {n}'].set_visible(True)
+
+    if do_init:
+        omega_linestylestr = 'k--'
+        artists_dict[f'omegaline v start'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+        artists_dict[f'omegaline h start'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+        for ip in range(len(omega_mod)):
+            artists_dict[f'omegaline v {ip}'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+            if ip > 0:
+                artists_dict[f'omegaline h {ip}'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+        artists_dict[f'omegaline h end'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+        artists_dict[f'omegaline v end'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+
+    artists_dict[f'omegaline v start'].set_data([0, 0], [0, ST_mod[0]])
+    artists_dict[f'omegaline h start'].set_data([0, omega_mod[-1]], [ST_mod[0], ST_mod[0]])
+    for ip in range(len(omega_mod)):
+        artists_dict[f'omegaline v {ip}'].set_data([omega_mod[ip], omega_mod[ip]], [ST_mod[ip], ST_mod[ip + 1]])
+        if ip > 0:
+            artists_dict[f'omegaline h {ip}'].set_data([omega_mod[ip - 1], omega_mod[ip]], [ST_mod[ip], ST_mod[ip]])
+    artists_dict[f'omegaline h end'].set_data([omega_mod[-1], 0], [ST_mod[-1], ST_mod[-1]])
+    artists_dict[f'omegaline v end'].set_data([0, 0], [ST_mod[-1], ST_max])
+
+    if do_init:
+        ax1.set_ylim([0, ST_max])
+        ax2.set_ylim([0, ST_max])
+        ax2.set_xlim([0, omega_max])
+        ax1.invert_yaxis()
+        ax2.invert_yaxis()
+        ax1.set_ylabel('$S_T$')
+        ax2.set_xlabel(f'$\omega(S_T)$ for {flux}')
+
+        return ax1, ax2
+
+
+def plot_influx(model, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+    J = model.data_df[model.options['influx']]
+    if do_init:
+        if ax is None:
+            ax = plt.subplot(111, sharex=sharex)
+        ax.plot(model.data_df.index, J, 'b')
+        ax.set_ylim(bottom=0)
+        artists_dict[f'plot_influx timeline'], = ax.plot([0, 0], [0, 0], 'k', lw=0.5)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.set_title(model.options['influx'])
+    if i is not None:
+        artists_dict[f'plot_influx timeline'].set_data(2*[model.data_df.index[i]], ax.get_ylim())
+
+
+def plot_outflux(model, flux, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+    Q = model.data_df[flux]
+    if do_init:
+        if ax is None:
+            ax = plt.subplot(111, sharex=sharex)
+        ax.plot(model.data_df.index, Q, 'b')
+        ax.set_ylim(bottom=0)
+        artists_dict[f'plot_outflux timeline'], = ax.plot([0, 0], [0, 0], 'k', lw=0.5)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.set_title(flux)
+    if i is not None:
+        artists_dict[f'plot_outflux timeline'].set_data(2*[model.data_df.index[i]], ax.get_ylim())
+
+
+def plot_influx_conc(model, sol, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+    C_J = model.data_df[sol]
+    if do_init:
+        if ax is None:
+            ax = plt.subplot(111, sharex=sharex)
+        ax.plot(model.data_df.index, C_J, 'b')
+        artists_dict[f'plot_influx_conc timeline'], = ax.plot([0, 0], [0, 0], 'k', lw=0.5)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.set_title(sol)
+    if i is not None:
+        artists_dict[f'plot_influx_conc timeline'].set_data(2*[model.data_df.index[i]], ax.get_ylim())
+
+
+def plot_outflux_conc(model, flux, sol, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+    colname = sol + ' --> ' + flux
+    C_Q = model.data_df[colname]
+    if do_init:
+        if ax is None:
+            ax = plt.subplot(111, sharex=sharex)
+        ax.plot(model.data_df.index, C_Q, 'b')
+        artists_dict[f'plot_outflux_conc timeline'], = ax.plot([0, 0], [0, 0], 'k', lw=0.5)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.set_title(colname)
+    if i is not None:
+        artists_dict[f'plot_outflux_conc timeline'].set_data(2*[model.data_df.index[i]], ax.get_ylim())
+
+def make_transport_column_animation(model, flux, sol, fig=None, frames=None, **kwargs):
+
+    if frames is None:
+        frames = range(model._timeseries_length-1)
+
+    if fig is None:
+        fig = plt.figure(figsize=[11.5,  4.])
+        fig.set_tight_layout(True)
+    axTC = plt.subplot2grid((2, 3), (0,1), rowspan=2)
+    axJ = plt.subplot2grid((2, 3), (0,0))
+    axQ = plt.subplot2grid((2, 3), (0,2))
+    axCJ = plt.subplot2grid((2, 3), (1,0))
+    axCQ = plt.subplot2grid((2, 3), (1,2))
+
+    from matplotlib.animation import FuncAnimation
+    artists = OrderedDict()
+
+    def init():
+        print('Initializing')
+        i = 0
+        plot_transport_column(model, flux, sol, i=i, ax=axTC, artists_dict=artists, **kwargs)
+        plot_influx(model, ax=axJ, sharex=axJ, i=i, artists_dict=artists)
+        plot_outflux(model, flux, ax=axQ, sharex=axJ, i=i, artists_dict=artists)
+        plot_influx_conc(model, sol, ax=axCJ, sharex=axJ, i=i, artists_dict=artists)
+        plot_outflux_conc(model, flux, sol, ax=axCQ, sharex=axJ, i=i, artists_dict=artists)
+        return [artists[x] for x in artists.keys()]
+
+    def update(frame):
+        print(f'Frame = {frame}')
+        i=frame
+        plot_transport_column(model, flux, sol, i=i, ax=axTC, do_init=False, artists_dict=artists, **kwargs)
+        plot_influx(model, ax=axJ, sharex=axJ, i=i, do_init=False, artists_dict=artists)
+        plot_outflux(model, flux, ax=axQ, sharex=axJ, i=i, do_init=False, artists_dict=artists)
+        plot_influx_conc(model, sol, ax=axCJ, sharex=axJ, i=i, do_init=False, artists_dict=artists)
+        plot_outflux_conc(model, flux, sol, ax=axCQ, sharex=axJ, i=i, do_init=False, artists_dict=artists)
+        return [artists[x] for x in artists.keys()]
+
+
+
+    return FuncAnimation(fig, update, frames=frames, init_func=init, blit=False)

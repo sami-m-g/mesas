@@ -41,19 +41,17 @@ print(f'fc = {fc}')
 print(f'jacobian = {jacobian}')
 
 
-def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., debug=True, verbose=False, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):
+def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., n_substeps=n_substeps, n_segment=n_segment, max_age=max_age):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(timeseries_length) * Q_0
     data_df['J'] = np.ones(timeseries_length) * Q_0
     data_df['Ca'] = np.ones(timeseries_length) * C_J
-    data_df['Cb'] = np.ones(timeseries_length) * 0
-    data_df['Cb'].iloc[int(0.05 * timeseries_length):int(0.1 * timeseries_length)] = C_J
     ST = np.linspace(ST_min, S_0, n_segment+1)
     if j is not None:
         ST[j] = ST[j] + eps
     sas_fun1 = Piecewise(ST=ST)
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
-    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}, 'Cb': {'C_old': C_old, 'observations': ['Q1']}}
+    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
     model = Model(data_df, sas_blends, solute_parameters, debug=True, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
     model.run()
     return model

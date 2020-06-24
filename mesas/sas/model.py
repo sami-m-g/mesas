@@ -393,6 +393,10 @@ class Model:
 
         if numsol > 0:
             self._result = {'C_Q': C_Q}
+            for isol, sol in enumerate(self._solorder):
+                for iflux, flux in enumerate(self._fluxorder):
+                    colname = sol + ' --> ' + flux
+                    self._data_df[colname] = C_Q[:, iflux, isol]
         else:
             self._result = {}
         self._result.update({'sT': np.moveaxis(sT, -1, 0), 'pQ': np.moveaxis(pQ, -1, 0),
