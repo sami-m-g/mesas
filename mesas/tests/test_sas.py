@@ -11,7 +11,7 @@ from mesas.sas.functions import Piecewise
 # 3. The sas model class
 from mesas.sas.model import Model
 
-timeseries_length =  500
+timeseries_length =  50
 max_age = timeseries_length
 dt = 0.01
 Q_0 = 1.0/timeseries_length / dt  # <-- steady-state flow rate
@@ -53,7 +53,7 @@ def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., debug=Tr
         ST[j] = ST[j] + eps
     sas_fun1 = Piecewise(ST=ST)
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
-    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}, 'Cb': {'C_old': C_old, 'observations': ['Q1']}}
+    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
     model = Model(data_df, sas_blends, solute_parameters, debug=True, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
     model.run()
     return model
@@ -116,7 +116,7 @@ def test_steady_uniform(benchmark):
     mTdisc = np.array([mTdisc.T]).T
 
     model = benchmark(steady_run, timeseries_length, dt, Q_0, S_0, C_J, n_segment=1, max_age=max_age)
-    #model = steady_run(timeseries_length, dt, Q_0, S_0, C_J, n_segment=1)
+    #model = steady_run(timeseries_length, dt, Q_0, S_0, C_J, n_segment=1, max_age=max_age)
     rdf = model.result
 
     def printcheck(rdf, varstr, analy):
