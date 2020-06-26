@@ -7,11 +7,11 @@ import pytest
 from mesas.sas.blender import Fixed, Weighted
 # classes we will use to construct the SAS model
 # 1. A piecewise constant SAS function
-from mesas.sas.functions import Piecewise
+from mesas.sas.functions import Piecewise, Continuous
 # 3. The sas model class
 from mesas.sas.model import Model
 
-timeseries_length =  50
+timeseries_length = 50
 max_age = timeseries_length
 dt = 0.01
 Q_0 = 1.0/timeseries_length / dt  # <-- steady-state flow rate
@@ -25,6 +25,8 @@ n_segment = 5
 fQ=0.3
 fc=0.1
 jacobian = True
+debug = False
+verbose = False
 
 print(f'timeseries_length = {timeseries_length}')
 print(f'dt = {dt}')
@@ -41,20 +43,34 @@ print(f'fc = {fc}')
 print(f'jacobian = {jacobian}')
 
 
-def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., debug=True, verbose=False, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):
+def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., debug=debug, verbose=verbose, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(timeseries_length) * Q_0
     data_df['J'] = np.ones(timeseries_length) * Q_0
     data_df['Ca'] = np.ones(timeseries_length) * C_J
-    data_df['Cb'] = np.ones(timeseries_length) * 0
-    data_df['Cb'].iloc[int(0.05 * timeseries_length):int(0.1 * timeseries_length)] = C_J
     ST = np.linspace(ST_min, S_0, n_segment+1)
     if j is not None:
         ST[j] = ST[j] + eps
     sas_fun1 = Piecewise(ST=ST)
     sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=True, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
+    model = Model(data_df, sas_blends, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
+    model.run()
+    return model
+
+from scipy.stats import gamma
+def steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a, j=None, ST_min=0., debug=debug, verbose=verbose, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):
+    data_df = pd.DataFrame()
+    data_df['Q1'] = np.ones(timeseries_length) * Q_0
+    data_df['J'] = np.ones(timeseries_length) * Q_0
+    data_df['Ca'] = np.ones(timeseries_length) * C_J
+    kwargs = {'a':a, 'scale':S_0, 'loc':ST_min}
+    if j is not None:
+        kwargs[j] = kwargs[j] + eps
+    sas_fun1 = Continuous(gamma).set_args(a=a, loc=ST_min, scale=S_0)
+    sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
+    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
+    model = Model(data_df, sas_blends, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
     model.run()
     return model
 
@@ -87,7 +103,7 @@ def steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, 
     return model
 
 def test_steady_uniform(benchmark):
-#def test_steady_uniform():
+    #def test_steady_uniform():
     print('')
     print('running test_steady_uniform')
 
@@ -205,7 +221,16 @@ def test_steady_uniform(benchmark):
         printcheck(rdf, rdf2, 'dmTdSj', 'mT', dmTdSjdisc)
         printcheck(rdf, rdf2, 'dCdSj', 'C_Q', dCQdSjdisc)
 
-def notest_steady_piston_uniform():
+def test_steady_gamma():
+    print('')
+    print('running test_steady_gamma')
+
+    model = steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a=0.5, max_age=max_age)
+    rdf = model.result
+    print(model.sas_blends['Q1'])
+
+
+def test_steady_piston_uniform():
     print('running test_steady_piston_uniform')
 
     n = np.arange(timeseries_length)
@@ -345,7 +370,7 @@ def notest_steady_piston_uniform():
         printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
         printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
 
-def notest_multiple():
+def test_multiple():
     print('running test_multiple')
 
     n = np.arange(timeseries_length)

@@ -61,6 +61,9 @@ class Weighted:
         self.weights_df = weights_df
         self.N = len(self.weights_df)
 
+        for label, sas_fun in fun_dict.items():
+            assert sas_fun.has_params
+
         # The sas_function objects are stored in an ordered dictionary of :class:`Component` objects
         self.components = OrderedDict(
             (label, _typedict[type(fun_dict[label])](label, fun_dict[label], weights_df[label], **kwargs))
@@ -412,6 +415,6 @@ class StateSwitch(Weighted):
         super().__init__(fun_dict, weights_df)
 
 
-from mesas.sas.functions import Piecewise, PiecewiseASD
+from mesas.sas.functions import Continuous, Piecewise, PiecewiseASD
 
-_typedict = {Piecewise: Component, PiecewiseASD: ComponentASD}
+_typedict = {Continuous: Component, Piecewise: Component, PiecewiseASD: ComponentASD}

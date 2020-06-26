@@ -49,9 +49,10 @@ i = 40
 
 from collections import OrderedDict
 artists = OrderedDict()
-vis.plot_SAS(model, flux, i=i, artists_dict=artists)
+vis.plot_SAS_cumulative(model, flux, i=i, artists_dict=artists)
 
-#vis.plot_transport_column_with_timeseries(model, flux, sol, i=i, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=[0, C_J], ST_max=S_0)
+vis.plot_transport_column_with_timeseries(model, flux, sol, i=i, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=[0, C_J], ST_max=S_0)
 
-#ani = vis.make_transport_column_animation(model, flux, sol, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=[0, C_J], ST_max=S_0)
-#ani.save(f'test_make_transport_column_animation.gif', writer='imagemagick')
+ani = vis.make_transport_column_animation(model, flux, sol, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=[0, C_J], ST_max=S_0)
+ani.save(f'test_make_transport_column_animation.gif', writer='imagemagick')
+

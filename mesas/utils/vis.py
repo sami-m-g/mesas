@@ -1,15 +1,18 @@
 import numpy as np
+np.seterr(divide='ignore', invalid='ignore')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
 from collections import OrderedDict
 
 
-def plot_transport_column(model, flux, sol, i, ax=None, dST=None, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=None,
+def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=None,
                           ST_max=None, omega_max=None, valvegap=0.3, hspace=0.015, artists_dict=OrderedDict(), do_init=True):
     dt = model.options['dt']
     Q = model.data_df[flux].iloc[i]
     C_old = model.solute_parameters[sol]['C_old']
+    if i is None:
+        i = 0
 
     ST_mod = np.r_[0., model.sas_blends[flux].ST[:, i]]
     PQ_mod = np.r_[0., model.sas_blends[flux].P[:, i]]

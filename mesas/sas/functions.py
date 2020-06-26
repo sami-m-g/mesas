@@ -17,9 +17,194 @@ import copy
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.stats import rv_continuous
 
 
-class Piecewise:
+class _SASFunctionBase:
+    """
+    Base function for SAS functions
+    """
+
+    def __init__(self):
+        pass
+
+    def __getitem__(self, i):
+        return self
+
+    def __setitem__(self, i):
+        raise TypeError("You're not allowed to modify the SAS function for a specific index")
+
+    # Next we define a number of properties. These act like attributes, but special functions
+    # are called when the attributes are queried or assigned to
+
+    def set_args(self, *args, **kwargs):
+        raise NotImplementedError("Method for setting SAS function parameters has not been defined")
+
+    @property
+    def has_params(self):
+        return self._has_params
+
+    @property
+    def ST(self):
+        return self._ST
+
+    @ST.setter
+    def ST(self, new_ST):
+        raise NotImplementedError("Method for setting ST directly has not been defined")
+
+    @property
+    def P(self):
+        return self._P
+
+    @P.setter
+    def P(self, new_P):
+        raise NotImplementedError("Method for setting P directly has not been defined")
+
+    @property
+    def segment_list(self):
+        return self._segment_list
+
+    @segment_list.setter
+    def segment_list(self, new_segment_list):
+        raise NotImplementedError("Method for setting segments directly has not been defined")
+
+    def _convert_segment_list_to_ST(self, seglst):
+        """converts a segment_list array into an array of ST endpoints"""
+        return np.cumsum(seglst)
+
+    def _convert_ST_to_segment_list(self, ST):
+        """converts a segment_list array into an array of ST endpoints"""
+        return np.r_[ST[0], np.diff(ST)]
+
+    def inv(self, P):
+        """
+        The inverse Cumulative Distribution Function of the SAS function
+        """
+        raise NotImplementedError("Inverse CDF method not been defined")
+
+    def __call__(self, ST):
+        """
+        The Cumulative Distribution Function of the SAS function
+        """
+        raise NotImplementedError("CDF method not been defined")
+
+    def __repr__(self):
+        """Return a repr of the SAS function"""
+        raise NotImplementedError("__repr__ not been defined")
+
+    def plot(self, ax=None, **kwargs):
+        """Return a plot of the SAS function"""
+        if ax is None:
+            fig, ax = plt.subplots()
+        return ax.plot(self.ST, self.P, **kwargs)
+
+    def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
+        """ Calculates a limited jacobian of the model predictions """
+        raise NotImplementedError("get_jacobian not been defined")
+
+
+class Continuous(_SASFunctionBase):
+    """
+    Base function for SAS functions
+    """
+
+    def __init__(self, func, P=None, nsegment=25, ST_max=1.797693134862315e+308):
+
+        self.ST_max = np.float(ST_max)
+
+        assert isinstance(func, rv_continuous)
+        self._func = func
+        self._has_params = False
+
+        # Make a list of probabilities P
+        if P is not None:
+            # Use the supplied values
+            self.P = np.r_[P]
+            self.nsegment = len(P) - 1
+        else:
+            # Make P equally-spaced
+            self.nsegment = nsegment
+            self.P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+
+    def set_args(self, *args, **kwargs):
+        self._frozen_func = self._func(*args, **kwargs)
+        self._has_params = True
+        self._ST = self.func.ppf(self._P)
+        return self
+
+    @property
+    def func(self):
+        if self._has_params:
+            return self._frozen_func
+        else:
+            raise UnboundLocalError("Parameter values must be set before you can call the underlying function")
+
+    @func.setter
+    def func(selfs, new_func):
+        raise ValueError("Function type cannot be changed")
+
+    @_SASFunctionBase.ST.setter
+    def ST(self, new_ST):
+        try:
+            assert new_ST[0] >= 0
+            assert np.all(np.diff(new_ST) > 0)
+            assert len(new_ST) > 1
+        except Exception as ex:
+            print('Problem with new ST')
+            print(f'Attempting to set ST = {new_ST}')
+            raise ex
+        if new_ST[-1] > self.ST_max:
+            self._ST = new_ST
+            self.ST_max = self._ST[-1]
+        else:
+            self._ST = np.r_[new_ST, self.ST_max]
+        self._segment_list = self._convert_ST_to_segment_list(self._ST)
+
+    @_SASFunctionBase.P.setter
+    def P(self, new_P):
+        assert new_P[0] == 0
+        assert new_P[-1] == 1
+        assert np.all(np.diff(new_P) >= 0)
+        self._P = new_P
+        if self._has_params:
+            self._ST = self.func.ppf(self._P)
+
+    def inv(self, P):
+        """
+        The inverse Cumulative Distribution Function of the SAS function
+        """
+        return self.func.ppf(P)
+
+    def __call__(self, ST):
+        """
+        The Cumulative Distribution Function of the SAS function
+        """
+        return self.func.cdf(ST)
+
+    def __repr__(self):
+        """Return a repr of the SAS function"""
+        repr =     f'       {self._func.name} distribution\n'
+        if self._has_params:
+            repr += f'        parameters: {self._frozen_func.args}\n'
+            repr += '        Lookup table version:\n'
+            repr += '          ST: '
+            for i in range(self.nsegment + 1):
+                repr += '{ST:<10.4}  '.format(ST=self.ST[i])
+            repr += '\n'
+            repr += '          P : '
+            for i in range(self.nsegment + 1):
+                repr += '{P:<10.4}  '.format(P=self.P[i])
+            repr += '\n'
+        else:
+            repr = f'        (parameters not set)'
+        return repr
+
+    def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
+        """ Calculates a limited jacobian of the model predictions """
+        raise NotImplementedError("get_jacobian not been defined")
+
+
+class Piecewise(_SASFunctionBase):
     """
     Class for piecewise-linear SAS functions
 
@@ -64,7 +249,10 @@ class Piecewise:
 
     """
 
-    def __init__(self, segment_list=None, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0., auto='uniform'):
+    def __init__(self, *args, **kwargs):
+        self.set_args(*args, **kwargs)
+
+    def set_args(self, segment_list=None, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0., auto='uniform'):
         """
         Initializes a Piecewise sas function.
 
@@ -78,6 +266,7 @@ class Piecewise:
 
         self.ST_min = np.float(ST_min)
         self.ST_max = np.float(ST_max)
+        self._has_params = False
 
         # Note that the variables _ST, _P and _segment_list are assigned to below
         # instead of their corresponding properties. This is to avoid triggering the _make_interpolators function
@@ -136,14 +325,10 @@ class Piecewise:
             # Make P equally-spaced
             self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
 
+        self._has_params = True
         # call this to make the interpolation functions
         self._make_interpolators()
-
-    def __getitem__(self, i):
         return self
-
-    def __setitem__(self, i):
-        raise TypeError("You're not allowed to modify the SAS function for a specific index")
 
     def _make_interpolators(self):
         """
@@ -160,14 +345,7 @@ class Piecewise:
                                  kind='linear', copy=False,
                                  bounds_error=False, assume_sorted=True)
 
-    # Next we define a number of properties. These act like attributes, but special functions
-    # are called when the attributes are queried or assigned to
-
-    @property
-    def ST(self):
-        return self._ST
-
-    @ST.setter
+    @_SASFunctionBase.ST.setter
     def ST(self, new_ST):
         try:
             assert new_ST[0] >= 0
@@ -185,11 +363,7 @@ class Piecewise:
         self._segment_list = self._convert_ST_to_segment_list(self._ST)
         self._make_interpolators()
 
-    @property
-    def P(self):
-        return self._P
-
-    @P.setter
+    @_SASFunctionBase.P.setter
     def P(self, new_P):
         assert new_P[0] == 0
         assert new_P[-1] == 1
@@ -197,22 +371,10 @@ class Piecewise:
         self._P = new_P
         self._make_interpolators()
 
-    @property
-    def segment_list(self):
-        return self._segment_list
-
-    @segment_list.setter
+    @_SASFunctionBase.segment_list.setter
     def segment_list(self, new_segment_list):
         self._segment_list = new_segment_list
         self.ST = self._convert_segment_list_to_ST(self._segment_list)
-
-    def _convert_segment_list_to_ST(self, seglst):
-        """converts a segment_list array into an array of ST endpoints"""
-        return np.cumsum(seglst)
-
-    def _convert_ST_to_segment_list(self, ST):
-        """converts a segment_list array into an array of ST endpoints"""
-        return np.r_[self._ST[0], np.diff(ST)]
 
     def subdivided_copy(self, segment, split_frac=0.5):
         """Returns a new Piecewise object instance with one segment divided into two
@@ -266,20 +428,6 @@ class Piecewise:
             repr += '{P:<10.4}  '.format(P=self.P[i])
         repr += '\n'
         return repr
-
-    # def __repr__(self):
-    # """Return a repr of the SAS function"""
-    # repr += 'ST        P' + '\n'
-    # repr += '--------  --------' + '\n'
-    # for i in range(self.nsegment + 1):
-    #    repr += '{ST:<8.4}  {P:<8.7} \n'.format(ST=self.ST[i], P=self.P[i])
-    # return repr
-
-    def plot(self, ax=None, **kwargs):
-        """Return a repr of the SAS function"""
-        if ax is None:
-            fig, ax = plt.subplots()
-        return ax.plot(self.ST, self.P, **kwargs)
 
     def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
         """
@@ -393,13 +541,13 @@ class PiecewiseASD(Piecewise):
         self._QTc = self._QTc[-1] * (1 - P[::-1])
         self.set_SQ()
 
-    @Piecewise.ST.setter
+    @_SASFunctionBase.ST.setter
     def ST(self, new_ST):
         self._STc = self._STc[-1] - new_ST[::-1]
         super(PiecewiseASD, self.__class__).ST.fset(self, new_ST)
         self.set_SQ()
 
-    @Piecewise.P.setter
+    @_SASFunctionBase.P.setter
     def P(self, new_P):
         self._QTc = self._QTc[-1] * (1 - new_P[::-1])
         super(PiecewiseASD, self.__class__).P.fset(self, new_P)
@@ -417,11 +565,14 @@ class PiecewiseASD(Piecewise):
         repr += '\n'
         return repr
 
-    def plot_asd(self, ax=None, Q_transform=None, **kwargs):
+    def plot(self, ax=None, Q_transform=None, ASD=True, **kwargs):
         """Return a repr of the SAS function"""
         if ax is None:
             fig, ax = plt.subplots()
-        if Q_transform is None:
-            return ax.plot(self._STc, self._QTc, **kwargs)
+        if ASD:
+            if Q_transform is None:
+                return ax.plot(self._STc, self._QTc, **kwargs)
+            else:
+                return ax.plot(self._STc, Q_transform(self._QTc), **kwargs)
         else:
-            return ax.plot(self._STc, Q_transform(self._QTc), **kwargs)
+            super().plot(self, ax=ax, **kwargs)
