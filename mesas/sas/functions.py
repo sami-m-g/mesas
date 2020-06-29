@@ -61,12 +61,15 @@ class _SASFunctionBase:
         raise NotImplementedError("Method for setting P directly has not been defined")
 
     @property
-    def segment_list(self):
-        return self._segment_list
+    def parameter_list(self):
+        return self._parameter_list
 
-    @segment_list.setter
-    def segment_list(self, new_segment_list):
-        raise NotImplementedError("Method for setting segments directly has not been defined")
+    @parameter_list.setter
+    def parameter_list(self, new_parameter_list):
+        raise NotImplementedError("Method for setting parameters directly has not been defined")
+
+    def subdivided_copy(self, *args, **kwargs):
+        raise TypeError("Cannot subdivide this type of function")
 
     def _convert_segment_list_to_ST(self, seglst):
         """converts a segment_list array into an array of ST endpoints"""
@@ -108,23 +111,26 @@ class Continuous(_SASFunctionBase):
     Base function for SAS functions
     """
 
-    def __init__(self, func, P=None, nsegment=25, ST_max=1.797693134862315e+308):
+    def __init__(self, func, func_kwargs=None, P=None, nsegment=25, ST_max=1.797693134862315e+308):
 
         self.ST_max = np.float(ST_max)
-
-        assert isinstance(func, rv_continuous)
-        self._func = func
-        self._has_params = False
 
         # Make a list of probabilities P
         if P is not None:
             # Use the supplied values
-            self.P = np.r_[P]
             self.nsegment = len(P) - 1
+            self._P = np.r_[P]
         else:
             # Make P equally-spaced
             self.nsegment = nsegment
-            self.P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+            self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+
+        assert isinstance(func, rv_continuous)
+        self._func = func
+        if func_kwargs is not None:
+            self.set_args(**func_kwargs)
+        else:
+            self._has_params = False
 
     def set_args(self, *args, **kwargs):
         self._frozen_func = self._func(*args, **kwargs)
@@ -158,7 +164,7 @@ class Continuous(_SASFunctionBase):
             self.ST_max = self._ST[-1]
         else:
             self._ST = np.r_[new_ST, self.ST_max]
-        self._segment_list = self._convert_ST_to_segment_list(self._ST)
+        self._parameter_list = self._convert_ST_to_segment_list(self._ST)
 
     @_SASFunctionBase.P.setter
     def P(self, new_P):
@@ -252,7 +258,7 @@ class Piecewise(_SASFunctionBase):
     def __init__(self, *args, **kwargs):
         self.set_args(*args, **kwargs)
 
-    def set_args(self, segment_list=None, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0., auto='uniform'):
+    def set_args(self, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0., auto='uniform'):
         """
         Initializes a Piecewise sas function.
 
@@ -268,18 +274,11 @@ class Piecewise(_SASFunctionBase):
         self.ST_max = np.float(ST_max)
         self._has_params = False
 
-        # Note that the variables _ST, _P and _segment_list are assigned to below
+        # Note that the variables _ST, _P and _parameter_list are assigned to below
         # instead of their corresponding properties. This is to avoid triggering the _make_interpolators function
         # until the end
 
-        if segment_list is not None:
-
-            # Use the given segment_list
-            self.nsegment = len(segment_list) - 1
-            self._segment_list = np.array(segment_list, dtype=np.float)
-            self._ST = self._convert_segment_list_to_ST(self._segment_list)
-
-        elif ST is not None:
+        if ST is not None:
 
             # Use the given ST values
             assert ST[0] >= 0
@@ -287,7 +286,7 @@ class Piecewise(_SASFunctionBase):
             assert len(ST) > 1
             self.nsegment = len(ST) - 1
             self._ST = np.array(ST, dtype=np.float)
-            self._segment_list = self._convert_ST_to_segment_list(self._ST)
+            self._parameter_list = self._convert_ST_to_segment_list(self._ST)
 
         else:
 
@@ -296,7 +295,7 @@ class Piecewise(_SASFunctionBase):
 
             if auto=='uniform':
                 self._ST = np.linspace(self.ST_min, self.ST_max, self.nsegment + 1)
-                self._segment_list = self._convert_ST_to_segment_list(self._ST)
+                self._parameter_list = self._convert_ST_to_segment_list(self._ST)
             elif auto=='random':
                 # Generate a random function
                 # Note this should probably be encapsulated in a function
@@ -308,7 +307,7 @@ class Piecewise(_SASFunctionBase):
                         0, ST_scaled[self.nsegment - i], 1)
 
                 self._ST[:] = self.ST_min + (self.ST_max - self.ST_min) * ST_scaled
-                self._segment_list = self._convert_ST_to_segment_list(self._ST)
+                self._parameter_list = self._convert_ST_to_segment_list(self._ST)
 
         # Make a list of probabilities P
         if P is not None:
@@ -360,7 +359,7 @@ class Piecewise(_SASFunctionBase):
         self._ST = new_ST
         self.ST_min = self._ST[0]
         self.ST_max = self._ST[-1]
-        self._segment_list = self._convert_ST_to_segment_list(self._ST)
+        self._parameter_list = self._convert_ST_to_segment_list(self._ST)
         self._make_interpolators()
 
     @_SASFunctionBase.P.setter
@@ -371,10 +370,10 @@ class Piecewise(_SASFunctionBase):
         self._P = new_P
         self._make_interpolators()
 
-    @_SASFunctionBase.segment_list.setter
-    def segment_list(self, new_segment_list):
-        self._segment_list = new_segment_list
-        self.ST = self._convert_segment_list_to_ST(self._segment_list)
+    @_SASFunctionBase.parameter_list.setter
+    def parameter_list(self, new_parameter_list):
+        self._parameter_list = new_parameter_list
+        self.ST = self._convert_segment_list_to_ST(self._parameter_list)
 
     def subdivided_copy(self, segment, split_frac=0.5):
         """Returns a new Piecewise object instance with one segment divided into two
@@ -469,110 +468,7 @@ class Piecewise(_SASFunctionBase):
         J_seg = np.dot(A, J_S.T).T
 
         if logtransform:
-            J_seglog = J_seg * self._segment_list
+            J_seglog = J_seg * self._parameter_list
             return J_seglog
         else:
             return J_seg
-
-class PiecewiseASD(Piecewise):
-    def __init__(self, STc, QTc, S=None, Q=None):
-        self._STc = STc
-        self._QTc = QTc
-        self._S = None
-        self._Q = None
-        self._sas_fun_index = None
-        ST = STc[-1] - STc[::-1]
-        QT = QTc[-1] - QTc[::-1]
-        P = QT / QTc[-1]
-        super().__init__(ST=ST, P=P)
-        self.set_SQ(S, Q)
-
-    def __deepcopy__(self, memo):
-        cls = self.__class__
-        new_obj = cls.__new__(cls)
-        memo[id(self)] = new_obj
-        new_obj.__init__(copy.deepcopy(self._STc), copy.deepcopy(self._QTc),
-                         copy.deepcopy(self._S), copy.deepcopy(self._Q))
-        return new_obj
-
-    def set_SQ(self, S=None, Q=None):
-        pass
-        # if S is not None:
-        #    self._S = S
-        # if Q is not None:
-        #    self._Q = Q
-        # if self._S is not None and self._Q is not None:
-        #    self._sas_fun_index = [0] * len(self._S)
-        #    for i in range(len(self._S)):
-        #        num_orig = ((self._STc < self._S[i]) & (self._QTc < self._Q[i])).sum()
-        #        if num_orig > 0:
-        #            STc = np.zeros(num_orig + 1)
-        #            QTc = np.zeros(num_orig + 1)
-        #            STc[:-1] = self._STc[:num_orig]
-        #            QTc[:-1] = self._QTc[:num_orig]
-        #            STc[-1] = self._S[i]
-        #            QTc[-1] = self._Q[i]
-        #            index_select = range(1, num_orig+1)
-        #            orig_select = range(self.nsegment+1-num_orig, self.nsegment+1)
-        #        else:
-        #            STc = self._STc[:2]
-        #            QTc = np.zeros_like(STc)
-        #            orig_select = []
-        #            index_select = []
-        #        ST = STc[-1] - STc[::-1]
-        #        QT = QTc[-1] - QTc[::-1]
-        #        P = QT/QT[-1]
-        #        self._sas_fun_index[i] = Piecewise(ST=ST, P=P)
-        #        self._sas_fun_index[i].orig_select = orig_select
-        #        self._sas_fun_index[i].index_select = index_select
-
-    # def __call__(self, *args, **kwargs):
-    # warnings.warn('Just FYI, you are calling an ASD function without an index. Is that what you want to do?')
-    # return super().__call__(*args, **kwargs)
-
-    # def __getitem__(self, i):
-    #    return self._sas_fun_index[i]
-
-    def update_from_Piecewise_SAS(self, sas_fun):
-        ST = sas_fun.ST
-        P = sas_fun.P
-        super().__init__(ST=ST, P=P)
-        self._STc = self._STc[-1] - ST[::-1]
-        self._QTc = self._QTc[-1] * (1 - P[::-1])
-        self.set_SQ()
-
-    @_SASFunctionBase.ST.setter
-    def ST(self, new_ST):
-        self._STc = self._STc[-1] - new_ST[::-1]
-        super(PiecewiseASD, self.__class__).ST.fset(self, new_ST)
-        self.set_SQ()
-
-    @_SASFunctionBase.P.setter
-    def P(self, new_P):
-        self._QTc = self._QTc[-1] * (1 - new_P[::-1])
-        super(PiecewiseASD, self.__class__).P.fset(self, new_P)
-        self.set_SQ()
-
-    def __repr__(self):
-        """Return a repr of the SAS function"""
-        repr = '        STc : '
-        for i in range(self.nsegment + 1):
-            repr += '{STc:<10.4}  '.format(STc=self._STc[i])
-        repr += '\n'
-        repr += '        QTc : '
-        for i in range(self.nsegment + 1):
-            repr += '{QTc:<10.4}  '.format(QTc=self._QTc[i])
-        repr += '\n'
-        return repr
-
-    def plot(self, ax=None, Q_transform=None, ASD=True, **kwargs):
-        """Return a repr of the SAS function"""
-        if ax is None:
-            fig, ax = plt.subplots()
-        if ASD:
-            if Q_transform is None:
-                return ax.plot(self._STc, self._QTc, **kwargs)
-            else:
-                return ax.plot(self._STc, Q_transform(self._QTc), **kwargs)
-        else:
-            super().plot(self, ax=ax, **kwargs)

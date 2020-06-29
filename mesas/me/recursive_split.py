@@ -105,7 +105,7 @@ def lookfor_new_components(initial_model, initial_rmse, new_components, segment_
 
                 else:
                     new_model = initial_model.subdivided_copy(flux, label, segment)
-                    segment_list = new_model.get_segment_list()
+                    segment_list = new_model.get_parameter_list()
                     if np.any(segment_list[1:] < new_model.options['ST_smallest_segment']):
                         _verbose("New segment too small! Try reducing model.options['ST_smallest_segment']")
                         subdivision_accepted = False
@@ -289,7 +289,7 @@ def increase_resolution_leftfirst(initial_model, initial_rmse, new_components, s
     _verbose(f'Testing increased SAS resolution in segment {segment}')
 
     # total number of segments. Used for plotting (actually for naming the saved figure files)
-    Ns = len(initial_model.get_segment_list())
+    Ns = len(initial_model.get_parameter_list())
 
     last_accepted_model, last_accepted_rmse, new_components, new_components_count, rmse_dict = lookfor_new_components(
         initial_model, initial_rmse,
@@ -378,7 +378,7 @@ def fit_model(model, include_C_old=True, learn_fun=None, index=None, jacobian_mo
     new_model = model.copy_without_results()
 
     # Use the current values as the initial estimate
-    segment_list = new_model.get_segment_list()
+    segment_list = new_model.get_parameter_list()
     # Assume that any segments of zero length are the first segment
     # and exclude these from the estimate of x0
     # TODO: check that zero_segments are indeed ST_min
@@ -412,7 +412,7 @@ def fit_model(model, include_C_old=True, learn_fun=None, index=None, jacobian_mo
             #_verbose(x)
             new_segment_list = np.zeros_like(segment_list)
             new_segment_list[non_zero_segments] = np.exp(x[:nseg_x0])
-            new_model.update_from_segment_list(new_segment_list)
+            new_model.update_from_parameter_list(new_segment_list)
 
             # optionally update the C_old parameter
             if include_C_old:

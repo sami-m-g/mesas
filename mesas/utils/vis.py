@@ -14,14 +14,6 @@ def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, c
     if i is None:
         i = 0
 
-    ST_mod = np.r_[0., model.sas_blends[flux].ST[:, i]]
-    PQ_mod = np.r_[0., model.sas_blends[flux].P[:, i]]
-    omega_mod = np.diff(PQ_mod) / np.diff(ST_mod)
-    if omega_max is None:
-        omega_max = omega_mod.max() * 1.1
-    if ST_max is None:
-        ST_max = ST_mod[-1] * 1.1
-
     sTs = np.r_[0, model.result['sT'][:-1, i]]
     mTs = np.r_[0, model.result['mT'][:-1, i, list(model._solorder).index(sol)]]
     sTe = model.result['sT'][:, i+1]
@@ -35,12 +27,22 @@ def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, c
     MT = np.r_[0, np.cumsum(mT)] * dt
     MQ = np.r_[0, np.cumsum(mQ)] * dt
 
+    ST_mod = np.r_[0., model.sas_blends[flux].ST[i, :]]
+    PQ_mod = np.r_[0., model.sas_blends[flux].P[i, :]]
+    omega_mod = np.diff(PQ_mod) / np.diff(ST_mod)
+    if omega_max is None:
+        omega_max = np.nanmax(omega_mod) * 1.1
+    if ST_max is None:
+        ST_max = ST_mod[-1] * 1.1
+    if np.isinf(ST_max):
+        ST_max = ST.max() * 1.1
+
     CS = np.where(sT > 0, mT / sT, 0)
 
     if dST is None:
-        ST_reg = np.linspace(0, ST_mod[-1], nST + 1)
+        ST_reg = np.linspace(0, ST_max, nST + 1)
     else:
-        nST = int(ST_mod[-1] / dST) + 1
+        nST = int(ST_max / dST) + 1
         ST_reg = np.arange(nST + 1) * dST
     sT_reg = np.diff(ST_reg) / dt
     spacer = sT_reg[0] * dt * valvegap
@@ -93,9 +95,9 @@ def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, c
 
     if do_init:
         for j in range(len(sT)):
-            artists_dict[f'TCpatch {j}'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='None', clip_on=False, visible=False)
+            artists_dict[f'TCpatch {j}'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='None', visible=False)#, clip_on=False)
             ax1.add_patch(artists_dict[f'TCpatch {j}'])
-        artists_dict[f'TCpatch C_old'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='0.5', clip_on=False, visible=False, hatch=r"///")
+        artists_dict[f'TCpatch C_old'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='0.5', visible=False, hatch=r"///")#, clip_on=False)
         ax1.add_patch(artists_dict[f'TCpatch C_old'])
 
     for j in range(len(sT)):
@@ -109,7 +111,7 @@ def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, c
 
     if do_init:
         for n in range(nST):
-            artists_dict[f'TQpatch {n}'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='0.8', clip_on=False, visible=False)
+            artists_dict[f'TQpatch {n}'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='0.8', visible=False)#, clip_on=False)
             ax2.add_patch(artists_dict[f'TQpatch {n}'])
 
     for n in range(nST):
@@ -119,14 +121,14 @@ def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, c
 
     if do_init:
         omega_linestylestr = 'k--'
-        artists_dict[f'omegaline v start'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
-        artists_dict[f'omegaline h start'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+        artists_dict[f'omegaline v start'], = ax2.plot([0, 0], [0, 0], omega_linestylestr)#, clip_on=False)
+        artists_dict[f'omegaline h start'], = ax2.plot([0, 0], [0, 0], omega_linestylestr)#, clip_on=False)
         for ip in range(len(omega_mod)):
-            artists_dict[f'omegaline v {ip}'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+            artists_dict[f'omegaline v {ip}'], = ax2.plot([0, 0], [0, 0], omega_linestylestr)#, clip_on=False)
             if ip > 0:
-                artists_dict[f'omegaline h {ip}'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
-        artists_dict[f'omegaline h end'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
-        artists_dict[f'omegaline v end'], = ax2.plot([0, 0], [0, 0], omega_linestylestr, clip_on=False)
+                artists_dict[f'omegaline h {ip}'], = ax2.plot([0, 0], [0, 0], omega_linestylestr)#, clip_on=False)
+        artists_dict[f'omegaline h end'], = ax2.plot([0, 0], [0, 0], omega_linestylestr)#, clip_on=False)
+        artists_dict[f'omegaline v end'], = ax2.plot([0, 0], [0, 0], omega_linestylestr)#, clip_on=False)
 
     artists_dict[f'omegaline v start'].set_data([0, 0], [0, ST_mod[0]])
     artists_dict[f'omegaline h start'].set_data([0, omega_mod[0]], [ST_mod[0], ST_mod[0]])
@@ -214,7 +216,7 @@ def plot_SAS_cumulative(model, flux, ax=None, sharex=None, i=None, artists_dict=
             ax = plt.subplot(111, sharex=sharex)
         if i is None:
             i = 0
-        artists_dict[f'plot_SAS {flux}'], = ax.plot(model.sas_blends[flux].ST[:, i], model.sas_blends[flux].P[:, i], 'bo-', lw=1.5, clip_on=False)
+        artists_dict[f'plot_SAS {flux}'], = ax.plot(model.sas_blends[flux].ST[i, :], model.sas_blends[flux].P[i, :], 'bo-', lw=1.5)#, clip_on=False)
         ax.set_ylim([0, 1])
         ax.plot(ax.get_xlim(), [1, 1], color='0.1', lw=0.8, ls=':')
         ax.plot(ax.get_xlim(), [0, 0], color='0.1', lw=0.8, ls=':')
@@ -225,7 +227,7 @@ def plot_SAS_cumulative(model, flux, ax=None, sharex=None, i=None, artists_dict=
         ax.spines['left'].set_position(('outward', 10))
         ax.spines['bottom'].set_position(('outward', 10))
     if i is not None:
-        artists_dict[f'plot_SAS {flux}'].set_data(model.sas_blends[flux].ST[:, i], model.sas_blends[flux].P[:, i])
+        artists_dict[f'plot_SAS {flux}'].set_data(model.sas_blends[flux].ST[i, :], model.sas_blends[flux].P[i, :])
 
 
 def plot_transport_column_with_timeseries(model, flux, sol, i=None, fig=None, artists_dict=OrderedDict(), **kwargs):
@@ -262,13 +264,11 @@ def make_transport_column_animation(model, flux, sol, fig=None, frames=None, **k
     artists = OrderedDict()
 
     def init():
-        print('Initializing')
         i = 0
         plot_transport_column_with_timeseries(model, flux, sol, i=i, fig=fig, artists_dict=artists, **kwargs)
         return [artists[x] for x in artists.keys()]
 
     def update(frame):
-        print(f'Frame = {frame}')
         i=frame
         plot_transport_column_with_timeseries(model, flux, sol, i=i, fig=fig, artists_dict=artists, **kwargs)
         return [artists[x] for x in artists.keys()]

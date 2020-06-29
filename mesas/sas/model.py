@@ -14,6 +14,9 @@ from solve import solve
 
 dtype = np.float64
 
+from mesas.sas.blender import Blender
+from collections import OrderedDict
+
 
 class Model:
     '''
@@ -24,7 +27,7 @@ class Model:
     associated with a dataset (`data_df`) and run using the `run` method.
     '''
 
-    def __init__(self, data_df, sas_blends, solute_parameters=None, components_to_learn=None, **kwargs):
+    def __init__(self, data_df, sas_specs, solute_parameters=None, components_to_learn=None, **kwargs):
         # defaults
         self._result = None
         self.jacobian = {}
@@ -45,7 +48,9 @@ class Model:
         # do input Checking
         self.data_df = data_df
         self.options = kwargs
-        self.sas_blends = sas_blends
+        self.sas_blends = self.parse_sas_specs(sas_specs)
+        self._numflux = len(self.sas_blends)
+        self._fluxorder = list(self.sas_blends.keys())
         # defaults for solute transport
         self._default_parameters = {
             'mT_init': 0.,
@@ -68,6 +73,18 @@ class Model:
             repr += f'flux = {flux}\n'
             repr += sas_blend.__repr__()
         return repr
+
+    def parse_sas_specs(self, sas_specs):
+        sas_blends = OrderedDict()
+        for flux, spec in sas_specs.items():
+            assert flux in self.data_df.columns
+            if isinstance(spec, Blender):
+                sas_blends[flux] = spec
+            else:
+                assert isinstance(spec, dict)
+                assert all([isinstance(component_spec, dict) for component_spec in spec.values()])
+                sas_blends[flux] = Blender(spec, self.data_df)
+        return sas_blends
 
     def copy_without_results(self):
         """creates a copy of the model without the results"""
@@ -192,12 +209,14 @@ class Model:
     @sas_blends.setter
     def sas_blends(self, new_sas_blends):
         self._sas_blends = new_sas_blends
+        for sas_blend in self._sas_blends.values():
+            sas_blend.blend(self.data_df)
         self._numflux = len(self._sas_blends)
         self._fluxorder = list(self._sas_blends.keys())
 
     def set_sas_blend(self, flux, sas_blend):
         self._sas_blends[flux] = sas_blend
-        self._sas_blends[flux].blend()
+        self._sas_blends[flux].blend(self.data_df)
 
     def set_component(self, flux, component):
         label = component.label
@@ -226,11 +245,11 @@ class Model:
 
         The parameters associated with these components can be obtained as a 1-D array with:
 
-            >>> seglist = model.get_segment_list()
+            >>> seglist = model.get_parameter_list()
 
         and modified using:
 
-            >>> model.update_from_segment_list(seglst)
+            >>> model.update_from_parameter_list(seglst)
 
         :return:
         """
@@ -246,27 +265,20 @@ class Model:
         for flux in self._comp2learn_fluxorder:
             self._sas_blends[flux]._comp2learn_componentorder = self._components_to_learn[flux]
 
-    ## Taking this out because I don't think I want to do this ever
-    #def trim_unused_ST(self):
-    #    largest_observed_ST = self.result['sT'].sum()
-    #    for flux, labels in self.components_to_learn.items():
-    #        for label in labels:
-    #            self.sas_blends[flux].components[label].trim(largest_observed_ST)
-
-    def get_segment_list(self):
+    def get_parameter_list(self):
         """
         Returns a concatenated list of segments from self.components_to_learn
         """
-        return np.concatenate([self.sas_blends[flux].get_segment_list() for flux in self._comp2learn_fluxorder])
+        return np.concatenate([self.sas_blends[flux].get_parameter_list() for flux in self._comp2learn_fluxorder])
 
-    def update_from_segment_list(self, segment_list):
+    def update_from_parameter_list(self, parameter_list):
         """
         Modifies the components in self.components_to_learn from a concatenated list of segments
         """
         starti = 0
         for flux in self._comp2learn_fluxorder:
-            nparams = len(self.sas_blends[flux].get_segment_list())
-            self.sas_blends[flux].update_from_segment_list(segment_list[starti: starti + nparams])
+            nparams = len(self.sas_blends[flux].get_parameter_list())
+            self.sas_blends[flux].update_from_parameter_list(parameter_list[starti: starti + nparams])
             starti += nparams
 
     @property
@@ -345,11 +357,11 @@ class Model:
             nC_list.append(len(self._sas_blends[flux].components))
             for component in self._sas_blends[flux]._componentorder:
                 component_list.append(self.sas_blends[flux].components[component])
-                nP_list.append(len(component_list[-1].sas_fun.P))
+                nP_list.append(len(component_list[-1].P))
         nC_total = np.sum(nC_list)
         nP_total = np.sum(nP_list)
-        P_list = np.column_stack([component.P for component in component_list]).T
-        SAS_lookup = np.column_stack([component.ST for component in component_list]).T
+        P_list = np.column_stack([[component.P] for component in component_list]).T
+        SAS_lookup = np.column_stack([[component.ST] for component in component_list]).T
         weights = np.column_stack([component.weights for component in component_list])
         return SAS_lookup, P_list, weights, nC_list, nC_total, nP_list, nP_total
 
@@ -382,14 +394,12 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, np.asfortranarray(Q), np.asfortranarray(SAS_lookup.T), np.asfortranarray(P_list.T), np.asfortranarray(weights),
+            J, np.asfortranarray(Q), np.asfortranarray(SAS_lookup), np.asfortranarray(P_list), np.asfortranarray(weights),
             sT_init, dt, verbose, debug, warning, jacobian,
             mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
             np.asfortranarray(C_eq), C_old,
             n_substeps, nC_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nP_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
-
-
 
         if numsol > 0:
             self._result = {'C_Q': C_Q}
@@ -428,7 +438,7 @@ class Model:
                                     A = np.triu(np.ones(nP), k=0)
                                     J_S = np.dot(A, J_S.T).T
                                     if logtransform:
-                                        J_S = J_S * self.sas_blends[flux].components[label].sas_fun._segment_list
+                                        J_S = J_S * self.sas_blends[flux].components[label].sas_fun._parameter_list
                                 if J_seg is None:
                                     J_seg = J_S
                                 else:

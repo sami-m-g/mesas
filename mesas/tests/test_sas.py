@@ -3,27 +3,21 @@ import numpy as np
 import pandas as pd
 import pytest
 
-# 2. A 'blender' that assumes that SAS function is fixed in time
-from mesas.sas.blender import Fixed, Weighted
-# classes we will use to construct the SAS model
-# 1. A piecewise constant SAS function
-from mesas.sas.functions import Piecewise, Continuous
-# 3. The sas model class
 from mesas.sas.model import Model
 
 timeseries_length = 50
 max_age = timeseries_length
 dt = 0.01
-Q_0 = 1.0/timeseries_length / dt  # <-- steady-state flow rate
+Q_0 = 1.0 / timeseries_length / dt  # <-- steady-state flow rate
 C_J = 1000.
 C_old = 2000.
 S_0 = 5
-S_m = 0.601/timeseries_length
-eps = 0.0001/timeseries_length
+S_m = 0.601 / timeseries_length
+eps = 0.0001 / timeseries_length
 n_substeps = 20
 n_segment = 5
-fQ=0.3
-fc=0.1
+fQ = 0.3
+fc = 0.1
 jacobian = True
 debug = False
 verbose = False
@@ -42,68 +36,147 @@ print(f'fQ = {fQ}')
 print(f'fc = {fc}')
 print(f'jacobian = {jacobian}')
 
+sas_specs = {
+    'Q1': {
+        'ST': [S_m, S_0]
+    }
+}
 
-def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., debug=debug, verbose=verbose, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):
-    data_df = pd.DataFrame()
-    data_df['Q1'] = np.ones(timeseries_length) * Q_0
-    data_df['J'] = np.ones(timeseries_length) * Q_0
-    data_df['Ca'] = np.ones(timeseries_length) * C_J
-    ST = np.linspace(ST_min, S_0, n_segment+1)
-    if j is not None:
-        ST[j] = ST[j] + eps
-    sas_fun1 = Piecewise(ST=ST)
-    sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
-    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
-    model.run()
-    return model
+sas_specs = {
+    'Q1': {
+        'ST': [0, 'S_0']
+    }
+}
 
 from scipy.stats import gamma
-def steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a, j=None, ST_min=0., debug=debug, verbose=verbose, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):
+
+sas_specs = {
+    'Q1': {
+        'scipy.stats': gamma,
+        'args': {
+            'a': 2.,
+            'scale': 'S_0',
+            'loc': 'S_m'
+        },
+        'nsegments': 100
+    }
+}
+
+
+sas_specs = {
+    'Q1': {
+        'scipy.stats': gamma,
+        'args': {
+            'a': 2.,
+            'scale': 'S_0',
+            'loc': 'S_m'
+        },
+        'P': np.arange(0,1,100)
+    }
+}
+
+
+sas_specs = {
+    'Q1': {
+        'scipy.stats': gamma,
+        'args': {
+            'a': 2.,
+            'scale': 'S_0',
+            'loc': 'S_m'
+        },
+        'ST': ['S_m', 1000.]
+    }
+}
+
+
+def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., debug=debug, verbose=verbose,
+               n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(timeseries_length) * Q_0
     data_df['J'] = np.ones(timeseries_length) * Q_0
     data_df['Ca'] = np.ones(timeseries_length) * C_J
-    kwargs = {'a':a, 'scale':S_0, 'loc':ST_min}
+    ST = np.linspace(ST_min, S_0, n_segment + 1)
     if j is not None:
-        kwargs[j] = kwargs[j] + eps
-    sas_fun1 = Continuous(gamma).set_args(a=a, loc=ST_min, scale=S_0)
-    sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df))}
+        ST[j] = ST[j] + eps
+    sas_specs = {'Q1':
+                     {'steady_run':
+                          {'ST': ST }}}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps, jacobian=jacobian, max_age=max_age)
+    model = Model(data_df, sas_specs, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps,
+                  jacobian=jacobian, max_age=max_age)
     model.run()
     return model
 
-def steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0., n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment = n_segment):
+
+from scipy.stats import gamma
+
+
+def steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a, j=None, ST_min=0., debug=debug, verbose=verbose,
+                          n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):
+    data_df = pd.DataFrame()
+    data_df['Q1'] = np.ones(timeseries_length) * Q_0
+    data_df['J'] = np.ones(timeseries_length) * Q_0
+    data_df['Ca'] = np.ones(timeseries_length) * C_J
+    data_df['S_0'] = np.ones(timeseries_length) * S_0
+    data_df['S_m'] = np.ones(timeseries_length) * S_m
+    kwargs = {'a': a, 'scale': S_0, 'loc': ST_min}
+    if j is not None:
+        kwargs[j] = kwargs[j] + eps
+    sas_specs = {'Q1':
+                     {'steady_run_continuous':
+                          {'scipy.stats': gamma,
+                           'args': { 'a': 2.,
+                                     'scale': 'S_0',
+                                     'loc': 'S_m' },
+                           'nsegments': 200}}}
+    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
+    model = Model(data_df, sas_specs, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps,
+                  jacobian=jacobian, max_age=max_age)
+    model.run()
+    return model
+
+
+def steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0.,
+                        n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(timeseries_length) * Q_0 * fQ
-    data_df['Q2'] = np.ones(timeseries_length) * Q_0 * (1-fQ)
+    data_df['Q2'] = np.ones(timeseries_length) * Q_0 * (1 - fQ)
     data_df['c21'] = np.ones(timeseries_length) * fc
-    data_df['c22'] = np.ones(timeseries_length) * (1-fc)
+    data_df['c22'] = np.ones(timeseries_length) * (1 - fc)
     data_df['J'] = np.ones(timeseries_length) * Q_0
     data_df['Ca'] = np.ones(timeseries_length) * C_J
     data_df['Cb'] = np.ones(timeseries_length) * C_J
-    ST = np.linspace(ST_min, S_0, n_segment+1)
-    sas_fun1 = Piecewise(ST=ST)
-    sas_fun21 = Piecewise(ST=ST)
-    sas_fun22 = Piecewise(ST=ST)
+    ST = np.linspace(ST_min, S_0, n_segment + 1)
+    ST1 = ST.copy()
+    ST21 = ST.copy()
+    ST22 = ST.copy()
     if j is not None:
         STp = ST.copy()
         STp[j] = STp[j] + eps
-        if iq==0:
-            sas_fun1 = Piecewise(ST=STp)
-        elif ic==0:
-            sas_fun21 = Piecewise(ST=STp)
-        elif ic==1:
-            sas_fun22 = Piecewise(ST=STp)
-    sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df)), 'Q2': Weighted({'c21':sas_fun21, 'c22':sas_fun22}, weights_df=data_df)}
-    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1', 'Q2']}, 'Cb': {'C_old': C_old, 'observations': ['Q1', 'Q2']}}
-    model = Model(data_df, sas_blends, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps, jacobian=jacobian)
+        if iq == 0:
+            ST1 = STp
+        elif ic == 0:
+            ST21 = STp
+        elif ic == 1:
+            ST22 = STp
+    sas_spec = {'Q1':
+                    {'Fixed':
+                           {'ST': ST1}},
+                'Q2':
+                    {'c21':
+                         {'ST': ST21},
+                     'c22':
+                         {'ST': ST22}}}
+    solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1', 'Q2']},
+                         'Cb': {'C_old': C_old, 'observations': ['Q1', 'Q2']}}
+    model = Model(data_df, sas_spec, solute_parameters, debug=False, verbose=False, dt=dt, n_substeps=n_substeps,
+                  jacobian=jacobian)
     model.run()
     return model
 
+
 def test_steady_uniform(benchmark):
-    #def test_steady_uniform():
+    # def test_steady_uniform():
     print('')
     print('running test_steady_uniform')
 
@@ -118,7 +191,7 @@ def test_steady_uniform(benchmark):
     pQdisc[0] = (Q_0 * (-1 + Delta + n[0] * Delta + Eta[0] * Kappa)) / (S_0 * Delta ** 2)
     mQdisc = pQdisc * C_J * Q_0
     mTdisc = -((C_J * Q_0 * Eta * (-1 + Kappa)) / Delta)
-    CQdisc = (C_J * (Delta + Eta * (-1 + Kappa)) - C_old *Eta * (-1 + Kappa)) / Delta
+    CQdisc = (C_J * (Delta + Eta * (-1 + Kappa)) - C_old * Eta * (-1 + Kappa)) / Delta
 
     CQdisc = np.array([[CQdisc]]).T
     sTdisc = np.tril(np.tile(sTdisc, [timeseries_length, 1])).T
@@ -131,8 +204,8 @@ def test_steady_uniform(benchmark):
     mTdisc = np.c_[np.zeros(timeseries_length), mTdisc]
     mTdisc = np.array([mTdisc.T]).T
 
-    model = benchmark(steady_run, timeseries_length, dt, Q_0, S_0, C_J, n_segment=1, max_age=max_age)
-    #model = steady_run(timeseries_length, dt, Q_0, S_0, C_J, n_segment=1, max_age=max_age)
+    # model = benchmark(steady_run, timeseries_length, dt, Q_0, S_0, C_J, n_segment=1, max_age=max_age)
+    model = steady_run(timeseries_length, dt, Q_0, S_0, C_J, n_segment=1, max_age=max_age)
     rdf = model.result
 
     def printcheck(rdf, varstr, analy):
@@ -170,12 +243,11 @@ def test_steady_uniform(benchmark):
             print(rdf['SoluteBalance'][:, -3:, s] / (Q_0 * C_J))
             raise
 
-
     if jacobian:
 
         dsTdSjdisc = -((Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
         dmTdSjdisc = -((C_J * Q_0 * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta))
-        dCQdSjdisc = ((C_J - C_old) *Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 *Delta)
+        dCQdSjdisc = ((C_J - C_old) * Eta * (-1 + n * Delta * (-1 + Kappa) + Kappa + Delta * Kappa)) / (S_0 * Delta)
 
         dsTdSjdisc = np.tril(np.tile(dsTdSjdisc, [timeseries_length, 1])).T
         dsTdSjdisc = np.c_[np.zeros(timeseries_length), dsTdSjdisc]
@@ -189,13 +261,13 @@ def test_steady_uniform(benchmark):
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookup2, _, _, _, _, _, _ = model2._create_sas_lookup()
         j = 1
-        dSj = SAS_lookup2[j, timeseries_length - 1] - SAS_lookup[j, timeseries_length - 1]
+        dSj = SAS_lookup2[timeseries_length - 1, j] - SAS_lookup[timeseries_length - 1, j]
 
         def printcheck(rdfi, rdfp, varstr, ostr, analy):
-            if varstr=='dCdSj':
-                var = rdfi[varstr][:,1,...]
+            if varstr == 'dCdSj':
+                var = rdfi[varstr][:, 1, ...]
             else:
-                var = rdfi[varstr][:,:,1,...]
+                var = rdfi[varstr][:, :, 1, ...]
             err = (analy[:max_age, ...] - var[:max_age, ...]) / analy[:max_age, ...]
             check = (((rdfp[ostr] - rdfi[ostr]) / dSj))
             errcheck = (analy[:max_age, ...] - check[:max_age, ...]) / analy[:max_age, ...]
@@ -221,6 +293,7 @@ def test_steady_uniform(benchmark):
         printcheck(rdf, rdf2, 'dmTdSj', 'mT', dmTdSjdisc)
         printcheck(rdf, rdf2, 'dCdSj', 'C_Q', dCQdSjdisc)
 
+
 def test_steady_gamma():
     print('')
     print('running test_steady_gamma')
@@ -240,26 +313,78 @@ def test_steady_piston_uniform():
     Eta = Kappa ** n
     T_m = S_m / Q_0
     m = T_m / dt
-    HeavisideTheta = lambda x: np.heaviside(x,1)
+    HeavisideTheta = lambda x: np.heaviside(x, 1)
 
-
-    sTdisc = Q_0 + (Q_0*Kappa**(m/(-1 + m*Delta))*(-((-1 + Delta + n*Delta)*Kappa**(m/(1 - m*Delta))) + (-1 + m*Delta)*Kappa**((1 + n)/(1 - m*Delta)) + ((-1 + n*Delta)*Kappa**(m/(1 - m*Delta)) + (1 - m*Delta)*Kappa**(n/(1 - m*Delta)))*HeavisideTheta(-m + n))*HeavisideTheta(1 - m + n))/Delta
-    dsTdSjdisc = (Q_0*Kappa**((1 + n)/(1 - m*Delta))*((1 + (1 - 2*m + n)*Delta)*Kappa**(m/(-1 + m*Delta)) + (-1 + m*Delta)*Kappa**((1 + n)/(-1 + m*Delta)) + Kappa**(1/(-1 + m*Delta))*((-1 + 2*m*Delta - n*Delta)*Kappa**(m/(-1 + m*Delta)) + (1 - m*Delta)*Kappa**(n/(-1 + m*Delta)))*HeavisideTheta(-m + n))* HeavisideTheta(1 - m + n))/(S_0*Delta*(-1 + m*Delta))
-    pQdisc = -((Q_0*((1 + Delta - n*Delta + (-1 + m*Delta)*Kappa**((1 + m - n)/(-1 + m*Delta)))*HeavisideTheta(((-1 - m + n)*S_0*Delta)/Q_0) + 2*(-1 + n*Delta + (1 - m*Delta)*Kappa**((m - n)/(-1 + m*Delta)))*HeavisideTheta(((-m + n)*S_0*Delta)/Q_0) + (1 - (1 + n)*Delta + (-1 + m*Delta)*Kappa**((1 - m + n)/(1 - m*Delta)))*HeavisideTheta(((1 - m + n)*S_0*Delta)/Q_0)))/(S_0*Delta**2))
-    pQdisc[0] = (Q_0*(-1 + Delta + n[0]*Delta + (1 - m*Delta)*Kappa**((1 - m + n[0])/(1 - m*Delta)))*HeavisideTheta(((1 - m + n[0])*S_0*Delta)/Q_0))/ (S_0*Delta**2)
+    sTdisc = Q_0 + (Q_0 * Kappa ** (m / (-1 + m * Delta)) * (
+            -((-1 + Delta + n * Delta) * Kappa ** (m / (1 - m * Delta))) + (-1 + m * Delta) * Kappa ** (
+            (1 + n) / (1 - m * Delta)) + (
+                    (-1 + n * Delta) * Kappa ** (m / (1 - m * Delta)) + (1 - m * Delta) * Kappa ** (
+                    n / (1 - m * Delta))) * HeavisideTheta(-m + n)) * HeavisideTheta(1 - m + n)) / Delta
+    dsTdSjdisc = (Q_0 * Kappa ** ((1 + n) / (1 - m * Delta)) * (
+            (1 + (1 - 2 * m + n) * Delta) * Kappa ** (m / (-1 + m * Delta)) + (-1 + m * Delta) * Kappa ** (
+            (1 + n) / (-1 + m * Delta)) + Kappa ** (1 / (-1 + m * Delta)) * (
+                    (-1 + 2 * m * Delta - n * Delta) * Kappa ** (m / (-1 + m * Delta)) + (
+                    1 - m * Delta) * Kappa ** (n / (-1 + m * Delta))) * HeavisideTheta(
+        -m + n)) * HeavisideTheta(1 - m + n)) / (S_0 * Delta * (-1 + m * Delta))
+    pQdisc = -((Q_0 * (
+            (1 + Delta - n * Delta + (-1 + m * Delta) * Kappa ** ((1 + m - n) / (-1 + m * Delta))) * HeavisideTheta(
+        ((-1 - m + n) * S_0 * Delta) / Q_0) + 2 * (
+                    -1 + n * Delta + (1 - m * Delta) * Kappa ** ((m - n) / (-1 + m * Delta))) * HeavisideTheta(
+        ((-m + n) * S_0 * Delta) / Q_0) + (1 - (1 + n) * Delta + (-1 + m * Delta) * Kappa ** (
+            (1 - m + n) / (1 - m * Delta))) * HeavisideTheta(((1 - m + n) * S_0 * Delta) / Q_0))) / (
+                       S_0 * Delta ** 2))
+    pQdisc[0] = (Q_0 * (-1 + Delta + n[0] * Delta + (1 - m * Delta) * Kappa ** (
+            (1 - m + n[0]) / (1 - m * Delta))) * HeavisideTheta(((1 - m + n[0]) * S_0 * Delta) / Q_0)) / (
+                        S_0 * Delta ** 2)
     mQdisc = pQdisc * Q_0 * C_J
-    dpQdSjdisc = -((Q_0*Kappa**((1 + m - n)/(-1 + m*Delta))*((1 + (-1 - 2*m + n)*Delta + (-1 + m*Delta)*Kappa**((1 + m - n)/(1 - m*Delta)))* HeavisideTheta(((-1 - m + n)*S_0*Delta)/Q_0) + 2*((-1 + 2*m*Delta - n*Delta)*Kappa**(1/(1 - m*Delta)) + (1 - m*Delta)*Kappa**((1 + m - n)/(1 - m*Delta)))*HeavisideTheta(((-m + n)*S_0*Delta)/Q_0) - ((1 - m*Delta)*Kappa**((1 + m - n)/(1 - m*Delta)) + (-1 + (-1 + 2*m - n)*Delta)/Kappa**(2/(-1 + m*Delta)))*HeavisideTheta(((1 - m + n)*S_0*Delta)/Q_0)))/ (S_0**2*Delta**2*(-1 + m*Delta)))
-    dpQdSjdisc[0] = (Q_0*(1 - m*Delta + (-1 + (-1 + 2*m - n[0])*Delta)*Kappa**((1 - m + n[0])/(1 - m*Delta)))* HeavisideTheta(((1 - m + n[0])*S_0*Delta)/Q_0))/(S_0**2*Delta**2*(-1 + m*Delta))
-    mTdisc = (C_J*Q_0* (Delta + Kappa**(m/(-1 + m*Delta))*(-((-1 + Delta + n*Delta)*Kappa**(m/(1 - m*Delta))) + (-1 + m*Delta)*Kappa**((1 + n)/(1 - m*Delta)) + ((-1 + n*Delta)*Kappa**(m/(1 - m*Delta)) + (1 - m*Delta)*Kappa**(n/(1 - m*Delta)))*HeavisideTheta(-m + n))*HeavisideTheta(1 - m + n)))/Delta
-    dmTdSjdisc = (C_J*Q_0*Kappa**((1 + n)/(1 - m*Delta))*((1 + (1 - 2*m + n)*Delta)*Kappa**(m/(-1 + m*Delta)) + (-1 + m*Delta)*Kappa**((1 + n)/(-1 + m*Delta)) + Kappa**(1/(-1 + m*Delta))*((-1 + 2*m*Delta - n*Delta)*Kappa**(m/(-1 + m*Delta)) + (1 - m*Delta)*Kappa**(n/(-1 + m*Delta)))*HeavisideTheta(-m + n))* HeavisideTheta(1 - m + n))/(S_0*Delta*(-1 + m*Delta))
-    CQdisc = C_old - ((C_J - C_old)*Kappa**(m/(-1 + m*Delta))* (-((-1 + Delta + n*Delta)*Kappa**(m/(1 - m*Delta))) + (-1 + m*Delta)*Kappa**((1 + n)/(1 - m*Delta)) + ((-1 + n*Delta)*Kappa**(m/(1 - m*Delta)) + (1 - m*Delta)*Kappa**(n/(1 - m*Delta)))*HeavisideTheta(-m + n))*HeavisideTheta(1 - m + n))/Delta
-    dCQdSjdisc = ((C_J - C_old)*(1 - m*Delta + (-1 + (-1 + 2*m - n)*Delta)*Kappa**((1 - m + n)/(1 - m*Delta)) + (-1 + m*Delta + (1 - 2*m*Delta + n*Delta)*Kappa**((m - n)/(-1 + m*Delta)))*HeavisideTheta(-m + n))*HeavisideTheta(1 - m + n))/(S_0*Delta*(-1 + m*Delta))
+    dpQdSjdisc = -((Q_0 * Kappa ** ((1 + m - n) / (-1 + m * Delta)) * ((1 + (-1 - 2 * m + n) * Delta + (
+            -1 + m * Delta) * Kappa ** ((1 + m - n) / (1 - m * Delta))) * HeavisideTheta(
+        ((-1 - m + n) * S_0 * Delta) / Q_0) + 2 * ((-1 + 2 * m * Delta - n * Delta) * Kappa ** (1 / (1 - m * Delta)) + (
+            1 - m * Delta) * Kappa ** ((1 + m - n) / (1 - m * Delta))) * HeavisideTheta(
+        ((-m + n) * S_0 * Delta) / Q_0) - ((1 - m * Delta) * Kappa ** ((1 + m - n) / (1 - m * Delta)) + (
+            -1 + (-1 + 2 * m - n) * Delta) / Kappa ** (2 / (-1 + m * Delta))) * HeavisideTheta(
+        ((1 - m + n) * S_0 * Delta) / Q_0))) / (S_0 ** 2 * Delta ** 2 * (-1 + m * Delta)))
+    dpQdSjdisc[0] = (Q_0 * (1 - m * Delta + (-1 + (-1 + 2 * m - n[0]) * Delta) * Kappa ** (
+            (1 - m + n[0]) / (1 - m * Delta))) * HeavisideTheta(((1 - m + n[0]) * S_0 * Delta) / Q_0)) / (
+                            S_0 ** 2 * Delta ** 2 * (-1 + m * Delta))
+    mTdisc = (C_J * Q_0 * (Delta + Kappa ** (m / (-1 + m * Delta)) * (
+            -((-1 + Delta + n * Delta) * Kappa ** (m / (1 - m * Delta))) + (-1 + m * Delta) * Kappa ** (
+            (1 + n) / (1 - m * Delta)) + (
+                    (-1 + n * Delta) * Kappa ** (m / (1 - m * Delta)) + (1 - m * Delta) * Kappa ** (
+                    n / (1 - m * Delta))) * HeavisideTheta(-m + n)) * HeavisideTheta(1 - m + n))) / Delta
+    dmTdSjdisc = (C_J * Q_0 * Kappa ** ((1 + n) / (1 - m * Delta)) * (
+            (1 + (1 - 2 * m + n) * Delta) * Kappa ** (m / (-1 + m * Delta)) + (-1 + m * Delta) * Kappa ** (
+            (1 + n) / (-1 + m * Delta)) + Kappa ** (1 / (-1 + m * Delta)) * (
+                    (-1 + 2 * m * Delta - n * Delta) * Kappa ** (m / (-1 + m * Delta)) + (
+                    1 - m * Delta) * Kappa ** (n / (-1 + m * Delta))) * HeavisideTheta(
+        -m + n)) * HeavisideTheta(1 - m + n)) / (S_0 * Delta * (-1 + m * Delta))
+    CQdisc = C_old - ((C_J - C_old) * Kappa ** (m / (-1 + m * Delta)) * (
+            -((-1 + Delta + n * Delta) * Kappa ** (m / (1 - m * Delta))) + (-1 + m * Delta) * Kappa ** (
+            (1 + n) / (1 - m * Delta)) + (
+                    (-1 + n * Delta) * Kappa ** (m / (1 - m * Delta)) + (1 - m * Delta) * Kappa ** (
+                    n / (1 - m * Delta))) * HeavisideTheta(-m + n)) * HeavisideTheta(1 - m + n)) / Delta
+    dCQdSjdisc = ((C_J - C_old) * (
+            1 - m * Delta + (-1 + (-1 + 2 * m - n) * Delta) * Kappa ** ((1 - m + n) / (1 - m * Delta)) + (
+            -1 + m * Delta + (1 - 2 * m * Delta + n * Delta) * Kappa ** (
+            (m - n) / (-1 + m * Delta))) * HeavisideTheta(-m + n)) * HeavisideTheta(1 - m + n)) / (
+                         S_0 * Delta * (-1 + m * Delta))
 
-    dsTdSmdisc = -((Q_0*Kappa**((1 - m + n)/(1 - m*Delta))*(1 - m + n + (m - n)*Kappa**(1/(-1 + m*Delta))*HeavisideTheta(-m + n))* HeavisideTheta(1 - m + n))/(S_0*(-1 + m*Delta)))
-    dpQdSmdisc = -((Q_0*Kappa**((1 - m + n)/(1 - m*Delta))*((1 + m - n)*Kappa**(2/(-1 + m*Delta))*HeavisideTheta(-1 - m + n) - 2*(m - n)*Kappa**(1/(-1 + m*Delta))*HeavisideTheta(-m + n) + (-1 + m - n)*HeavisideTheta(1 - m + n)))/(S_0**2*Delta*(-1 + m*Delta)))
-    dpQdSmdisc[0] = -(((-1 + m - n[0])*Q_0*Kappa**((1 - m + n[0])/(1 - m*Delta))*HeavisideTheta(1 - m + n[0]))/(S_0**2*Delta*(-1 + m*Delta)))
-    dmTdSmdisc = -((C_J*Q_0*Kappa**((1 - m + n)/(1 - m*Delta))*(1 - m + n + (m - n)*Kappa**(1/(-1 + m*Delta))*HeavisideTheta(-m + n))* HeavisideTheta(1 - m + n))/(S_0*(-1 + m*Delta)))
-    dCQdSmdisc = ((C_J - C_old)*Kappa**((1 - m + n)/(1 - m*Delta))*(1 - m + n + (m - n)*Kappa**(1/(-1 + m*Delta))*HeavisideTheta(-m + n))* HeavisideTheta(1 - m + n))/(S_0*(-1 + m*Delta))
+    dsTdSmdisc = -((Q_0 * Kappa ** ((1 - m + n) / (1 - m * Delta)) * (
+            1 - m + n + (m - n) * Kappa ** (1 / (-1 + m * Delta)) * HeavisideTheta(-m + n)) * HeavisideTheta(
+        1 - m + n)) / (S_0 * (-1 + m * Delta)))
+    dpQdSmdisc = -((Q_0 * Kappa ** ((1 - m + n) / (1 - m * Delta)) * (
+            (1 + m - n) * Kappa ** (2 / (-1 + m * Delta)) * HeavisideTheta(-1 - m + n) - 2 * (m - n) * Kappa ** (
+            1 / (-1 + m * Delta)) * HeavisideTheta(-m + n) + (-1 + m - n) * HeavisideTheta(1 - m + n))) / (
+                           S_0 ** 2 * Delta * (-1 + m * Delta)))
+    dpQdSmdisc[0] = -(
+            ((-1 + m - n[0]) * Q_0 * Kappa ** ((1 - m + n[0]) / (1 - m * Delta)) * HeavisideTheta(1 - m + n[0])) / (
+            S_0 ** 2 * Delta * (-1 + m * Delta)))
+    dmTdSmdisc = -((C_J * Q_0 * Kappa ** ((1 - m + n) / (1 - m * Delta)) * (
+            1 - m + n + (m - n) * Kappa ** (1 / (-1 + m * Delta)) * HeavisideTheta(-m + n)) * HeavisideTheta(
+        1 - m + n)) / (S_0 * (-1 + m * Delta)))
+    dCQdSmdisc = ((C_J - C_old) * Kappa ** ((1 - m + n) / (1 - m * Delta)) * (
+            1 - m + n + (m - n) * Kappa ** (1 / (-1 + m * Delta)) * HeavisideTheta(-m + n)) * HeavisideTheta(
+        1 - m + n)) / (S_0 * (-1 + m * Delta))
 
     CQdisc = np.array([[CQdisc]]).T
     sTdisc = np.tril(np.tile(sTdisc, [timeseries_length, 1])).T
@@ -285,7 +410,6 @@ def test_steady_piston_uniform():
     dmTdSmdisc = np.c_[np.zeros(timeseries_length), dmTdSmdisc]
     dmTdSmdisc = np.array([dmTdSmdisc.T]).T
     dCQdSmdisc = np.array([[dCQdSmdisc]]).T
-
 
     model = steady_run(timeseries_length, dt, Q_0, S_0, C_J, ST_min=S_m, n_segment=1)
     rdf = model.result
@@ -328,10 +452,10 @@ def test_steady_piston_uniform():
     if jacobian:
 
         def printcheck(rdfi, rdfp, varstr, ostr, analy, ip):
-            if varstr=='dCdSj':
-                var = rdfi[varstr][:,ip,...]
+            if varstr == 'dCdSj':
+                var = rdfi[varstr][:, ip, ...]
             else:
-                var = rdfi[varstr][:,:,ip,...]
+                var = rdfi[varstr][:, :, ip, ...]
             err = (analy[:max_age, ...] - var[:max_age, ...]) / analy[:max_age, ...]
             check = (((rdfp[ostr] - rdfi[ostr]) / dSj))
             errcheck = (analy[:max_age, ...] - check[:max_age, ...]) / analy[:max_age, ...]
@@ -355,7 +479,7 @@ def test_steady_piston_uniform():
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookup0, _, _, _, _, _, _ = model0._create_sas_lookup()
         j = 1
-        dSj = SAS_lookup0[j, timeseries_length - 1] - SAS_lookup[j, timeseries_length - 1]
+        dSj = SAS_lookup0[timeseries_length - 1, j] - SAS_lookup[timeseries_length - 1, j]
         printcheck(rdf, rdf0, 'dsTdSj', 'sT', dsTdSjdisc, j)
         printcheck(rdf, rdf0, 'dmTdSj', 'mT', dmTdSjdisc, j)
         printcheck(rdf, rdf0, 'dCdSj', 'C_Q', dCQdSjdisc, j)
@@ -365,10 +489,11 @@ def test_steady_piston_uniform():
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
         SAS_lookupm, _, _, _, _, _, _ = modelm._create_sas_lookup()
         j = 0
-        dSj = SAS_lookupm[j, timeseries_length - 1] - SAS_lookup[j, timeseries_length - 1]
+        dSj = SAS_lookupm[timeseries_length - 1, j] - SAS_lookup[timeseries_length - 1, j]
         printcheck(rdf, rdfm, 'dmTdSj', 'mT', dmTdSmdisc, j)
         printcheck(rdf, rdfm, 'dsTdSj', 'sT', dsTdSmdisc, j)
         printcheck(rdf, rdfm, 'dCdSj', 'C_Q', dCQdSmdisc, j)
+
 
 def test_multiple():
     print('running test_multiple')
@@ -380,15 +505,34 @@ def test_multiple():
     Eta = Kappa ** n
     T_m = S_m / Q_0
     m = T_m / dt
-    HeavisideTheta = lambda x: np.heaviside(x,1)
+    HeavisideTheta = lambda x: np.heaviside(x, 1)
 
-
-    sTdisc = Q_0 + (Q_0*Kappa**(m/(-1 + m*Delta))*(-((-1 + Delta + n*Delta)*Kappa**(m/(1 - m*Delta))) + (-1 + m*Delta)*Kappa**((1 + n)/(1 - m*Delta)) + ((-1 + n*Delta)*Kappa**(m/(1 - m*Delta)) + (1 - m*Delta)*Kappa**(n/(1 - m*Delta)))*HeavisideTheta(-m + n))*HeavisideTheta(1 - m + n))/Delta
-    pQdisc = -((Q_0*((1 + Delta - n*Delta + (-1 + m*Delta)*Kappa**((1 + m - n)/(-1 + m*Delta)))*HeavisideTheta(((-1 - m + n)*S_0*Delta)/Q_0) + 2*(-1 + n*Delta + (1 - m*Delta)*Kappa**((m - n)/(-1 + m*Delta)))*HeavisideTheta(((-m + n)*S_0*Delta)/Q_0) + (1 - (1 + n)*Delta + (-1 + m*Delta)*Kappa**((1 - m + n)/(1 - m*Delta)))*HeavisideTheta(((1 - m + n)*S_0*Delta)/Q_0)))/(S_0*Delta**2))
-    pQdisc[0] = (Q_0*(-1 + Delta + n[0]*Delta + (1 - m*Delta)*Kappa**((1 - m + n[0])/(1 - m*Delta)))*HeavisideTheta(((1 - m + n[0])*S_0*Delta)/Q_0))/ (S_0*Delta**2)
+    sTdisc = Q_0 + (Q_0 * Kappa ** (m / (-1 + m * Delta)) * (
+            -((-1 + Delta + n * Delta) * Kappa ** (m / (1 - m * Delta))) + (-1 + m * Delta) * Kappa ** (
+            (1 + n) / (1 - m * Delta)) + (
+                    (-1 + n * Delta) * Kappa ** (m / (1 - m * Delta)) + (1 - m * Delta) * Kappa ** (
+                    n / (1 - m * Delta))) * HeavisideTheta(-m + n)) * HeavisideTheta(1 - m + n)) / Delta
+    pQdisc = -((Q_0 * (
+            (1 + Delta - n * Delta + (-1 + m * Delta) * Kappa ** ((1 + m - n) / (-1 + m * Delta))) * HeavisideTheta(
+        ((-1 - m + n) * S_0 * Delta) / Q_0) + 2 * (
+                    -1 + n * Delta + (1 - m * Delta) * Kappa ** ((m - n) / (-1 + m * Delta))) * HeavisideTheta(
+        ((-m + n) * S_0 * Delta) / Q_0) + (1 - (1 + n) * Delta + (-1 + m * Delta) * Kappa ** (
+            (1 - m + n) / (1 - m * Delta))) * HeavisideTheta(((1 - m + n) * S_0 * Delta) / Q_0))) / (
+                       S_0 * Delta ** 2))
+    pQdisc[0] = (Q_0 * (-1 + Delta + n[0] * Delta + (1 - m * Delta) * Kappa ** (
+            (1 - m + n[0]) / (1 - m * Delta))) * HeavisideTheta(((1 - m + n[0]) * S_0 * Delta) / Q_0)) / (
+                        S_0 * Delta ** 2)
     mQdisc = pQdisc * Q_0 * C_J
-    mTdisc = (C_J*Q_0* (Delta + Kappa**(m/(-1 + m*Delta))*(-((-1 + Delta + n*Delta)*Kappa**(m/(1 - m*Delta))) + (-1 + m*Delta)*Kappa**((1 + n)/(1 - m*Delta)) + ((-1 + n*Delta)*Kappa**(m/(1 - m*Delta)) + (1 - m*Delta)*Kappa**(n/(1 - m*Delta)))*HeavisideTheta(-m + n))*HeavisideTheta(1 - m + n)))/Delta
-    CQdisc = C_old - ((C_J - C_old)*Kappa**(m/(-1 + m*Delta))* (-((-1 + Delta + n*Delta)*Kappa**(m/(1 - m*Delta))) + (-1 + m*Delta)*Kappa**((1 + n)/(1 - m*Delta)) + ((-1 + n*Delta)*Kappa**(m/(1 - m*Delta)) + (1 - m*Delta)*Kappa**(n/(1 - m*Delta)))*HeavisideTheta(-m + n))*HeavisideTheta(1 - m + n))/Delta
+    mTdisc = (C_J * Q_0 * (Delta + Kappa ** (m / (-1 + m * Delta)) * (
+            -((-1 + Delta + n * Delta) * Kappa ** (m / (1 - m * Delta))) + (-1 + m * Delta) * Kappa ** (
+            (1 + n) / (1 - m * Delta)) + (
+                    (-1 + n * Delta) * Kappa ** (m / (1 - m * Delta)) + (1 - m * Delta) * Kappa ** (
+                    n / (1 - m * Delta))) * HeavisideTheta(-m + n)) * HeavisideTheta(1 - m + n))) / Delta
+    CQdisc = C_old - ((C_J - C_old) * Kappa ** (m / (-1 + m * Delta)) * (
+            -((-1 + Delta + n * Delta) * Kappa ** (m / (1 - m * Delta))) + (-1 + m * Delta) * Kappa ** (
+            (1 + n) / (1 - m * Delta)) + (
+                    (-1 + n * Delta) * Kappa ** (m / (1 - m * Delta)) + (1 - m * Delta) * Kappa ** (
+                    n / (1 - m * Delta))) * HeavisideTheta(-m + n)) * HeavisideTheta(1 - m + n)) / Delta
 
     CQdisc = np.array([[CQdisc]]).T
     sTdisc = np.tril(np.tile(sTdisc, [timeseries_length, 1])).T
@@ -400,12 +544,13 @@ def test_multiple():
     mTdisc = np.c_[np.zeros(timeseries_length), mTdisc]
     mTdisc = np.array([mTdisc.T]).T
 
-    model = steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment = n_segment)
+    model = steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=S_m,
+                                n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
     rdf = model.result
 
     def printcheck(rdfi, varstr, analy):
-        if varstr=='mQ':
-            var = rdfi[varstr][:,:,0,0]
+        if varstr == 'mQ':
+            var = rdfi[varstr][:, :, 0, 0]
             analy = analy * fQ
         else:
             var = rdfi[varstr]
@@ -446,7 +591,7 @@ def test_multiple():
     if jacobian:
 
         def printcheck(rdfi, rdfp, varstr, ostr, norm, ip):
-            var = rdfi[varstr][:,:,ip,...]
+            var = rdfi[varstr][:, :, ip, ...]
             check = (rdfp[ostr] - rdfi[ostr]) / dSj
             err = (check[:max_age, ...] - var[:max_age, ...]) / norm
             try:
@@ -462,8 +607,8 @@ def test_multiple():
                 raise
 
         def printcheckC(rdfi, rdfp, varstr, ostr, ip, iq, s):
-            var = rdfi[varstr][:,ip,iq,s]
-            check = (rdfp[ostr][:,iq,s] - rdfi[ostr][:,iq,s]) / dSj
+            var = rdfi[varstr][:, ip, iq, s]
+            check = (rdfp[ostr][:, iq, s] - rdfi[ostr][:, iq, s]) / dSj
             err = (check - var) / C_J
             try:
                 assert np.nanmax(np.abs(err)) < 5.0E-2
@@ -478,24 +623,24 @@ def test_multiple():
                 raise
 
         SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
-        for iq, ic, ip0 in [(0,0,0*(n_segment+1)), (1,0,1*(n_segment+1)), (1,1,2*(n_segment+1))]:
-            for j in range(n_segment+1):
+        for iq, ic, ip0 in [(0, 0, 0 * (n_segment + 1)), (1, 0, 1 * (n_segment + 1)), (1, 1, 2 * (n_segment + 1))]:
+            for j in range(n_segment + 1):
                 ip = ip0 + j
                 print(iq, ic, j, ip)
-                modelp = steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=iq, ic=ic, j=j, ST_min=S_m, n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
+                modelp = steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=iq, ic=ic, j=j, ST_min=S_m,
+                                             n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
                 rdfp = modelp.result
                 SAS_lookupp, _, _, _, _, _, _ = modelp._create_sas_lookup()
-                dSj = SAS_lookupp[ip, timeseries_length - 1] - SAS_lookup[ip, timeseries_length - 1]
+                dSj = SAS_lookupp[timeseries_length - 1, ip] - SAS_lookup[timeseries_length - 1, ip]
 
                 printcheck(rdf, rdfp, 'dsTdSj', 'sT', Q_0, ip)
                 printcheck(rdf, rdfp, 'dmTdSj', 'mT', Q_0 * C_J, ip)
                 for iqq in range(2):
                     for s in range(2):
-                        #print(iq, ic, j, ip, iqq, s)
+                        # print(iq, ic, j, ip, iqq, s)
                         printcheckC(rdf, rdfp, 'dCdSj', 'C_Q', ip, iqq, s)
 
-
-#def test_Jacobian():
+# def test_Jacobian():
 #    n = np.arange(timeseries_length)
 #    T_0 = S_0 / Q_0
 #    Delta = dt / T_0

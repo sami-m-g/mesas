@@ -60,8 +60,8 @@ def create_true(iq=None, ic=None, j=None):
         STp = sas_fun_pert.ST
         STp[j] = STp[j] + eps
         sas_fun_pert.ST = STp
-    sas_blends = {'Q1': Fixed(sas_fun1, N=len(data_df)),
-                  'Q2': Weighted({'c21': sas_fun21, 'c22': sas_fun22}, weights_df=data_df)}
+    sas_blends = {'Q1': Fixed(sas_fun1),
+                  'Q2': Weighted({'c21': sas_fun21, 'c22': sas_fun22})}
     solute_parameters = {
         'Ca': {
             'C_old': C_old,
@@ -91,11 +91,11 @@ sas_fun1 = Piecewise(nsegment=1,  ST_min=0.01, ST_max=120.)
 sas_fun21 = Piecewise(nsegment=1, ST_min=0.01, ST_max=120.)
 sas_fun22 = Piecewise(nsegment=1, ST_min=0.01, ST_max=120.)
 sas_blends = {
-    'Q1': Fixed(sas_fun1, N=len(data_df)),
+    'Q1': Fixed(sas_fun1),
     'Q2': Weighted({
                     'c21': sas_fun21,
                     'c22': sas_fun22
-                    }, weights_df=data_df)}
+                    })}
 solute_parameters = {
     'Ca': {
         'C_old': C_old,
