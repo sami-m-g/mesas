@@ -372,8 +372,17 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                 if (iT_s>0) then
                     call cpu_time(start)
                     !$acc kernels
-                    ds_start( N - iT_s, :) = 0.
-                    dm_start( N - iT_s, :, :) = 0.
+                    !$acc loop independent
+                    do ip = 0, numbreakpt_total - 1
+                        ds_start( N - iT_s, ip) = 0.
+                    end do
+                    !$acc loop independent
+                    do ip = 0, numbreakpt_total - 1
+                        !$acc loop independent
+                        do s = 0, numsol - 1
+                            dm_start( N - iT_s, ip, s) = 0.
+                        end do
+                    end do
                     !$acc end kernels
                     call cpu_time(finish)
                     runtime(4) = runtime(4) + 1000*(finish-start)
@@ -480,9 +489,9 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     end do
                 end do
                 !$acc end kernels
-                !$acc update self(pQ_temp, sT_temp)
-                call f_debug('sT_temp 3              ', sT_temp(:))
                 call cpu_time(finish)
+                call f_debug('sT_temp 3              ', sT_temp(:))
+                !$acc update self(pQ_temp, sT_temp)
                 runtime(8) = runtime(8) + 1000*(finish-start)
                 if (jacobian) then
                     ! Calculate new parameter sensitivity

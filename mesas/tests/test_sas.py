@@ -62,7 +62,6 @@ sas_specs = {
     }
 }
 
-
 sas_specs = {
     'Q1': {
         'scipy.stats': gamma,
@@ -71,10 +70,9 @@ sas_specs = {
             'scale': 'S_0',
             'loc': 'S_m'
         },
-        'P': np.arange(0,1,100)
+        'P': np.arange(0, 1, 100)
     }
 }
-
 
 sas_specs = {
     'Q1': {
@@ -100,7 +98,9 @@ def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., debug=de
         ST[j] = ST[j] + eps
     sas_specs = {'Q1':
                      {'steady_run':
-                          {'ST': ST }}}
+                          {'ST': ST}
+                      }
+                 }
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
     model = Model(data_df, sas_specs, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps,
                   jacobian=jacobian, max_age=max_age)
@@ -125,9 +125,9 @@ def steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a, j=None, ST_mi
     sas_specs = {'Q1':
                      {'steady_run_continuous':
                           {'scipy.stats': gamma,
-                           'args': { 'a': 2.,
-                                     'scale': 'S_0',
-                                     'loc': 'S_m' },
+                           'args': {'a': 2.,
+                                    'scale': 'S_0',
+                                    'loc': 'S_m'},
                            'nsegments': 200}}}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
     model = Model(data_df, sas_specs, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps,
@@ -161,7 +161,7 @@ def steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, 
             ST22 = STp
     sas_spec = {'Q1':
                     {'Fixed':
-                           {'ST': ST1}},
+                         {'ST': ST1}},
                 'Q2':
                     {'c21':
                          {'ST': ST21},
