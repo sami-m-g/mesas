@@ -12,12 +12,205 @@
     See the class docstring for more information..
 
 """
+import copy
+
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.stats import rv_continuous
 
 
-class Piecewise:
+class _SASFunctionBase:
+    """
+    Base function for SAS functions
+    """
+
+    def __init__(self):
+        pass
+
+    def __getitem__(self, i):
+        return self
+
+    def __setitem__(self, i):
+        raise TypeError("You're not allowed to modify the SAS function for a specific index")
+
+    # Next we define a number of properties. These act like attributes, but special functions
+    # are called when the attributes are queried or assigned to
+
+    def set_args(self, *args, **kwargs):
+        raise NotImplementedError("Method for setting SAS function parameters has not been defined")
+
+    @property
+    def has_params(self):
+        return self._has_params
+
+    @property
+    def ST(self):
+        return self._ST
+
+    @ST.setter
+    def ST(self, new_ST):
+        raise NotImplementedError("Method for setting ST directly has not been defined")
+
+    @property
+    def P(self):
+        return self._P
+
+    @P.setter
+    def P(self, new_P):
+        raise NotImplementedError("Method for setting P directly has not been defined")
+
+    @property
+    def parameter_list(self):
+        return self._parameter_list
+
+    @parameter_list.setter
+    def parameter_list(self, new_parameter_list):
+        raise NotImplementedError("Method for setting parameters directly has not been defined")
+
+    def subdivided_copy(self, *args, **kwargs):
+        raise TypeError("Cannot subdivide this type of function")
+
+    def _convert_segment_list_to_ST(self, seglst):
+        """converts a segment_list array into an array of ST endpoints"""
+        return np.cumsum(seglst)
+
+    def _convert_ST_to_segment_list(self, ST):
+        """converts a segment_list array into an array of ST endpoints"""
+        return np.r_[ST[0], np.diff(ST)]
+
+    def inv(self, P):
+        """
+        The inverse Cumulative Distribution Function of the SAS function
+        """
+        raise NotImplementedError("Inverse CDF method not been defined")
+
+    def __call__(self, ST):
+        """
+        The Cumulative Distribution Function of the SAS function
+        """
+        raise NotImplementedError("CDF method not been defined")
+
+    def __repr__(self):
+        """Return a repr of the SAS function"""
+        raise NotImplementedError("__repr__ not been defined")
+
+    def plot(self, ax=None, **kwargs):
+        """Return a plot of the SAS function"""
+        if ax is None:
+            fig, ax = plt.subplots()
+        return ax.plot(self.ST, self.P, **kwargs)
+
+    def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
+        """ Calculates a limited jacobian of the model predictions """
+        raise NotImplementedError("get_jacobian not been defined")
+
+
+class Continuous(_SASFunctionBase):
+    """
+    Base function for SAS functions
+    """
+
+    def __init__(self, func, func_kwargs=None, P=None, nsegment=25, ST_max=1.797693134862315e+308):
+
+        self.ST_max = np.float(ST_max)
+
+        # Make a list of probabilities P
+        if P is not None:
+            # Use the supplied values
+            self.nsegment = len(P) - 1
+            self._P = np.r_[P]
+        else:
+            # Make P equally-spaced
+            self.nsegment = nsegment
+            self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+
+        assert isinstance(func, rv_continuous)
+        self._func = func
+        if func_kwargs is not None:
+            self.set_args(**func_kwargs)
+        else:
+            self._has_params = False
+
+    def set_args(self, *args, **kwargs):
+        self._frozen_func = self._func(*args, **kwargs)
+        self._has_params = True
+        self._ST = self.func.ppf(self._P)
+        return self
+
+    @property
+    def func(self):
+        if self._has_params:
+            return self._frozen_func
+        else:
+            raise UnboundLocalError("Parameter values must be set before you can call the underlying function")
+
+    @func.setter
+    def func(selfs, new_func):
+        raise ValueError("Function type cannot be changed")
+
+    @_SASFunctionBase.ST.setter
+    def ST(self, new_ST):
+        try:
+            assert new_ST[0] >= 0
+            assert np.all(np.diff(new_ST) > 0)
+            assert len(new_ST) > 1
+        except Exception as ex:
+            print('Problem with new ST')
+            print(f'Attempting to set ST = {new_ST}')
+            raise ex
+        if new_ST[-1] > self.ST_max:
+            self._ST = new_ST
+            self.ST_max = self._ST[-1]
+        else:
+            self._ST = np.r_[new_ST, self.ST_max]
+        self._parameter_list = self._convert_ST_to_segment_list(self._ST)
+
+    @_SASFunctionBase.P.setter
+    def P(self, new_P):
+        assert new_P[0] == 0
+        assert new_P[-1] == 1
+        assert np.all(np.diff(new_P) >= 0)
+        self._P = new_P
+        if self._has_params:
+            self._ST = self.func.ppf(self._P)
+
+    def inv(self, P):
+        """
+        The inverse Cumulative Distribution Function of the SAS function
+        """
+        return self.func.ppf(P)
+
+    def __call__(self, ST):
+        """
+        The Cumulative Distribution Function of the SAS function
+        """
+        return self.func.cdf(ST)
+
+    def __repr__(self):
+        """Return a repr of the SAS function"""
+        repr =     f'       {self._func.name} distribution\n'
+        if self._has_params:
+            repr += f'        parameters: {self._frozen_func.args}\n'
+            repr += '        Lookup table version:\n'
+            repr += '          ST: '
+            for i in range(self.nsegment + 1):
+                repr += '{ST:<10.4}  '.format(ST=self.ST[i])
+            repr += '\n'
+            repr += '          P : '
+            for i in range(self.nsegment + 1):
+                repr += '{P:<10.4}  '.format(P=self.P[i])
+            repr += '\n'
+        else:
+            repr = f'        (parameters not set)'
+        return repr
+
+    def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
+        """ Calculates a limited jacobian of the model predictions """
+        raise NotImplementedError("get_jacobian not been defined")
+
+
+class Piecewise(_SASFunctionBase):
     """
     Class for piecewise-linear SAS functions
 
@@ -62,7 +255,10 @@ class Piecewise:
 
     """
 
-    def __init__(self, segment_list=None, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0.):
+    def __init__(self, *args, **kwargs):
+        self.set_args(*args, **kwargs)
+
+    def set_args(self, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0., auto='uniform'):
         """
         Initializes a Piecewise sas function.
 
@@ -76,45 +272,42 @@ class Piecewise:
 
         self.ST_min = np.float(ST_min)
         self.ST_max = np.float(ST_max)
+        self._has_params = False
 
-        # Note that the variables _ST, _P and _segment_list are assigned to below
+        # Note that the variables _ST, _P and _parameter_list are assigned to below
         # instead of their corresponding properties. This is to avoid triggering the _make_interpolators function
         # until the end
 
-        if segment_list is not None:
-
-            # Use the given segment_list
-            self.nsegment = len(segment_list) - 1
-            self._segment_list = np.array(segment_list, dtype=np.float)
-            self._ST = self._convert_segment_list_to_ST(self._segment_list)
-
-        elif ST is not None:
+        if ST is not None:
 
             # Use the given ST values
             assert ST[0] >= 0
             assert np.all(np.diff(ST) > 0)
             assert len(ST) > 1
-            self._ST = np.array(ST, dtype=np.float)
             self.nsegment = len(ST) - 1
-            self._segment_list = self._convert_ST_to_segment_list(self._ST)
+            self._ST = np.array(ST, dtype=np.float)
+            self._parameter_list = self._convert_ST_to_segment_list(self._ST)
 
         else:
 
-            # Generate a random function
-            # Note this should probably be encapsulated in a function
-            # and called using an optional keyword, rather than triggered by default
 
             self.nsegment = nsegment
-            self._ST = np.zeros(self.nsegment + 1)
 
-            ST_scaled = np.zeros(self.nsegment + 1)
-            ST_scaled[-1] = 1.
-            for i in range(self.nsegment - 1):
-                ST_scaled[self.nsegment - i - 1] = np.random.uniform(
-                    0, ST_scaled[self.nsegment - i], 1)
+            if auto=='uniform':
+                self._ST = np.linspace(self.ST_min, self.ST_max, self.nsegment + 1)
+                self._parameter_list = self._convert_ST_to_segment_list(self._ST)
+            elif auto=='random':
+                # Generate a random function
+                # Note this should probably be encapsulated in a function
+                self._ST = np.zeros(self.nsegment + 1)
+                ST_scaled = np.zeros(self.nsegment + 1)
+                ST_scaled[-1] = 1.
+                for i in range(self.nsegment - 1):
+                    ST_scaled[self.nsegment - i - 1] = np.random.uniform(
+                        0, ST_scaled[self.nsegment - i], 1)
 
-            self._ST[:] = self.ST_min + (self.ST_max - self.ST_min) * ST_scaled
-            self._segment_list = self._convert_ST_to_segment_list(self._ST)
+                self._ST[:] = self.ST_min + (self.ST_max - self.ST_min) * ST_scaled
+                self._parameter_list = self._convert_ST_to_segment_list(self._ST)
 
         # Make a list of probabilities P
         if P is not None:
@@ -122,7 +315,7 @@ class Piecewise:
             # Use the supplied values
             assert P[0] == 0
             assert P[-1] == 1
-            assert np.all(np.diff(P) > 0)
+            assert np.all(np.diff(P) >= 0)
             assert len(P) == len(self._ST)
             self._P = np.r_[P]
 
@@ -131,8 +324,10 @@ class Piecewise:
             # Make P equally-spaced
             self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
 
+        self._has_params = True
         # call this to make the interpolation functions
         self._make_interpolators()
+        return self
 
     def _make_interpolators(self):
         """
@@ -149,29 +344,25 @@ class Piecewise:
                                  kind='linear', copy=False,
                                  bounds_error=False, assume_sorted=True)
 
-    # Next we define a number of properties. These act like attributes, but special functions
-    # are called when the attributes are queried or assigned to
-
-    @property
-    def ST(self):
-        return self._ST
-
-    @ST.setter
+    @_SASFunctionBase.ST.setter
     def ST(self, new_ST):
-        assert new_ST[0] >= 0
-        assert np.all(np.diff(new_ST) > 0)
-        assert len(new_ST) > 1
+        try:
+            assert new_ST[0] >= 0
+            assert np.all(np.diff(new_ST) > 0)
+            assert len(new_ST) > 1
+        except Exception as ex:
+            print('Problem with new ST')
+            print(f'Attempting to set ST = {new_ST}')
+            if not np.all(np.diff(new_ST) > 0):
+                print("   -- if ST values are not distinct, try changing 'ST_largest_segment' and/or 'ST_smallest_segment'")
+            raise ex
         self._ST = new_ST
         self.ST_min = self._ST[0]
         self.ST_max = self._ST[-1]
-        self._segment_list = self._convert_ST_to_segment_list(self._ST)
+        self._parameter_list = self._convert_ST_to_segment_list(self._ST)
         self._make_interpolators()
 
-    @property
-    def P(self):
-        return self._P
-
-    @P.setter
+    @_SASFunctionBase.P.setter
     def P(self, new_P):
         assert new_P[0] == 0
         assert new_P[-1] == 1
@@ -179,22 +370,10 @@ class Piecewise:
         self._P = new_P
         self._make_interpolators()
 
-    @property
-    def segment_list(self):
-        return self._segment_list
-
-    @segment_list.setter
-    def segment_list(self, new_segment_list):
-        self._segment_list = new_segment_list
-        self.ST = self._convert_segment_list_to_ST(self._segment_list)
-
-    def _convert_segment_list_to_ST(self, seglst):
-        """converts a segment_list array into an array of ST endpoints"""
-        return np.cumsum(seglst)
-
-    def _convert_ST_to_segment_list(self, ST):
-        """converts a segment_list array into an array of ST endpoints"""
-        return np.r_[self._ST[0], np.diff(ST)]
+    @_SASFunctionBase.parameter_list.setter
+    def parameter_list(self, new_parameter_list):
+        self._parameter_list = new_parameter_list
+        self.ST = self._convert_segment_list_to_ST(self._parameter_list)
 
     def subdivided_copy(self, segment, split_frac=0.5):
         """Returns a new Piecewise object instance with one segment divided into two
@@ -237,20 +416,19 @@ class Piecewise:
 
     def __repr__(self):
         """Return a repr of the SAS function"""
-        repr = ''
-        repr += 'ST        P' + '\n'
-        repr += '--------  --------' + '\n'
+        if not hasattr(self, 'nsegment'):
+            return 'Not initialized'
+        repr = '        ST: '
         for i in range(self.nsegment + 1):
-            repr += '{ST:<8.4}  {P:<8.7} \n'.format(ST=self.ST[i], P=self.P[i])
+            repr += '{ST:<10.4}  '.format(ST=self.ST[i])
+        repr += '\n'
+        repr += '        P : '
+        for i in range(self.nsegment + 1):
+            repr += '{P:<10.4}  '.format(P=self.P[i])
+        repr += '\n'
         return repr
 
-    def plot(self, ax=None, **kwargs):
-        """Return a repr of the SAS function"""
-        if ax is None:
-            fig, ax = plt.subplots()
-        return ax.plot(self.ST, self.P, **kwargs)
-
-    def get_jacobian(self, ST, MS, C_old, alpha=1, index=None, mode='segment', logtransform=True):
+    def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
         """
         Calculates a limited jacobian of the model predictions
 
@@ -267,10 +445,7 @@ class Piecewise:
         concentrations at each timestep to variations in the sas function at that timestep, and neglects
         the cumulative effects that changing the sas function would have on the state variables (ST and MS).
 
-        :param ST: Age-ranked storage array produced by a sas model
-        :param MS: Age-ranked solute mass array produced by a sas model
-        :param C_old: Old water concentration
-        :param alpha: solute partitioning coefficient
+        :param dCdSj: jacobian produced by solve.f90
         :param index: index of timesteps to calculate the jacobian for
         :param mode: If 'endpoint' return the derivatives with respect to the ST of the endpoints,
         otherwise if 'segment' return the derivatives wrt the segment lengths
@@ -280,217 +455,20 @@ class Piecewise:
         """
 
         if index is None:
-            index = np.arange(ST.shape[1] - 1)
+            index = np.arange(dCdSj.shape[0])
 
-        # Create an array to store the result
-        Nt = ST.shape[1] - 1
-        Ni = len(index)
-        Ns = self.nsegment
-        J_S = np.zeros((Ni, Ns + 1))
-
-        # pull out the sas function parameters, and get some derivatives and differences
-        Omegaj = self.P
-        Sj = self.ST
-        dOmegaj = np.diff(Omegaj)
-        dSj = np.diff(Sj)
-        omegaj = dOmegaj / dSj
-
-        # These represent the volume and solute mass in the system whose age is known.
-        # Everything older is assumed to have concentration C_old
-        S_maxcalc = ST[-1, :]
-        M_maxcalc = MS[-1, :]
-
-        # Get some differences along the age dimension
-        dST = np.diff(ST, axis=0)
-        dMS = np.diff(MS, axis=0)
-
-        # This gives the concentration of water of each age
-        with np.errstate(divide='ignore', invalid='ignore'):
-            CS = np.where(dST > 0, dMS / dST, 0)
-        CS[np.isnan(CS)] = 0
-
-        # Loop over the times
-        for i, start_index in enumerate(index):
-
-            # We are going to do this twice: once for the start and once for the end of each timestep
-            # we will average them together at the end
-            for stepend in [0, 1]:
-                time_index = start_index + stepend
-
-                # Check if we know the concentration in all segments
-                if S_maxcalc[time_index] >= Sj[-1]:
-
-                    # If we do set this to the number of segments
-                    seg_maxcalc = Ns
-
-                else:
-
-                    # If we don't, set this to the segment that contains the maximum known ST
-                    seg_maxcalc = np.argmax(Sj >= S_maxcalc[time_index]) - 1
-
-                # Find the concentration at each segment endpoint
-                # Get the age of water at the endpoint
-                # NOTE: the two ages Tjl and Tjr are usually the same, but differ only for the case where
-                # Sj is exactly equal to ST. In that case, the derivative is actually undefined due to the
-                # step-change in concentration. Here we just take the average.
-                # Todo: implement upwinding: when Sj=ST, check J_S in both directions and choose steepest
-                Tjl = np.digitize(Sj[:seg_maxcalc + 1], ST[:time_index + 1, time_index], right=True) - 1
-                Tjr = np.digitize(Sj[:seg_maxcalc + 1], ST[:time_index + 1, time_index], right=False) - 1
-                Tjl[Tjl < 0] = 0
-                Tjr[Tjr == Nt] = Tjl[Tjr == Nt]
-                try:
-                    Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
-                except:
-                    Cpj = (CS[Tjl, time_index] + CS[Tjr, time_index]) / 2.
-
-                # Calculate the bulk-averaged concentration in each segment
-                # Age-ranked mass at each segment endpoint
-                Mj = np.interp(Sj, ST[:, time_index], MS[:, time_index])
-                # Increment of age-ranked mass in each segment
-                dMj = np.diff(Mj)
-                # Concentration in each segment
-                Csj = dMj / dSj
-
-                # Is at least one segment completely full of water of known age?
-                if seg_maxcalc > 0:
-
-                    # derivative w.r.t. ST_min
-                    J_S[i, 0] += alpha * (Csj[0] - Cpj[0]) * omegaj[0]
-
-                    # derivative w.r.t. the endpoints that have completely full segments on both sides
-                    if seg_maxcalc > 1:
-                        J_S[i, 1:seg_maxcalc] += alpha * (
-                                Csj[1:seg_maxcalc] * omegaj[1:seg_maxcalc]
-                                - Csj[0:seg_maxcalc - 1] * omegaj[0:seg_maxcalc - 1]
-                                - Cpj[1:seg_maxcalc] * (omegaj[1:seg_maxcalc] - omegaj[0:seg_maxcalc - 1])
-                        )
-                # Is the maximum known ST less than ST_max?
-                if seg_maxcalc < Ns:
-
-                    # Is it greater than ST_min?
-                    if S_maxcalc[time_index] > Sj[0]:
-                        # Get the derivative w.r.t the left end of the segment
-                        J_S[i, seg_maxcalc] += omegaj[seg_maxcalc] * (
-                                alpha * (
-                                (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc] - Cpj[seg_maxcalc])
-                                + (C_old * (Sj[1 + seg_maxcalc] - S_maxcalc[time_index])) / dSj[seg_maxcalc]
-                        )
-                        # Get the derivative w.r.t the right end of the segment
-                        J_S[i, seg_maxcalc + 1] += omegaj[seg_maxcalc] * (
-                                -alpha * (
-                                (M_maxcalc[time_index] - Mj[seg_maxcalc]) / dSj[seg_maxcalc])
-                                + (C_old * (S_maxcalc[time_index] - Sj[seg_maxcalc])) / dSj[seg_maxcalc]
-                        )
-
-                else:
-
-                    # Effect of varying ST_max
-                    J_S[i, Ns] += -alpha * (Csj[Ns - 1] - Cpj[Ns]) * omegaj[Ns - 1]
-
-        # Average the start and end of the timestep
-        J_S = J_S / 2
+        J_S = dCdSj[index, :]
 
         if mode == 'endpoint':
             return J_S
 
         # To get the derivative with respect to the segment length, we add up the derivative w.r.t. the
         # endpoints that would be displaced by varying that segment
-        A = np.triu(np.ones(Ns + 1), k=0)
+        A = np.triu(np.ones(self.nsegment + 1), k=0)
         J_seg = np.dot(A, J_S.T).T
 
         if logtransform:
-            J_seglog = J_seg * np.r_[Sj[0], np.diff(Sj)]
+            J_seglog = J_seg * self._parameter_list
             return J_seglog
         else:
             return J_seg
-
-    def get_residual_parts(self, C_train, ST, MS, alpha=1, index=None):
-        """
-        Difference between the concentration drawn from each segment and the observed discharge concentration
-
-        :param C_train:
-        :param ST: Age-ranked storage array produced by a sas model
-        :param MS: Age-ranked solute mass array produced by a sas model
-        :param alpha: solute partitioning coefficient
-        :param index: index of timesteps to calculate the residuals for
-        :return: timeseries of the residuals
-        """
-
-        if index is None:
-            index = np.arange(ST.shape[1] - 1)
-
-        # Create an array to store the result
-        Nt = ST.shape[1] - 1
-        Ni = len(index)
-        Ns = self.nsegment
-        r_seg_i = np.zeros((Ni, Ns))
-
-        # pull out the sas function parameters, and get some derivatives and differences
-        Omegaj = self.P
-        Sj = self.ST
-        dOmegaj = np.diff(Omegaj)
-        dSj = np.diff(Sj)
-
-        # These represent the volume and solute mass in the system whose age is known.
-        # Everything older is assumed to have concentration C_old
-        S_maxcalc = ST[-1, :]
-        M_maxcalc = MS[-1, :]
-
-        # Get some differences along the age dimension
-        dST = np.diff(ST, axis=0)
-        dMS = np.diff(MS, axis=0)
-
-        # This gives the concentration of water of each age
-        with np.errstate(divide='ignore', invalid='ignore'):
-            CS = np.where(dST > 0, dMS / dST, 0)
-        CS[np.isnan(CS)] = 0
-
-        # Loop over the times
-        for i, start_index in enumerate(index):
-
-            # Pull out the observed concentration we want to compare with
-            C_train_this = C_train[start_index]
-
-            # We are going to do this twice: once for the start and once for the end of each timestep
-            # we will average them together at the end
-            for stepend in [0, 1]:
-                time_index = start_index + stepend
-
-                if S_maxcalc[time_index] > Sj[0]:
-
-                    # Check if we know the concentration in all segments
-                    if S_maxcalc[time_index] >= Sj[-1]:
-
-                        # If we do set this to the number of segments
-                        seg_maxcalc = Ns
-
-                    else:
-
-                        # If we don't, set this to the segment that contains the maximum known ST
-                        seg_maxcalc = np.argmax(Sj >= S_maxcalc[time_index]) - 1
-
-                    # Calculate the bulk-averaged concentration in each segment
-                    # Age-ranked mass at each segment endpoint
-                    Mj = np.interp(Sj, ST[:, time_index], MS[:, time_index])
-                    # Increment of age-ranked mass in each segment
-                    dMj = np.diff(Mj)
-                    # Concentration in each segment
-                    Csj = dMj / dSj
-
-                    # Is at least one segment completely full of water of known age?
-                    if seg_maxcalc > 0:
-                        r_seg_i[i, :seg_maxcalc] += (alpha * Csj[:seg_maxcalc] - C_train_this) * dOmegaj[
-                                                                                                           :seg_maxcalc]
-                    # Is the maximum known ST less than ST_max?
-                    if seg_maxcalc < Ns:
-                        Omegam = self(S_maxcalc[time_index])
-                        r_seg_i[i, seg_maxcalc] += (alpha * (M_maxcalc[time_index] - Mj[seg_maxcalc])
-                                                    / (S_maxcalc[time_index] - Sj[seg_maxcalc])
-                                                    - C_train_this) \
-                                                   * (Omegam - Omegaj[seg_maxcalc])
-
-        # Average the start and end of the timestep
-        r_seg_i = r_seg_i / 2
-
-        return r_seg_i
-

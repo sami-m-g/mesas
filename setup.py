@@ -17,19 +17,25 @@ config = {
     'url': '',
     'download_url': '',
     'author_email': 'charman1@jhu.edu',
-    'version': '0.11',
-    'packages': ['mesas', 'mesas.sas', 'mesas.estimation', 'mesas.utils'],
+    'version': '0.2',
+    'packages': ['mesas', 'mesas.sas', 'mesas.me', 'mesas.utils'],
     'package_dir': {'mesas': 'mesas',
                     'mesas.sas': util.convert_path('mesas/sas'),
-                    'mesas.estimation': util.convert_path('mesas/estimation'),
+                    'mesas.me': util.convert_path('mesas/me'),
                     'mesas.utils': util.convert_path('mesas/utils')
                     },
     'scripts': [],
     'name': 'mesas',
-    'ext_modules': [Extension(name='f_solve', sources=[util.convert_path('./mesas/sas/f_solve.f90')],
+    'ext_modules': [Extension(name='solve', sources=[util.convert_path('./mesas/sas/solve.f90')],
                               include_dirs=[numpy.get_include()],
-                              extra_f90_compile_args=["-Ofast"],
+                              extra_f90_compile_args=["-Ofast", '-fno-stack-arrays'],
                               libraries=None)],
 }
+#extra_f90_compile_args=["-Ofast", '-fno-stack-arrays'],
+#extra_f90_compile_args=["-fast", '-acc', '-Minfo', '-Mvect=levels:10', '-ta=tesla:cc35'],
+#extra_f90_compile_args=["-fast", '-acc', '-Minfo', '-ta=multicore'],
+#extra_link_args=['-acc'],
+#extra_f90_compile_args=["-fbacktrace", '-fcheck=all'],
+
 
 setup(**config, requires=['pandas', 'numpy', 'scipy', 'matplotlib'])
