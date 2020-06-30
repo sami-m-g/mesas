@@ -33,9 +33,9 @@ class Blender:
         """
 
         self.components = OrderedDict()
-        is_fixed = len(spec) == 1
+        is_only_component = len(spec) == 1
         for label, component_spec in spec.items():
-            self.components[label] = Component(label, component_spec, data_df, is_fixed)
+            self.components[label] = Component(label, component_spec, data_df, is_only_component)
         self._componentorder = list(self.components.keys())
         self._comp2learn_componentorder = self._componentorder
 
@@ -163,13 +163,14 @@ class Component:
     that call the corresponding functions of the underlying sas functions.
     """
 
-    def __init__(self, label, spec, data_df, is_fixed):
+    def __init__(self, label, spec, data_df, is_only_component):
         self.label = label
+        self._spec = spec.copy()
         self._data_df = data_df
         self.N = len(data_df)
-        self.weights = pd.Series(index=data_df.index, data=1.) if is_fixed else data_df[label]
-        ST = self.expand(spec['ST']) if 'ST' in spec else _NoneList()
-        P = self.expand(spec['P']) if 'P' in spec else _NoneList()
+        self.weights = pd.Series(index=data_df.index, data=1.) if is_only_component else data_df[label]
+        ST = self.expand(spec.pop('ST')) if 'ST' in spec else _NoneList()
+        P = self.expand(spec.pop('P')) if 'P' in spec else _NoneList()
         if 'args' in spec:
             assert isinstance(spec['args'], dict)
             self._args = OrderedDict()
@@ -205,13 +206,15 @@ class Component:
     def sas_fun(self):
         return [sas_fun for sas_fun in self._sas_funs]
 
-    def __get__(self, i):
+    def __getitem__(self, i):
         return self._sas_funs[i]
 
     def __repr__(self):
         repr = ''
-        repr += '    component = {}'.format(self.label) + '\n'
-        repr += self.sas_fun.__repr__()
+        repr += self._spec.__repr__()
+        #repr += '    component = {}'.format(self.label) + '\n'
+        #for i in range(self.N):
+            #repr += self[i].__repr__()
         return repr
 
     def plot(self, *args, **kwargs):

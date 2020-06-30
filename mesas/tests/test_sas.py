@@ -128,7 +128,7 @@ def steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a, j=None, ST_mi
                            'args': {'a': 2.,
                                     'scale': 'S_0',
                                     'loc': 'S_m'},
-                           'nsegments': 200}}}
+                           'nsegment': 20}}}
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
     model = Model(data_df, sas_specs, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps,
                   jacobian=jacobian, max_age=max_age)
