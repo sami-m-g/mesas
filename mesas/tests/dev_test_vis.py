@@ -10,8 +10,8 @@ timeseries_length =  50
 max_age = timeseries_length
 dt = 1/timeseries_length
 Q_0 = 3.0/timeseries_length / dt  # <-- steady-state flow rate
-C_J = 1000.
-C_old = 0
+C_J = 0000.
+C_old = 1000
 S_0 = 1
 S_m = 0.1
 eps = 0.0001/timeseries_length
@@ -91,8 +91,8 @@ from collections import OrderedDict
 artists = OrderedDict()
 vis.plot_SAS_cumulative(model, flux, i=i, artists_dict=artists)
 
-vis.plot_transport_column_with_timeseries(model, flux, sol, i=i, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=[0, C_J], ST_max=S_0*2*2.5)
+vis.plot_transport_column_with_timeseries(model, flux, sol, i=i, nST=20, cmap='cividis_r', TC_frac=0.3, ST_max=S_0*2*2.5)
 
-ani = vis.make_transport_column_animation(model, flux, sol, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=[0, C_J], ST_max=S_0*2*2.5)
-ani.save(f'test_make_transport_column_animation.gif', writer='imagemagick')
+#ani = vis.make_transport_column_animation(model, flux, sol, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=[0, C_J], ST_max=S_0*2*2.5)
+#ani.save(f'test_make_transport_column_animation.gif', writer='imagemagick')
 

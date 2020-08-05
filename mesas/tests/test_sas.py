@@ -86,6 +86,27 @@ sas_specs = {
     }
 }
 
+from scipy.stats import gamma, beta
+sas_specs = {'Outflux 1':
+                 {'SAS fun 1':
+                      {'scipy.stats': gamma,
+                       'args': {'a': 0.62,
+                                'scale': 5724.,
+                                'loc': 0.},
+                       'nsegment': 50}},
+             'Outflux 2':
+                 {'SAS fun 2':
+                      {'scipy.stats': beta,
+                       'args': {'a': 2.31,
+                                'b': 0.627,
+                                'scale': 1402,
+                                'loc': 248},
+                       'nsegment': 50}}}
+
+solute_parameters = {'C1 [mg/L]':
+                         {'C_old': 11.2},
+                     'C2 [stone/bushel]':
+                         {'C_old': 11.2}}
 
 def steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=None, ST_min=0., debug=debug, verbose=verbose,
                n_substeps=n_substeps, jacobian=jacobian, max_age=max_age, C_old=C_old, n_segment=n_segment):

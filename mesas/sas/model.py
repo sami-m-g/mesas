@@ -76,7 +76,8 @@ class Model:
 
     def parse_sas_specs(self, sas_specs):
         sas_blends = OrderedDict()
-        for flux, spec in sas_specs.items():
+        for flux, spec_in in sas_specs.items():
+            spec = deepcopy(spec_in)
             assert flux in self.data_df.columns
             if isinstance(spec, Blender):
                 sas_blends[flux] = spec

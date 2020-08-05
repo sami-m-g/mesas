@@ -63,7 +63,7 @@ def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, c
 
     cmap = plt.get_cmap(cmap)
     if vrange is None:
-        vmin, vmax = CS.min(), CS.max()
+        vmin, vmax = min(CS.min(), C_old), max(CS.max(), C_old)
     else:
         vmin, vmax = vrange
     norm = colors.Normalize(vmin=vmin, vmax=vmax)
@@ -218,6 +218,7 @@ def plot_SAS_cumulative(model, flux, ax=None, sharex=None, i=None, artists_dict=
             i = 0
         artists_dict[f'plot_SAS {flux}'], = ax.plot(model.sas_blends[flux].ST[i, :], model.sas_blends[flux].P[i, :], 'bo-', lw=1.5)#, clip_on=False)
         ax.set_ylim([0, 1])
+        ax.set_xlim(xmin=0)
         ax.plot(ax.get_xlim(), [1, 1], color='0.1', lw=0.8, ls=':')
         ax.plot(ax.get_xlim(), [0, 0], color='0.1', lw=0.8, ls=':')
         ax.spines['right'].set_visible(False)
