@@ -20,11 +20,11 @@ from collections import OrderedDict
 
 class Model:
     '''
-    Class for building and running SAS models
+    Class for building and running StorAge Selection models
 
     To use mesas, an instance of this class must be constructed, populated with
-    parameters (held in the dicts `sas_blends` and optionally `solute_parameters`),j
-    associated with a dataset (`data_df`) and run using the `run` method.
+    parameters (held in the dicts `sas_blends` and optionally `solute_parameters`),
+    associated with a dataset (`data_df`) and run using the `.run()` method.
     '''
 
     def __init__(self, data_df, sas_specs, solute_parameters=None, components_to_learn=None, **kwargs):
@@ -45,6 +45,7 @@ class Model:
             'ST_largest_segment': np.inf,
         }
         self._options = self._default_options
+        components_to_learn = kwargs.get('components_to_learn')
         # do input Checking
         self.data_df = data_df
         self.options = kwargs
@@ -61,11 +62,7 @@ class Model:
             'observations': {}
         }
         self.solute_parameters = solute_parameters
-        if components_to_learn is None:
-            self.components_to_learn = self.get_component_labels()
-        else:
-            self.components_to_learn = components_to_learn
-
+        self.components_to_learn = components_to_learn
     def __repr__(self):
         """Creates a repr for the model"""
         repr = ''
@@ -88,7 +85,7 @@ class Model:
         return sas_blends
 
     def copy_without_results(self):
-        """creates a copy of the model without the results"""
+        """returns a new instance of the model, but clears any results"""
         return Model(copy.deepcopy(self._data_df),
                      copy.deepcopy(self._sas_blends),
                      copy.deepcopy(self._solute_parameters),
@@ -102,7 +99,7 @@ class Model:
         :param flux: name of the flux
         :param label: name of the component
         :param segment: segment (numbered from 0 for the youngest)
-        :return:
+        :return: a new Model instance with one piecewise segment subdivided
         """
 
         # make a copy
@@ -167,7 +164,7 @@ class Model:
 
     @property
     def options(self):
-        """Options for running the model
+        """Options for running the model, see :ref:`Options`
 
         To modify, assign a dictionary of valid key-value pairs
 
@@ -258,13 +255,14 @@ class Model:
 
     @components_to_learn.setter
     def components_to_learn(self, label_dict):
-        self._components_to_learn = OrderedDict((flux,
-                                                 [label for label in self._sas_blends[flux]._componentorder if
-                                                  label in label_dict[flux]]
-                                                 ) for flux in self._fluxorder if flux in label_dict.keys())
-        self._comp2learn_fluxorder = list(self._components_to_learn.keys())
-        for flux in self._comp2learn_fluxorder:
-            self._sas_blends[flux]._comp2learn_componentorder = self._components_to_learn[flux]
+        if label_dict is not None:
+            self._components_to_learn = OrderedDict((flux,
+                                                     [label for label in self._sas_blends[flux]._componentorder if
+                                                      label in label_dict[flux]]
+                                                     ) for flux in self._fluxorder if flux in label_dict.keys())
+            self._comp2learn_fluxorder = list(self._components_to_learn.keys())
+            for flux in self._comp2learn_fluxorder:
+                self._sas_blends[flux]._comp2learn_componentorder = self._components_to_learn[flux]
 
     def get_parameter_list(self):
         """

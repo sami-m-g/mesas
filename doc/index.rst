@@ -8,8 +8,13 @@ Multiresolution Estimation of StorAge Selection functions
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
-
+   :caption: Getting started
+   whatissas
+   whatismesas
+   quickstart
+   :caption: User guide
+   options
+   :caption: Reference
    functions.rst
    blender.rst
    model.rst
