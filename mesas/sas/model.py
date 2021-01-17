@@ -22,12 +22,12 @@ class Model:
     '''
     Class for building and running StorAge Selection models
 
-    To use mesas, an instance of this class must be constructed, populated with
-    parameters (held in the dicts `sas_blends` and optionally `solute_parameters`),
+    An instance of this class must be constructed, populated with
+    parameters (held in the dicts :ref:`sas_specs <sasspec>` and optionally :ref:`solute_parameters <solspec>`),
     associated with a dataset (`data_df`) and run using the `.run()` method.
     '''
 
-    def __init__(self, data_df, sas_specs, solute_parameters=None, components_to_learn=None, **kwargs):
+    def __init__(self, data_df, sas_specs, solute_parameters=None, **kwargs):
         # defaults
         self._result = None
         self.jacobian = {}
@@ -63,6 +63,7 @@ class Model:
         }
         self.solute_parameters = solute_parameters
         self.components_to_learn = components_to_learn
+
     def __repr__(self):
         """Creates a repr for the model"""
         repr = ''
@@ -85,7 +86,7 @@ class Model:
         return sas_blends
 
     def copy_without_results(self):
-        """returns a new instance of the model, but clears any results"""
+        #returns a new instance of the model, but clears any results
         return Model(copy.deepcopy(self._data_df),
                      copy.deepcopy(self._sas_blends),
                      copy.deepcopy(self._solute_parameters),
@@ -112,35 +113,7 @@ class Model:
 
     @property
     def result(self):
-        """Results of running the sas model with the current parameters
-
-        Returns a dict with the following keys:
-            'sT' : m x n+1 numpy float64 2D array
-                Array of instantaneous age-ranked storage for n times, m ages. First column is initial condition
-            'pQ' : m x n x q numpy float64 2D array
-                Array of timestep-averaged time-varying cumulative transit time distributions for n times,
-                m ages, and q fluxes.
-            'WaterBalance' : m x n numpy float64 2D array
-                Should always be within tolerances of zero, unless something is very
-                wrong.
-            'C_Q' : n x q x s float64 ndarray
-                If C_J is supplied, C_Q is the timeseries of timestep-averaged outflow concentration
-            'mT' : m x n+1 x s float64 ndarray
-                Array of instantaneous age-ranked solute mass for n times, m ages, and s solutes. First column is initial condition
-            'mQ' : m x n x q x s float64 ndarray
-                Array of timestep-averaged age-ranked solute mass flux for n times, m ages, q fluxes and s
-                solutes.
-            'mR' : m x n x s float64 ndarray
-                Array of timestep-averaged age-ranked solute reaction flux for n times, m ages, and s
-                solutes.
-            'SoluteBalance' : m x n x s float64 ndarray
-                Should always be within tolerances of zero, unless something is very
-                wrong.
-
-        For each of the arrays in the full outputs each row represents an age, and each
-        column is a timestep. For n timesteps and m ages, sT will have dimensions
-        (m) x (n+1), with the first row representing age T = dt and the first
-        column derived from the initial condition.
+        """Results of running the sas model with the current parameters. See :ref:`results`
         """
         if self._result is None:
             raise AttributeError(
@@ -154,7 +127,7 @@ class Model:
 
     @property
     def data_df(self):
-        """pandas dataframe holding the model inputs"""
+        """Pandas dataframe holding the model inputs. See :ref:`inputs`"""
         return self._data_df
 
     @data_df.setter
@@ -164,23 +137,7 @@ class Model:
 
     @property
     def options(self):
-        """Options for running the model, see :ref:`Options`
-
-        To modify, assign a dictionary of valid key-value pairs
-
-        Default options are
-
-            'dt': 1
-            'verbose': False
-            'debug': False
-            'warning': True
-            'jacobian': False
-            'n_substeps': 1
-            'max_age': None
-            'sT_init': None
-            'influx': 'J'
-            'ST_smallest_segment': 1./100
-            'ST_largest_segment': 1000000.
+        """Options for running the model. See :ref:`options`
         """
         return self._options
 
@@ -202,6 +159,7 @@ class Model:
 
     @property
     def sas_blends(self):
+        """Specification of the SAS functions. See :ref:`sasspec`"""
         return self._sas_blends
 
     @sas_blends.setter
@@ -282,21 +240,8 @@ class Model:
 
     @property
     def solute_parameters(self):
-        """Parameters describing solute behavior
+        """Parameters describing solute behavior. See :ref:`solspec`
 
-        This is a dictionary whose keys correspond to columns in data_df. Each entry in the dictionary
-        is itself a dict with the following default key:value pairs
-
-            'mT_init': 0.   # initial age-ranked mass in the system
-            'C_old': 0.   # old water concentration
-            'k1': 0.   # reaction rate constant
-            'C_eq': 0.   # equilibrium concentration
-            'alpha': {'Q': 1., ...}   # Partitioning coefficient for flux 'Q'
-            'observations': {'Q': 'obs C in Q', ...}   # column name in data_df of observations
-
-        note that 'alpha' and 'observations' are both dictionaries with keys corresponding to the names of fluxes
-
-        }
 
         """
         return self._solute_parameters
@@ -365,6 +310,10 @@ class Model:
         return SAS_lookup, P_list, weights, nC_list, nC_total, nP_list, nP_total
 
     def run(self):
+        """
+        Call this method to run the model with current SAS specification, options, solute parameters, and timeseries dataframe. Results can then be accessed through the `.result` property of the model object
+        :return: None
+        """
         # water fluxes
         J = self.data_df[self.options['influx']].values
         Q = self.data_df[self._fluxorder].values

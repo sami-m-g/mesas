@@ -1,8 +1,8 @@
-.. _options:
+.. _sasspec:
 
-=======
-Options
-=======
+========================
+Specifying SAS functions
+========================
 A number of optional parameters can be set on a ``Model``. These can be set as keywords when the instance is created::
 
     my_model = Model(..., option1='value', option2='another')
