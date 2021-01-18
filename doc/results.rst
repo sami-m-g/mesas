@@ -1,8 +1,8 @@
-.. _inputs:
+.. _results:
 
-=================
-Timeseries inputs
-=================
+==================
+Extracting Results
+==================
 Returns a dict with the following keys:
 
     'sT' : m x n+1 numpy float64 2D array

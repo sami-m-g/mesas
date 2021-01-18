@@ -1,4 +1,4 @@
-SAS functions
+SAS Functions
 =============
 
 Functions will be documented here.

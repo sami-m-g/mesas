@@ -1,4 +1,4 @@
-The SAS Model class
+SAS Model class
 ===================
 
 Model will be documented here.

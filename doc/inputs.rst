@@ -1,33 +1,129 @@
-.. _results:
+.. _inputs:
 
-=======
-Results
-=======
-        Returns a dict with the following keys:
+=============================
+Timeseries Inputs and Outputs
+=============================
 
-            'sT' : m x n+1 numpy float64 2D array
-                Array of instantaneous age-ranked storage for n times, m ages. First column is initial condition
-            'pQ' : m x n x q numpy float64 2D array
-                Array of timestep-averaged time-varying cumulative transit time distributions for n times,
-                m ages, and q fluxes.
-            'WaterBalance' : m x n numpy float64 2D array
-                Should always be within tolerances of zero, unless something is very
-                wrong.
-            'C_Q' : n x q x s float64 ndarray
-                If C_J is supplied, C_Q is the timeseries of timestep-averaged outflow concentration
-            'mT' : m x n+1 x s float64 ndarray
-                Array of instantaneous age-ranked solute mass for n times, m ages, and s solutes. First column is initial condition
-            'mQ' : m x n x q x s float64 ndarray
-                Array of timestep-averaged age-ranked solute mass flux for n times, m ages, q fluxes and s
-                solutes.
-            'mR' : m x n x s float64 ndarray
-                Array of timestep-averaged age-ranked solute reaction flux for n times, m ages, and s
-                solutes.
-            'SoluteBalance' : m x n x s float64 ndarray
-                Should always be within tolerances of zero, unless something is very
-                wrong.
+A single `Pandas <https://pandas.pydata.org/>`_ dataframe `data_df` is used to store all the input timeseries needed by the model. Some output timeseries are also appended to this dataframe if requested.
 
-        For each of the arrays in the full outputs each row represents an age, and each
-        column is a timestep. For n timesteps and m ages, sT will have dimensions
-        (m) x (n+1), with the first row representing age T = dt and the first
-        column derived from the initial condition.
+The dataframe should be constructed before creating the model object, and then included in the object initialization:
+
+.. code-block:: python
+
+    import pandas as pd
+    from mesas.sas import Model
+
+    # read input timeseries from a .csv file
+    my_dataframe = pd.read_csv('my_input_timeseries.csv', ...)
+
+    # create model
+    my_model = Model(data_df=my_dataframe, ...)
+
+A copy of `my_dataframe` is stored in `my_model` so that subsequent changes to the version of `my_dataframe` in the top-level scope do not change the version in `my_model`. To access the model version call the property directly:
+
+.. code-block:: python
+
+    t = my_model.data_df.index
+    y = my_model.data_df['some column name']
+    plt.plot(t,y)
+
+This version can also be modified in-situ, though the model must be re-run to generate corresponding results:
+
+.. code-block:: python
+
+    # Generate results with current inputs
+    my_model.run()
+    # Modify an input
+    my_model.data_df['input variable'] = new_version_of_input_variable
+    # Re-run model to update results
+    my_model.run()
+
+-----------------------
+Input and output fluxes
+-----------------------
+
+To run the model `data_df` must contain one input flux timeseries, and at least one output flux. These can be specified in any units, but should be consistent with one another, and the values multiplied by the value in `my_model.options['dt']` (see :ref:`options`) should equal the total input and output mass of fluid (i.e. water) in each timestep. The timesteps as assumed to be all of equal interval, and equal length, and should contain no `NaN` values.
+
+A simple steady flow model can be constructed by creating timeseries with constant values:
+
+.. code-block:: python
+
+    import pandas as pd
+    import numpy as np
+
+    N = 1000 # number of timesteps to run
+    J = 2.5 # inflow rate
+    Q = J # steady flow so input=output
+
+    my_dataframe = pd.DataFrame(index = np.arange(N))
+
+    my_dataframe['J'] = J
+    my_dataframe['Q'] = Q
+
+    ...
+
+    my_model = Model(data_df=my_dataframe, ...)
+
+    my_model.run()
+
+The name of the column that contains the inputs is `'J'` by default, but can be modified by changing the `'influx'` option (see :ref:`options`). The name of the column that contains each flux is specified in the `sas_spec` input dictionary (see :ref:`sasspec`)
+
+----------------------
+Other input timeseries
+----------------------
+
+The `data_df` dataframe also stores timeseries used in the specification of SAS functions (see :ref:`sasspec`) and solutes (see :ref:`solspec`). The column names specified in the `sas_spec` and `solute_parameters` input dictionaries must exactly match a column in the `data_df` dataframe.
+
+Here is a minimal example with steady inflow, time-variable discharge according to a linear storage-discharge relationship, uniform sampling, and a pulse of tracer input at a timestep some short time after the storage begins to fill. Note that the total storage `S` is stored in a column of the dataframe named `'S'`, which is used in the specification of the uniform SAS function in `my_sas_spec`. Similarly, the concentration timeseries is stored in a column of the dataframe named `'Cin'`, which corresponds to a top-level key in `my_solute_parameters`.
+
+.. testcode:: ['a']
+
+    import pandas as pd
+    import numpy as np
+    from mesas.sas.model import Model
+
+    N = 1000 # number of timesteps to run
+    t = np.arange(N)
+
+    J = 2.5 # inflow rate
+    k = 1/20 # hydraulic response rate
+    Q = J * (1 - np.exp(-k * t))
+    S = Q / k
+    S[0] = S[1]/1000
+
+    Cin = np.zeros(N)
+    Cin[10] = 100./J
+
+    my_dataframe = pd.DataFrame(index = t, data={'J':J, 'Q':Q, 'S':S, 'Cin':Cin})
+
+    my_sas_specs = {'Q':
+                    {'a uniform distribution over total storage':
+                         {'ST': [0, 'S'] }}}
+
+    my_solute_parameters = {'Cin':{}}
+
+    my_model = Model(data_df=my_dataframe, sas_specs=my_sas_specs, solute_parameters=my_solute_parameters)
+
+    my_model.run()
+
+.. testcode:: ['a']
+   :hide:
+
+   print('Cin --> Q' in my_model.data_df.columns)
+   print(not np.any(np.isnan(my_model.data_df['Cin --> Q'])))
+   print((my_model.data_df['Cin --> Q'].sum()>50.) &(my_model.data_df['Cin --> Q'].sum()<=100.))
+
+.. testoutput:: ['a']
+   :hide:
+
+   True
+   True
+   True
+
+-----------------
+Output timeseries
+-----------------
+
+If a timeseries of solute input concentrations is provided and its name appears as a top-level key in the `solute_parameters` dict, timeseries of output concentrations will be generated for each output flux specified in the `sas_spec`.
+
+The predicted outflow concentration timeseries will appear as a new column in the dataframe with the name '<solute column name> --> <flux column name>'. For example, the outflow concentrations in the simple model given above will appear in the column 'Cin --> Q'.

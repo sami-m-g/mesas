@@ -452,6 +452,7 @@ class Piecewise(_SASFunctionBase):
         :param logtransform: If True, return the derivatives with respect to the log transform of the segment lengths.
          Ignored if `mode='endpoint'. Default is True.
         :return: numpy array of the Jacobian
+
         """
 
         if index is None:

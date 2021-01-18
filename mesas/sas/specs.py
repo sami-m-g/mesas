@@ -1,18 +1,3 @@
-"""
-    Module blender
-    ==============
-
-    A sas blend is an object that can be queried to get the sas function at each timestep.
-    This allows us to specify a time-varying sas function in a couple of different ways.
-
-    The :class:`Fixed` blender is the simplest, producing a time-invariant function
-
-    The :class:`StateSwitch` blender switches between several sas functions, depending on the state
-    of the system at a given timestep
-
-    The :class:`Weighted` blender produces a weighted average of several sas functions. The weights can
-    vary in time
-"""
 import copy
 from collections import OrderedDict
 
@@ -25,11 +10,11 @@ from collections import Iterable
 from mesas.sas.functions import Continuous, Piecewise
 
 
-class Blender:
+class SAS_Spec:
 
     def __init__(self, spec, data_df):
         """
-        Initializes a sas blender
+        Initializes a sas spec
         """
 
         self.components = OrderedDict()
@@ -39,7 +24,7 @@ class Blender:
         self._componentorder = list(self.components.keys())
         self._comp2learn_componentorder = self._componentorder
 
-    def blend(self, data_df=None):
+    def make_spec_ts(self, data_df=None):
         """
         Create functions that can be called to return the CDF and inverse CDF
         """
@@ -107,7 +92,7 @@ class Blender:
         return self._interp1d_inv[i](P)
 
     def __repr__(self):
-        """produce a string representation of the blender"""
+        """produce a string representation of the spec"""
         repr = ''
         for label, component in self.components.items():
             repr += component.__repr__()
@@ -128,7 +113,7 @@ class Blender:
             nparams = len(component.sas_fun.parameter_list)
             component.sas_fun.parameter_list = parameter_list[starti: starti + nparams]
             starti += nparams
-        self.blend()
+        self.make_spec_ts()
 
     def plot(self, ax=None, **kwargs):
         """Plot the component sas_functions"""

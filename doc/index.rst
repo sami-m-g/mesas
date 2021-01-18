@@ -31,7 +31,7 @@ Multiresolution Estimation of StorAge Selection functions
    :caption: Reference
 
    functions.rst
-   blender.rst
+   specs.rst
    model.rst
 
 Indices and tables

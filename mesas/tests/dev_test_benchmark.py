@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 # 2. A 'blender' that assumes that SAS function is fixed in time
-from mesas.sas.blender import Fixed, Weighted
+from mesas.sas.specs import Fixed, Weighted
 # classes we will use to construct the SAS model
 # 1. A piecewise constant SAS function
 from mesas.sas.functions import Piecewise

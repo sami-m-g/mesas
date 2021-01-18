@@ -14,7 +14,7 @@ from solve import solve
 
 dtype = np.float64
 
-from mesas.sas.blender import Blender
+from mesas.sas.specs import SAS_Spec
 from collections import OrderedDict
 
 
@@ -49,9 +49,9 @@ class Model:
         # do input Checking
         self.data_df = data_df
         self.options = kwargs
-        self.sas_blends = self.parse_sas_specs(sas_specs)
-        self._numflux = len(self.sas_blends)
-        self._fluxorder = list(self.sas_blends.keys())
+        self.sas_specs = self.parse_sas_specs(sas_specs)
+        self._numflux = len(self.sas_specs)
+        self._fluxorder = list(self.sas_specs.keys())
         # defaults for solute transport
         self._default_parameters = {
             'mT_init': 0.,
@@ -67,28 +67,27 @@ class Model:
     def __repr__(self):
         """Creates a repr for the model"""
         repr = ''
-        for flux, sas_blend in self.sas_blends.items():
+        for flux, sas_spec in self.sas_specs.items():
             repr += f'flux = {flux}\n'
-            repr += sas_blend.__repr__()
+            repr += sas_spec.__repr__()
         return repr
 
     def parse_sas_specs(self, sas_specs):
-        sas_blends = OrderedDict()
         for flux, spec_in in sas_specs.items():
             spec = deepcopy(spec_in)
             assert flux in self.data_df.columns
-            if isinstance(spec, Blender):
-                sas_blends[flux] = spec
+            if isinstance(spec, SAS_Spec):
+                sas_specs[flux] = spec
             else:
                 assert isinstance(spec, dict)
                 assert all([isinstance(component_spec, dict) for component_spec in spec.values()])
-                sas_blends[flux] = Blender(spec, self.data_df)
-        return sas_blends
+                sas_specs[flux] = SAS_Spec(spec, self.data_df)
+        return sas_specs
 
     def copy_without_results(self):
         #returns a new instance of the model, but clears any results
         return Model(copy.deepcopy(self._data_df),
-                     copy.deepcopy(self._sas_blends),
+                     copy.deepcopy(self._sas_specs),
                      copy.deepcopy(self._solute_parameters),
                      copy.deepcopy(self._components_to_learn),
                      **copy.deepcopy(self._options))
@@ -107,7 +106,7 @@ class Model:
         new_model = self.copy_without_results()
 
         # subdivide the component
-        new_model.sas_blends[flux] = new_model.sas_blends[flux].subdivided_copy(label, segment)
+        new_model.sas_specs[flux] = new_model.sas_specs[flux].subdivided_copy(label, segment)
 
         return new_model
 
@@ -132,7 +131,7 @@ class Model:
 
     @data_df.setter
     def data_df(self, new_data_df):
-        self._data_df = new_data_df
+        self._data_df = new_data_df.copy()
         self._timeseries_length = len(self._data_df)
 
     @property
@@ -158,35 +157,35 @@ class Model:
         self._max_age = self._options['max_age']
 
     @property
-    def sas_blends(self):
+    def sas_specs(self):
         """Specification of the SAS functions. See :ref:`sasspec`"""
-        return self._sas_blends
+        return self._sas_specs
 
-    @sas_blends.setter
-    def sas_blends(self, new_sas_blends):
-        self._sas_blends = new_sas_blends
-        for sas_blend in self._sas_blends.values():
-            sas_blend.blend(self.data_df)
-        self._numflux = len(self._sas_blends)
-        self._fluxorder = list(self._sas_blends.keys())
+    @sas_specs.setter
+    def sas_specs(self, new_sas_specs):
+        self._sas_specs = new_sas_specs
+        for sas_spec in self._sas_specs.values():
+            sas_spec.make_spec_ts(self.data_df)
+        self._numflux = len(self._sas_specs)
+        self._fluxorder = list(self._sas_specs.keys())
 
-    def set_sas_blend(self, flux, sas_blend):
-        self._sas_blends[flux] = sas_blend
-        self._sas_blends[flux].blend(self.data_df)
+    def set_sas_spec(self, flux, sas_spec):
+        self._sas_specs[flux] = sas_spec
+        self._sas_specs[flux].make_spec_ts(self.data_df)
 
     def set_component(self, flux, component):
         label = component.label
-        self._sas_blends[flux].components[label] = component
-        self._sas_blends[flux].blend()
+        self._sas_specs[flux].components[label] = component
+        self._sas_specs[flux].make_spec_ts()
 
     def set_sas_fun(self, flux, label, sas_fun):
-        self._sas_blends[flux].components[label].sas_fun = sas_fun
-        self._sas_blends[flux].blend()
+        self._sas_specs[flux].components[label].sas_fun = sas_fun
+        self._sas_specs[flux].make_spec_ts()
 
     def get_component_labels(self):
         component_labels = {}
         for flux in self._fluxorder:
-            component_labels[flux] = list(self._sas_blends[flux].components.keys())
+            component_labels[flux] = list(self._sas_specs[flux].components.keys())
         return component_labels
 
     @property
@@ -195,7 +194,7 @@ class Model:
         A dictionary of lists giving the component labels that you want to train with MESAS
 
         The components in this dictionary can be set by assigning a dictionary. For example, this would
-        include only the 'min' and 'max' components of the sas blender associated with the 'Q' flux.
+        include only the 'min' and 'max' components of the sas spec associated with the 'Q' flux.
 
             >>> model.components_to_learn = {'Q':['min', 'max']}
 
@@ -215,18 +214,18 @@ class Model:
     def components_to_learn(self, label_dict):
         if label_dict is not None:
             self._components_to_learn = OrderedDict((flux,
-                                                     [label for label in self._sas_blends[flux]._componentorder if
+                                                     [label for label in self._sas_specs[flux]._componentorder if
                                                       label in label_dict[flux]]
                                                      ) for flux in self._fluxorder if flux in label_dict.keys())
             self._comp2learn_fluxorder = list(self._components_to_learn.keys())
             for flux in self._comp2learn_fluxorder:
-                self._sas_blends[flux]._comp2learn_componentorder = self._components_to_learn[flux]
+                self._sas_specs[flux]._comp2learn_componentorder = self._components_to_learn[flux]
 
     def get_parameter_list(self):
         """
         Returns a concatenated list of segments from self.components_to_learn
         """
-        return np.concatenate([self.sas_blends[flux].get_parameter_list() for flux in self._comp2learn_fluxorder])
+        return np.concatenate([self.sas_specs[flux].get_parameter_list() for flux in self._comp2learn_fluxorder])
 
     def update_from_parameter_list(self, parameter_list):
         """
@@ -234,8 +233,8 @@ class Model:
         """
         starti = 0
         for flux in self._comp2learn_fluxorder:
-            nparams = len(self.sas_blends[flux].get_parameter_list())
-            self.sas_blends[flux].update_from_parameter_list(parameter_list[starti: starti + nparams])
+            nparams = len(self.sas_specs[flux].get_parameter_list())
+            self.sas_specs[flux].update_from_parameter_list(parameter_list[starti: starti + nparams])
             starti += nparams
 
     @property
@@ -298,9 +297,9 @@ class Model:
         nP_list = []
         component_list = []
         for flux in self._fluxorder:
-            nC_list.append(len(self._sas_blends[flux].components))
-            for component in self._sas_blends[flux]._componentorder:
-                component_list.append(self.sas_blends[flux].components[component])
+            nC_list.append(len(self._sas_specs[flux].components))
+            for component in self._sas_specs[flux]._componentorder:
+                component_list.append(self.sas_specs[flux].components[component])
                 nP_list.append(len(component_list[-1].P))
         nC_total = np.sum(nC_list)
         nP_total = np.sum(nP_list)
@@ -376,7 +375,7 @@ class Model:
                         J_seg = None
                         for iflux, flux in enumerate(self._comp2learn_fluxorder):
                             for label in self._components_to_learn[flux]:
-                                nP = len(self.sas_blends[flux].components[label].sas_fun.P)
+                                nP = len(self.sas_specs[flux].components[label].sas_fun.P)
                                 J_S = np.squeeze(self.result['dCdSj'][:, iP:iP+nP, isolflux, isol])
                                 if mode == 'endpoint':
                                     pass
@@ -386,7 +385,7 @@ class Model:
                                     A = np.triu(np.ones(nP), k=0)
                                     J_S = np.dot(A, J_S.T).T
                                     if logtransform:
-                                        J_S = J_S * self.sas_blends[flux].components[label].sas_fun._parameter_list
+                                        J_S = J_S * self.sas_specs[flux].components[label].sas_fun._parameter_list
                                 if J_seg is None:
                                     J_seg = J_S
                                 else:
