@@ -3,39 +3,5 @@
 Visualizing outputs
 ===================
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Under construction...
 

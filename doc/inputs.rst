@@ -4,7 +4,7 @@
 Timeseries Inputs and Outputs
 =============================
 
-A single `Pandas <https://pandas.pydata.org/>`_ dataframe `data_df` is used to store all the input timeseries needed by the model. Some output timeseries are also appended to this dataframe if requested.
+A single `Pandas <https://pandas.pydata.org/>`_ dataframe ``data_df`` is used to store all the input timeseries needed by the model. Some output timeseries are also appended to this dataframe if requested.
 
 The dataframe should be constructed before creating the model object, and then included in the object initialization:
 
@@ -19,7 +19,7 @@ The dataframe should be constructed before creating the model object, and then i
     # create model
     my_model = Model(data_df=my_dataframe, ...)
 
-A copy of `my_dataframe` is stored in `my_model` so that subsequent changes to the version of `my_dataframe` in the top-level scope do not change the version in `my_model`. To access the model version call the property directly:
+A copy of ``my_dataframe`` is stored in ``my_model`` so that subsequent changes to the version of ``my_dataframe`` in the top-level scope do not change the version in ``my_model``. To access the model version call the property directly:
 
 .. code-block:: python
 
@@ -42,7 +42,7 @@ This version can also be modified in-situ, though the model must be re-run to ge
 Input and output fluxes
 -----------------------
 
-To run the model `data_df` must contain one input flux timeseries, and at least one output flux. These can be specified in any units, but should be consistent with one another, and the values multiplied by the value in `my_model.options['dt']` (see :ref:`options`) should equal the total input and output mass of fluid (i.e. water) in each timestep. The timesteps as assumed to be all of equal interval, and equal length, and should contain no `NaN` values.
+To run the model ``data_df`` must contain one input flux timeseries, and at least one output flux. These can be specified in any units, but should be consistent with one another, and the values multiplied by the value in ``my_model.options['dt']`` (see :ref:`options`) should equal the total input and output mass of fluid (i.e. water) in each timestep. The timesteps as assumed to be all of equal interval, and equal length, and should contain no ``NaN`` values.
 
 A simple steady flow model can be constructed by creating timeseries with constant values:
 
@@ -66,15 +66,15 @@ A simple steady flow model can be constructed by creating timeseries with consta
 
     my_model.run()
 
-The name of the column that contains the inputs is `'J'` by default, but can be modified by changing the `'influx'` option (see :ref:`options`). The name of the column that contains each flux is specified in the `sas_spec` input dictionary (see :ref:`sasspec`)
+The name of the column that contains the inputs is ``'J'`` by default, but can be modified by changing the ``'influx'`` option (see :ref:`options`). The name of the column that contains each flux is specified in the ``sas_spec`` input dictionary (see :ref:`sasspec`)
 
 ----------------------
 Other input timeseries
 ----------------------
 
-The `data_df` dataframe also stores timeseries used in the specification of SAS functions (see :ref:`sasspec`) and solutes (see :ref:`solspec`). The column names specified in the `sas_spec` and `solute_parameters` input dictionaries must exactly match a column in the `data_df` dataframe.
+The ``data_df`` dataframe also stores timeseries used in the specification of SAS functions (see :ref:`sasspec`) and solutes (see :ref:`solspec`). The column names specified in the ``sas_spec`` and ``solute_parameters`` input dictionaries must exactly match a column in the ``data_df`` dataframe.
 
-Here is a minimal example with steady inflow, time-variable discharge according to a linear storage-discharge relationship, uniform sampling, and a pulse of tracer input at a timestep some short time after the storage begins to fill. Note that the total storage `S` is stored in a column of the dataframe named `'S'`, which is used in the specification of the uniform SAS function in `my_sas_spec`. Similarly, the concentration timeseries is stored in a column of the dataframe named `'Cin'`, which corresponds to a top-level key in `my_solute_parameters`.
+Here is a minimal example with steady inflow, time-variable discharge according to a linear storage-discharge relationship, uniform sampling, and a pulse of tracer input at a timestep some short time after the storage begins to fill. Note that the total storage ``S`` is stored in a column of the dataframe named ``'S'``, which is used in the specification of the uniform SAS function in ``my_sas_spec``. Similarly, the concentration timeseries is stored in a column of the dataframe named ``'Cin'``, which corresponds to a top-level key in ``my_solute_parameters``.
 
 .. testcode:: ['a']
 
@@ -124,6 +124,6 @@ Here is a minimal example with steady inflow, time-variable discharge according 
 Output timeseries
 -----------------
 
-If a timeseries of solute input concentrations is provided and its name appears as a top-level key in the `solute_parameters` dict, timeseries of output concentrations will be generated for each output flux specified in the `sas_spec`.
+If a timeseries of solute input concentrations is provided and its name appears as a top-level key in the ``solute_parameters`` dict, timeseries of output concentrations will be generated for each output flux specified in the ``sas_spec``.
 
-The predicted outflow concentration timeseries will appear as a new column in the dataframe with the name '<solute column name> --> <flux column name>'. For example, the outflow concentrations in the simple model given above will appear in the column 'Cin --> Q'.
+The predicted outflow concentration timeseries will appear as a new column in the dataframe with the name ``'<solute column name> --> <flux column name>'``. For example, the outflow concentrations in the simple model given above will appear in the column ``'Cin --> Q'``.

@@ -1,17 +1,22 @@
 """
+
+    ================
     Module functions
     ================
-    This module defines classes representing SAS functions.
-    Currently there is only one class specified: :class:`Piecewise`. However this
-    is a very flexible way of specifying a function.
 
-    Calling an instance of the class supplied with values of ST (as an array, list, or number) evaluates
-    the CDF, and returns corresponding cumulative probabilities. The :func:`Piecewise.inv` method takes probabilities and
+    This module defines classes representing SAS functions.
+
+    Currently there are two classes : :class:`Piecewise` and :class:`Continuous`. The first allows the SAS function to be
+    specified as a set of breakpoints in a piecewise linear form of the cumulative distribution. The second allows any
+    distribution specified as a scipy.stats ``rv_continuous`` class to be used as a SAS function. However, it will be
+    converted into a piecewise form when the model is run.
+
+    Calling an instance of either class supplied with values of ST (as an array, list, or number) evaluates
+    the CDF, and returns corresponding cumulative probabilities. The :func:`Piecewise.inv` method takes cumulative probabilities and
     returns values of ST.
 
-    See the class docstring for more information..
-
 """
+
 import copy
 
 import matplotlib.pyplot as plt
@@ -106,117 +111,11 @@ class _SASFunctionBase:
         raise NotImplementedError("get_jacobian not been defined")
 
 
-class Continuous(_SASFunctionBase):
-    """
-    Base function for SAS functions
-    """
-
-    def __init__(self, func, func_kwargs=None, P=None, nsegment=25, ST_max=1.797693134862315e+308):
-
-        self.ST_max = np.float(ST_max)
-
-        # Make a list of probabilities P
-        if P is not None:
-            # Use the supplied values
-            self.nsegment = len(P) - 1
-            self._P = np.r_[P]
-        else:
-            # Make P equally-spaced
-            self.nsegment = nsegment
-            self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
-
-        assert isinstance(func, rv_continuous)
-        self._func = func
-        if func_kwargs is not None:
-            self.set_args(**func_kwargs)
-        else:
-            self._has_params = False
-
-    def set_args(self, *args, **kwargs):
-        self._frozen_func = self._func(*args, **kwargs)
-        self._has_params = True
-        self._ST = self.func.ppf(self._P)
-        return self
-
-    @property
-    def func(self):
-        if self._has_params:
-            return self._frozen_func
-        else:
-            raise UnboundLocalError("Parameter values must be set before you can call the underlying function")
-
-    @func.setter
-    def func(selfs, new_func):
-        raise ValueError("Function type cannot be changed")
-
-    @_SASFunctionBase.ST.setter
-    def ST(self, new_ST):
-        try:
-            assert new_ST[0] >= 0
-            assert np.all(np.diff(new_ST) > 0)
-            assert len(new_ST) > 1
-        except Exception as ex:
-            print('Problem with new ST')
-            print(f'Attempting to set ST = {new_ST}')
-            raise ex
-        if new_ST[-1] > self.ST_max:
-            self._ST = new_ST
-            self.ST_max = self._ST[-1]
-        else:
-            self._ST = np.r_[new_ST, self.ST_max]
-        self._parameter_list = self._convert_ST_to_segment_list(self._ST)
-
-    @_SASFunctionBase.P.setter
-    def P(self, new_P):
-        assert new_P[0] == 0
-        assert new_P[-1] == 1
-        assert np.all(np.diff(new_P) >= 0)
-        self._P = new_P
-        if self._has_params:
-            self._ST = self.func.ppf(self._P)
-
-    def inv(self, P):
-        """
-        The inverse Cumulative Distribution Function of the SAS function
-        """
-        return self.func.ppf(P)
-
-    def __call__(self, ST):
-        """
-        The Cumulative Distribution Function of the SAS function
-        """
-        return self.func.cdf(ST)
-
-    def __repr__(self):
-        """Return a repr of the SAS function"""
-        repr =     f'       {self._func.name} distribution\n'
-        if self._has_params:
-            repr += f'        parameters: {self._frozen_func.args}\n'
-            repr += '        Lookup table version:\n'
-            repr += '          ST: '
-            for i in range(self.nsegment + 1):
-                repr += '{ST:<10.4}  '.format(ST=self.ST[i])
-            repr += '\n'
-            repr += '          P : '
-            for i in range(self.nsegment + 1):
-                repr += '{P:<10.4}  '.format(P=self.P[i])
-            repr += '\n'
-        else:
-            repr = f'        (parameters not set)'
-        return repr
-
-    def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
-        """ Calculates a limited jacobian of the model predictions """
-        raise NotImplementedError("get_jacobian not been defined")
 
 
 class Piecewise(_SASFunctionBase):
     """
     Class for piecewise-linear SAS functions
-
-    Calling an instance of the class supplied with values of ST (as an array, list, or number) evaluates
-    the CDF, and returns corresponding cumulative probabilities. The `inv` method takes probabilities and
-    returns values of ST. Additional methods and attributes provide further functionality.
 
     You can define a piecewise sas function in several different ways. The default is a single segment from 0 to 1:
 
@@ -224,34 +123,31 @@ class Piecewise(_SASFunctionBase):
         >>>sas_fun([0.1, 0.3, 0.9])
         array([0.1, 0.3, 0.9])
 
-    The range of the single segment can be modified by providing `ST_min` and `ST_max` keywords
+    The range of the single segment can be modified by providing ``ST_min`` and ``ST_max`` keywords
 
         >>>sas_fun = Piecewise(ST_min=100, ST_max=110)
         >>>sas_fun([99, 101, 103, 109, 111])
         array([0. , 0.1, 0.3, 0.9, 1. ])
 
-    If an integer >1 is passed a `nsegment`, a random distribution will be returned with each of the
-    segments representing an equal probability.
-    The (ST,P) pairs defining the CDF are given by the `ST` and `P` attributes
+    The (ST,P) pairs defining the CDF are given by the ``ST`` and ``P`` attributes
 
         >>>sas_fun.ST
-        array([  0.        , 100.        , 103.00391164, 104.17022005,
+        array([100.        , 103.00391164, 104.17022005,
         110.        ])
         >>>sas_fun.P
-        array([0.        , 0.        , 0.33333333, 0.66666667, 1.        ])
+        array([0.        , 0.33333333, 0.66666667, 1.        ])
 
-    Note that the pair (0,0) is automatically included.
-    The segments defining the function are stored in the `segment_list`
-    attribute (which is actually a numpy array):
+    The segments defining the function are stored in the ``segment_list``
+    attribute as a numpy array:
 
         >>>seglst = sas_fun.segment_list
         array([100.        ,   3.00391164,   1.1663084 ,   5.82977995])
 
-    Note that the first item in the array is ST_min, and each following value is the interval
+    The first item in the array is ``ST_min``, and each following value is the interval
     along the ST axis to the end of each segment.
 
-    Once created, the values of `segment_list` or `ST` can be modified and the other will update too.
-    Values of `P` can also be changed.
+    Once created, the values of ``segment_list`` or ``ST`` can be modified and the other will update too.
+    Values of ``P`` can also be changed.
 
     """
 
@@ -433,9 +329,12 @@ class Piecewise(_SASFunctionBase):
         Calculates a limited jacobian of the model predictions
 
         If :math:`\vec{y} = f(\vec{x})` the Jacobian is a matrix where each i, j entry is
+
         .. math:
 
             J_{i,j}=\frac{\partial y_i}{\partial x_j}
+
+        ..
 
         Here, the :math:`y_i` values are the predicted concentrations at each timestep,
         and the :math:`x_j` are either the lengths of each piecewise segment along with ST_min (default),
@@ -473,3 +372,107 @@ class Piecewise(_SASFunctionBase):
             return J_seglog
         else:
             return J_seg
+
+
+class Continuous(_SASFunctionBase):
+    """
+    Base function for SAS functions
+    """
+
+    def __init__(self, func, func_kwargs=None, P=None, nsegment=25, ST_max=1.797693134862315e+308):
+
+        self.ST_max = np.float(ST_max)
+
+        # Make a list of probabilities P
+        if P is not None:
+            # Use the supplied values
+            self.nsegment = len(P) - 1
+            self._P = np.r_[P]
+        else:
+            # Make P equally-spaced
+            self.nsegment = nsegment
+            self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+
+        assert isinstance(func, rv_continuous)
+        self._func = func
+        if func_kwargs is not None:
+            self.set_args(**func_kwargs)
+        else:
+            self._has_params = False
+
+    def set_args(self, *args, **kwargs):
+        self._frozen_func = self._func(*args, **kwargs)
+        self._has_params = True
+        self._ST = self.func.ppf(self._P)
+        return self
+
+    @property
+    def func(self):
+        if self._has_params:
+            return self._frozen_func
+        else:
+            raise UnboundLocalError("Parameter values must be set before you can call the underlying function")
+
+    @func.setter
+    def func(selfs, new_func):
+        raise ValueError("Function type cannot be changed")
+
+    @_SASFunctionBase.ST.setter
+    def ST(self, new_ST):
+        try:
+            assert new_ST[0] >= 0
+            assert np.all(np.diff(new_ST) > 0)
+            assert len(new_ST) > 1
+        except Exception as ex:
+            print('Problem with new ST')
+            print(f'Attempting to set ST = {new_ST}')
+            raise ex
+        if new_ST[-1] > self.ST_max:
+            self._ST = new_ST
+            self.ST_max = self._ST[-1]
+        else:
+            self._ST = np.r_[new_ST, self.ST_max]
+        self._parameter_list = self._convert_ST_to_segment_list(self._ST)
+
+    @_SASFunctionBase.P.setter
+    def P(self, new_P):
+        assert new_P[0] == 0
+        assert new_P[-1] == 1
+        assert np.all(np.diff(new_P) >= 0)
+        self._P = new_P
+        if self._has_params:
+            self._ST = self.func.ppf(self._P)
+
+    def inv(self, P):
+        """
+        The inverse Cumulative Distribution Function of the SAS function
+        """
+        return self.func.ppf(P)
+
+    def __call__(self, ST):
+        """
+        The Cumulative Distribution Function of the SAS function
+        """
+        return self.func.cdf(ST)
+
+    def __repr__(self):
+        """Return a repr of the SAS function"""
+        repr =     f'       {self._func.name} distribution\n'
+        if self._has_params:
+            repr += f'        parameters: {self._frozen_func.args}\n'
+            repr += '        Lookup table version:\n'
+            repr += '          ST: '
+            for i in range(self.nsegment + 1):
+                repr += '{ST:<10.4}  '.format(ST=self.ST[i])
+            repr += '\n'
+            repr += '          P : '
+            for i in range(self.nsegment + 1):
+                repr += '{P:<10.4}  '.format(P=self.P[i])
+            repr += '\n'
+        else:
+            repr = f'        (parameters not set)'
+        return repr
+
+    def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
+        """ Calculates a limited jacobian of the model predictions """
+        raise NotImplementedError("get_jacobian not been defined")

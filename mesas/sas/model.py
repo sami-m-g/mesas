@@ -111,6 +111,22 @@ class Model:
         return new_model
 
     @property
+    def fluxorder(self):
+        return self._fluxorder
+
+    @fluxorder.setter
+    def fluxorder(self, new_fluxorder):
+        raise AttributeError("fluxorder property is read-only")
+
+    @property
+    def solorder(self):
+        return self._solorder
+
+    @solorder.setter
+    def solorder(self, new_solorder):
+        raise AttributeError("solorder property is read-only")
+
+    @property
     def result(self):
         """Results of running the sas model with the current parameters. See :ref:`results`
         """
@@ -258,6 +274,7 @@ class Model:
             self._solorder = list(self._solute_parameters.keys())
         else:
             self._numsol = 0
+            self._solute_parameters = {}
 
     def set_solute_parameters(self, sol, params):
         invalid_parameters = [paramkey for paramkey in params.keys()
