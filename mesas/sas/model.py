@@ -5,12 +5,13 @@
 
     Text here
 """
+from __future__ import absolute_import
 import copy
 from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
-from solve import solve
+from solver import solver as solve
 
 dtype = np.float64
 
@@ -311,6 +312,7 @@ class Model:
 
     def _create_sas_lookup(self):
         nC_list = []
+        nA_list = []
         nP_list = []
         component_list = []
         for flux in self._fluxorder:
@@ -318,12 +320,15 @@ class Model:
             for component in self._sas_specs[flux]._componentorder:
                 component_list.append(self.sas_specs[flux].components[component])
                 nP_list.append(len(component_list[-1].P))
+                nA_list.append(len(component_list[-1].args))
         nC_total = np.sum(nC_list)
+        nA_total = np.sum(nA_list)
         nP_total = np.sum(nP_list)
-        P_list = np.column_stack([[component.P] for component in component_list]).T
+        SAS_args = np.column_stack([[component.args] for component in component_list]).T
         SAS_lookup = np.column_stack([[component.ST] for component in component_list]).T
+        P_list = np.column_stack([[component.P] for component in component_list]).T
         weights = np.column_stack([component.weights for component in component_list])
-        return SAS_lookup, P_list, weights, nC_list, nC_total, nP_list, nP_total
+        return SAS_args, SAS_lookup, P_list, weights, nC_list, nC_total, nA_list, nA_total, nP_list, nP_total
 
     def run(self):
         """
@@ -338,7 +343,8 @@ class Model:
         numflux = self._numflux
         #
         # SAS lookup table
-        SAS_lookup, P_list, weights, nC_list, nC_total, nP_list, nP_total = self._create_sas_lookup()
+        SAS_args, SAS_lookup, P_list, weights, nC_list, nC_total, nA_list, nA_total, nP_list, nP_total = self._create_sas_lookup()
+        SAS_args = np.asfortranarray(SAS_args)
         SAS_lookup = np.asfortranarray(SAS_lookup)
         P_list = np.asfortranarray(P_list)
         weights = np.asfortranarray(weights)
@@ -358,11 +364,11 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, np.asfortranarray(Q), np.asfortranarray(SAS_lookup), np.asfortranarray(P_list), np.asfortranarray(weights),
+            J, np.asfortranarray(Q), np.asfortranarray(SAS_args), SAS_lookup, P_list, weights,
             sT_init, dt, verbose, debug, warning, jacobian,
             mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
             np.asfortranarray(C_eq), C_old,
-            n_substeps, nC_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nP_total)
+            n_substeps, nC_list, nA_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nA_total, nP_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
         if numsol > 0:

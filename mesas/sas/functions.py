@@ -50,6 +50,14 @@ class _SASFunctionBase:
         return self._has_params
 
     @property
+    def args(self):
+        return self._args
+
+    @args.setter
+    def args(self, new_args):
+        raise NotImplementedError("Method for setting args directly has not been defined")
+
+    @property
     def ST(self):
         return self._ST
 
@@ -109,8 +117,6 @@ class _SASFunctionBase:
     def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):
         """ Calculates a limited jacobian of the model predictions """
         raise NotImplementedError("get_jacobian not been defined")
-
-
 
 
 class Piecewise(_SASFunctionBase):
@@ -186,13 +192,12 @@ class Piecewise(_SASFunctionBase):
 
         else:
 
-
             self.nsegment = nsegment
 
-            if auto=='uniform':
+            if auto == 'uniform':
                 self._ST = np.linspace(self.ST_min, self.ST_max, self.nsegment + 1)
                 self._parameter_list = self._convert_ST_to_segment_list(self._ST)
-            elif auto=='random':
+            elif auto == 'random':
                 # Generate a random function
                 # Note this should probably be encapsulated in a function
                 self._ST = np.zeros(self.nsegment + 1)
@@ -223,6 +228,7 @@ class Piecewise(_SASFunctionBase):
         self._has_params = True
         # call this to make the interpolation functions
         self._make_interpolators()
+        self._args = [-1.0]
         return self
 
     def _make_interpolators(self):
@@ -250,7 +256,8 @@ class Piecewise(_SASFunctionBase):
             print('Problem with new ST')
             print(f'Attempting to set ST = {new_ST}')
             if not np.all(np.diff(new_ST) > 0):
-                print("   -- if ST values are not distinct, try changing 'ST_largest_segment' and/or 'ST_smallest_segment'")
+                print(
+                    "   -- if ST values are not distinct, try changing 'ST_largest_segment' and/or 'ST_smallest_segment'")
             raise ex
         self._ST = new_ST
         self.ST_min = self._ST[0]
@@ -344,7 +351,7 @@ class Piecewise(_SASFunctionBase):
         concentrations at each timestep to variations in the sas function at that timestep, and neglects
         the cumulative effects that changing the sas function would have on the state variables (ST and MS).
 
-        :param dCdSj: jacobian produced by solve.f90
+        :param dCdSj: jacobian produced by solver.f90
         :param index: index of timesteps to calculate the jacobian for
         :param mode: If 'endpoint' return the derivatives with respect to the ST of the endpoints,
         otherwise if 'segment' return the derivatives wrt the segment lengths
@@ -384,6 +391,7 @@ class Continuous(_SASFunctionBase):
         self.ST_max = np.float(ST_max)
 
         # Make a list of probabilities P
+        # If solver.f90 uses cdflib90 these are only used for plotting purposes
         if P is not None:
             # Use the supplied values
             self.nsegment = len(P) - 1
@@ -404,6 +412,12 @@ class Continuous(_SASFunctionBase):
         self._frozen_func = self._func(*args, **kwargs)
         self._has_params = True
         self._ST = self.func.ppf(self._P)
+        myargs = self._frozen_func.kwds.copy()
+        self._args = [myargs.pop('loc'), myargs.pop('scale')]
+        if self._frozen_func.dist.name == 'gamma':
+            self._args += [myargs.pop('a')]
+        if self._frozen_func.dist.name == 'beta':
+            self._args += [myargs.pop('a'), myargs.pop('b')]
         return self
 
     @property
@@ -433,6 +447,8 @@ class Continuous(_SASFunctionBase):
         else:
             self._ST = np.r_[new_ST, self.ST_max]
         self._parameter_list = self._convert_ST_to_segment_list(self._ST)
+        if self._has_params:
+            self._P = self.func.cdf(self._ST)
 
     @_SASFunctionBase.P.setter
     def P(self, new_P):
@@ -457,7 +473,7 @@ class Continuous(_SASFunctionBase):
 
     def __repr__(self):
         """Return a repr of the SAS function"""
-        repr =     f'       {self._func.name} distribution\n'
+        repr = f'       {self._func.name} distribution\n'
         if self._has_params:
             repr += f'        parameters: {self._frozen_func.args}\n'
             repr += '        Lookup table version:\n'

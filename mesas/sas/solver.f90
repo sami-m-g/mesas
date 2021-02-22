@@ -1,21 +1,25 @@
 ! -*- f90 -*-
-subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
+subroutine solve(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
         verbose, debug, warning, jacobian,&
         mT_init_ts, C_J_ts, alpha_ts, k1_ts, C_eq_ts, C_old, &
-        n_substeps, numcomponent_list, numbreakpt_list, numflux, numsol, max_age, &
-        timeseries_length, numcomponent_total, numbreakpt_total, &
+        n_substeps, numcomponent_list, numargs_list, numbreakpt_list, numflux, numsol, max_age, &
+        timeseries_length, numcomponent_total, numargs_total, numbreakpt_total, &
         sT_ts, pQ_ts, WaterBalance_ts, &
         mT_ts, mQ_ts, mR_ts, C_Q_ts, ds_ts, dm_ts, dC_ts, SoluteBalance_ts)
+    use cdf_gamma_mod
+    use cdf_beta_mod
+    use cdf_normal_mod
     implicit none
 
     ! Start by declaring and initializing all the variables we will be using
     integer, intent(in) :: n_substeps, numflux, numsol, max_age, &
-            timeseries_length, numcomponent_total, numbreakpt_total
+            timeseries_length, numcomponent_total, numargs_total, numbreakpt_total
     real(8), intent(in) :: dt
     logical, intent(in) :: verbose, debug, warning, jacobian
     real(8), intent(in), dimension(0:timeseries_length - 1) :: J_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1) :: Q_ts
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numcomponent_total - 1) :: weights_ts
+    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numargs_total - 1) :: SAS_args
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numbreakpt_total - 1) :: SAS_lookup
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numbreakpt_total - 1) :: P_list
     real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: C_J_ts
@@ -27,6 +31,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), intent(in), dimension(0:max_age - 1, 0:numsol - 1) :: mT_init_ts
     integer, intent(in), dimension(0:numflux - 1) :: numcomponent_list
     integer, intent(in), dimension(0:numcomponent_total - 1) :: numbreakpt_list
+    integer, intent(in), dimension(0:numcomponent_total - 1) :: numargs_list
     real(8), intent(out), dimension(0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: C_Q_ts
     real(8), intent(out), dimension(0:timeseries_length - 1, 0:numbreakpt_total-1, 0:numflux - 1, 0:numsol - 1) :: dC_ts
     real(8), intent(out), dimension(0:timeseries_length, 0:max_age - 1) :: sT_ts
@@ -41,6 +46,8 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     real(8), dimension(0:timeseries_length-1, 0:numbreakpt_total-1, 0:numflux - 1) :: dW_ts
     real(8), dimension(0:timeseries_length - 1, 0:numflux - 1) :: P_old
     integer, dimension(0:numcomponent_total) :: breakpt_index_list
+    integer, dimension(0:numcomponent_total) :: args_index_list
+    integer, dimension(0:numcomponent_total) :: component_type
     integer, dimension(0:numflux) :: component_index_list
     real(8), dimension(0:timeseries_length * n_substeps) :: STcum_top_start
     real(8), dimension(0:timeseries_length * n_substeps) :: STcum_bot_start
@@ -101,9 +108,11 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     !$acc data &
     !$acc copyin(component_index_list) &
     !$acc copyin(rk_coeff) &
+    !$acc copyin(SAS_args) &
     !$acc copyin(SAS_lookup) &
     !$acc copyin(J_ts) &
     !$acc copyin(breakpt_index_list) &
+    !$acc copyin(args_index_list) &
     !$acc copyin(k1_ts) &
     !$acc copyin(C_J_ts) &
     !$acc copyin(weights_ts) &
@@ -113,6 +122,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     !$acc copyin(P_list) &
     !$acc copyin(C_eq_ts) &
     !$acc copyin(numbreakpt_list) &
+    !$acc copyin(numargs_list) &
     !$acc copyin(jacobian) &
     !$acc copyin(sT_init_ts,mT_init_ts) &
     !$acc copyin(dm_start) &
@@ -177,6 +187,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     SoluteBalance_ts = 0.
     P_old = 0.
     breakpt_index_list = 0
+    args_index_list = 0
     component_index_list = 0
     STcum_top_start = 0.
     STcum_bot_start = 0.
@@ -213,7 +224,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     iT_prev = -1
 
 
-    !call f_verbose('...Initializing arrays...')
+    call f_verbose('...Initializing arrays...')
     one8 = 1.0
     rk_time = (/0.0D0, 0.5D0, 0.5D0, 1.0D0, 1.0D0/)
     rk_coeff = (/1./6, 2./6, 2./6, 1./6/)
@@ -224,21 +235,24 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     ! breakpt_index_list gives the starting index of the probabilities (P) associated
     ! with each flux
     breakpt_index_list(0) = 0
+    args_index_list(0) = 0
     component_index_list(0) = 0
     do iq = 0, numflux - 1
         component_index_list(iq + 1) = component_index_list(iq) + numcomponent_list(iq)
         do ic = component_index_list(iq), component_index_list(iq+1) - 1
             breakpt_index_list(ic + 1) = breakpt_index_list(ic) + numbreakpt_list(ic)
+            args_index_list(ic + 1) = args_index_list(ic) + numargs_list(ic)
+            component_type(ic) = int(P_list(0, breakpt_index_list(ic)))
         enddo
     enddo
-    !call f_debug('breakpt_index_list', one8 * breakpt_index_list(:))
+    call f_debug('breakpt_index_list', one8 * breakpt_index_list(:))
 
     ! modify the number of ages and the timestep by a facotr of n_substeps
     M = max_age * n_substeps
     N = timeseries_length * n_substeps
     h = dt / n_substeps
 
-    !call f_verbose('...Setting initial conditions...')
+    call f_verbose('...Setting initial conditions...')
     sT_ts(0, :) = sT_init_ts
     do s = 0, numsol - 1
         mT_ts(0, s, :) = mT_init_ts(:, s)
@@ -246,6 +260,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
 
     !$acc update device(component_index_list)
     !$acc update device(rk_coeff)
+    !$acc update device(SAS_args)
     !$acc update device(SAS_lookup)
     !$acc update device(J_ts)
     !$acc update device(breakpt_index_list)
@@ -309,7 +324,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     !$acc update device(n_substeps, N)
     !$acc update device(iT, iT_substep, iT_s, hr, rk)
 
-    !call f_verbose('...Starting main loop...')
+    call f_verbose('...Starting main loop...')
     do iT = 0, max_age - 1
 
         ! Start the substep loop
@@ -473,9 +488,9 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                     !$acc loop independent
                     do c = 0, N - 1
                         sT_temp(c) = sT_temp(c) - Q_ts(jt(c), iq) * pQ_temp(c, iq) * hr
-                        !if (sT_temp(c)<0) then
-                            !call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
-                        !end if
+                        if (sT_temp(c)<0) then
+                            call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
+                        end if
                     end do
                 end do
                 !$acc loop independent
@@ -627,61 +642,65 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                         call cpu_time(start)
                         do iq = 0, numflux - 1
                             do ic = component_index_list(iq), component_index_list(iq+1) - 1
-                                !$acc kernels
-                                !$acc loop independent
-                                do c = 0, N - 1
-                                    if (STcum_in(c).le.SAS_lookup( jt(c), breakpt_index_list(ic))) then
-                                        if (topbot==0) then
-                                            PQcum_component = P_list( jt(c), breakpt_index_list(ic))
-                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
-                                            leftbreakpt_top(c, ic) = -1
+                                if (component_type(ic)<0) then
+                                    call f_warning('MY TYPE IS <0!!!')
+                                elseif (component_type(ic)==1) then
+                                    !$acc kernels
+                                    !$acc loop independent
+                                    do c = 0, N - 1
+                                        if (STcum_in(c).le.SAS_lookup( jt(c), breakpt_index_list(ic))) then
+                                            if (topbot==0) then
+                                                PQcum_component = P_list( jt(c), breakpt_index_list(ic))
+                                                PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                                leftbreakpt_top(c, ic) = -1
+                                            else
+                                                PQcum_component = P_list( jt(c), breakpt_index_list(ic))
+                                                PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                                leftbreakpt_bot(c, ic) = -1
+                                            end if
+                                        !else if (STcum_in(c).ge.SAS_lookup( jt(c), breakpt_index_list(ic + 1) - 1)) then
+                                        !    if (topbot==0) then
+                                        !        PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
+                                        !        PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                        !        leftbreakpt_top(c, ic) = numbreakpt_list(ic) - 1
+                                        !    else
+                                        !        PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
+                                        !        PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                        !        leftbreakpt_bot(c, ic) = numbreakpt_list(ic) - 1
+                                        !    end if
                                         else
-                                            PQcum_component = P_list( jt(c), breakpt_index_list(ic))
-                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
-                                            leftbreakpt_bot(c, ic) = -1
-                                        end if
-                                    !else if (STcum_in(c).ge.SAS_lookup( jt(c), breakpt_index_list(ic + 1) - 1)) then
-                                    !    if (topbot==0) then
-                                    !        PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
-                                    !        PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
-                                    !        leftbreakpt_top(c, ic) = numbreakpt_list(ic) - 1
-                                    !    else
-                                    !        PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
-                                    !        PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
-                                    !        leftbreakpt_bot(c, ic) = numbreakpt_list(ic) - 1
-                                    !    end if
-                                    else
-                                        na = numbreakpt_list(ic)
-                                        ia = 0
-                                        foundit = .FALSE.
-                                        do i = 0, na - 1
-                                            if (STcum_in(c).lt.SAS_lookup( jt(c), breakpt_index_list(ic) + i)) then
-                                                ia = i - 1
-                                                foundit = .TRUE.
-                                                exit
+                                            na = numbreakpt_list(ic)
+                                            ia = 0
+                                            foundit = .FALSE.
+                                            do i = 0, na - 1
+                                                if (STcum_in(c).lt.SAS_lookup( jt(c), breakpt_index_list(ic) + i)) then
+                                                    ia = i - 1
+                                                    foundit = .TRUE.
+                                                    exit
+                                                endif
+                                            enddo
+                                            if (.not. foundit) then
+                                                call f_warning('I could not find the ST value. This should never happen!!!')
+                                                PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
+                                                ia = na - 1
+                                            else
+                                                dif = STcum_in(c) - SAS_lookup( jt(c), breakpt_index_list(ic) + ia)
+                                                grad = (P_list( jt(c), breakpt_index_list(ic) + ia + 1) &
+                                                - P_list( jt(c), breakpt_index_list(ic) + ia)) &
+                                                / (SAS_lookup( jt(c), breakpt_index_list(ic) + ia + 1) &
+                                                - SAS_lookup( jt(c), breakpt_index_list(ic) + ia))
+                                                PQcum_component = P_list( jt(c), breakpt_index_list(ic) + ia) + dif * grad
                                             endif
-                                        enddo
-                                        if (.not. foundit) then
-                                            !call f_warning('I could not find the ST value. This should never happen!!!')
-                                            PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
-                                            ia = na - 1
-                                        else
-                                            dif = STcum_in(c) - SAS_lookup( jt(c), breakpt_index_list(ic) + ia)
-                                            grad = (P_list( jt(c), breakpt_index_list(ic) + ia + 1) &
-                                            - P_list( jt(c), breakpt_index_list(ic) + ia)) &
-                                            / (SAS_lookup( jt(c), breakpt_index_list(ic) + ia + 1) &
-                                            - SAS_lookup( jt(c), breakpt_index_list(ic) + ia))
-                                            PQcum_component = P_list( jt(c), breakpt_index_list(ic) + ia) + dif * grad
+                                            if (topbot==0) then
+                                                PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                                leftbreakpt_top(c, ic) = ia
+                                            else
+                                                PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                                leftbreakpt_bot(c, ic) = ia
+                                            end if
                                         endif
-                                        if (topbot==0) then
-                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
-                                            leftbreakpt_top(c, ic) = ia
-                                        else
-                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
-                                            leftbreakpt_bot(c, ic) = ia
-                                        end if
-                                    endif
-                                enddo
+                                    enddo
+                                endif
                                 !$acc end kernels
                             enddo
                         end do
@@ -795,30 +814,30 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                                 ! sensitivity to point before the start
                                 if ((leftbreakpt_top(c, ic)>=0).and.(leftbreakpt_top(c, ic)<numbreakpt_list(ic)-1)) then
                                     ip = breakpt_index_list(ic) + leftbreakpt_top( c, ic)
-                                    !call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
+                                    call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
                                     dS = SAS_lookup(jt(c), ip+1) - SAS_lookup(jt(c), ip)
                                     dP = P_list(jt(c), ip+1) - P_list(jt(c), ip)
-                                    !call f_debug('dP/dS start    ', (/dP/dS/))
+                                    call f_debug('dP/dS start    ', (/dP/dS/))
                                     fs_temp(c, ip) = fs_temp(c, ip) &
                                         + dP / (dS*dS) * sT_temp(c) * weights_ts(jt(c), ic) * Q_ts(jt(c), iq)
                                 end if
                                 ! sensitivity to point after the end
                                 if ((leftbreakpt_bot(c, ic)+1>0).and.(leftbreakpt_bot(c, ic)+1<=numbreakpt_list(ic)-1)) then
                                     ip = breakpt_index_list(ic) + leftbreakpt_bot(c, ic) + 1
-                                    !call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
+                                    call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
                                     dS = SAS_lookup(jt(c), ip) - SAS_lookup(jt(c), ip-1)
                                     dP = P_list(jt(c), ip) - P_list(jt(c), ip-1)
-                                    !call f_debug('dP/dS end      ', (/dP/dS/))
+                                    call f_debug('dP/dS end      ', (/dP/dS/))
                                     fs_temp(c, ip) = fs_temp(c, ip) &
                                         - dP / (dS*dS) * sT_temp(c) * weights_ts(jt(c), ic) * Q_ts(jt(c), iq)
                                 end if
                                 ! sensitivity to point within
                                 if (leftbreakpt_bot(c, ic)>leftbreakpt_top(c, ic)) then
-                                    !call f_debug('leftbreakpt_bot, _start', &
-                                    !(/leftbreakpt_bot(ic, c)*one8, leftbreakpt_top(ic, c)*one8/))
+                                    call f_debug('leftbreakpt_bot, _start', &
+                                    (/leftbreakpt_bot(ic, c)*one8, leftbreakpt_top(ic, c)*one8/))
                                     do leftbreakpt=leftbreakpt_top(c, ic)+1, leftbreakpt_bot(c, ic)
                                         ip = breakpt_index_list(ic) + leftbreakpt
-                                        !call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
+                                        call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
                                         if (leftbreakpt>0) then
                                             dSs = SAS_lookup(jt(c), ip) - SAS_lookup(jt(c), ip-1)
                                             dPs = P_list(jt(c), ip) - P_list(jt(c), ip-1)
@@ -833,7 +852,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
                                             dSe = 1.
                                             dPe = 0.
                                         end if
-                                        !call f_debug('dP/dS middle   ', (/dPe/dSe , dPs/dSs/))
+                                        call f_debug('dP/dS middle   ', (/dPe/dSe , dPs/dSs/))
                                         fs_temp(c, ip) = fs_temp(c, ip) &
                                             - (dPe/dSe - dPs/dSs) / h * weights_ts(jt(c), ic) * Q_ts(jt(c), iq)
                                     end do
@@ -1188,11 +1207,11 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
             call cpu_time(finish)
             runtime(36) = runtime(36) + 1000*(finish-start)
 
-            !call f_debug('sT_ts(iT, :)     ', sT_ts(iT, :))
-            !call f_debug('pQ_aver0         ', pQ_aver(0,:))
-            !call f_debug('pQ_aver1         ', pQ_aver(1,:))
-            !call f_debug('pQ_ts(iT, :, 0)'  , pQ_ts(iT, :, 0))
-            !call f_debug('pQ_ts(iT, :, 0)'  , pQ_ts(iT, :, 1))
+            call f_debug('sT_ts(iT, :)     ', sT_ts(iT, :))
+            call f_debug('pQ_aver0         ', pQ_aver(0,:))
+            call f_debug('pQ_aver1         ', pQ_aver(1,:))
+            call f_debug('pQ_ts(iT, :, 0)'  , pQ_ts(iT, :, 0))
+            call f_debug('pQ_ts(iT, :, 0)'  , pQ_ts(iT, :, 1))
 
             iT_prev = iT
 
@@ -1201,7 +1220,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
         if (mod(iT, 10).eq.0) then
             write (tempdebugstring, *) '...Done ', (iT), &
                     'of', (max_age)
-            !call f_verbose(tempdebugstring)
+            call f_verbose(tempdebugstring)
         endif
     enddo
     call cpu_time(start)
@@ -1257,7 +1276,7 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     !$acc end kernels
     !$acc end data region
 
-    !call f_verbose('...Finalizing...')
+    call f_verbose('...Finalizing...')
 
     ! get the old water fraction
     P_old = 1 - sum(pQ_ts, DIM=3) * dt
@@ -1287,16 +1306,16 @@ subroutine solve(J_ts, Q_ts, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
     enddo
 
 
-    !call f_verbose('...Finished...')
+    call f_verbose('...Finished...')
 
 contains
 
 
     subroutine f_debug_blank()
         ! Prints a blank line
-        !if (debug) then
-            !print *, ''
-        !endif
+        if (debug) then
+            print *, ''
+        endif
     end subroutine f_debug_blank
 
     subroutine f_debug(debugstring, debugdblepr)
@@ -1304,32 +1323,32 @@ contains
         implicit none
         character(len = *), intent(in) :: debugstring
         real(8), dimension(:), intent(in) :: debugdblepr
-        !if (debug) then
-            !print 1, debugstring, debugdblepr
-            !1 format (A26, *(f16.10))
-        !endif
+        if (debug) then
+            print 1, debugstring, debugdblepr
+            1 format (A26, *(f16.10))
+        endif
     end subroutine f_debug
 
 
-    !subroutine f_warning(debugstring)
-        !! Prints informative information
-        !implicit none
-        !!$acc routine seq
-        !character(len = *), intent(in) :: debugstring
-        !if (warning) then
-            !print *, debugstring
-        !endif
-    !end subroutine f_warning
+    subroutine f_warning(debugstring)
+        ! Prints informative information
+        implicit none
+        !$acc routine seq
+        character(len = *), intent(in) :: debugstring
+        if (warning) then
+            print *, debugstring
+        endif
+    end subroutine f_warning
 
 
-    !subroutine f_verbose(debugstring)
-        !! Prints informative information
-        !implicit none
-        !!$acc routine seq
-        !character(len = *), intent(in) :: debugstring
-        !if (verbose) then
-            !print *, debugstring
-        !endif
-    !end subroutine f_verbose
+    subroutine f_verbose(debugstring)
+        ! Prints informative information
+        implicit none
+        !$acc routine seq
+        character(len = *), intent(in) :: debugstring
+        if (verbose) then
+            print *, debugstring
+        endif
+    end subroutine f_verbose
 
 end subroutine solve

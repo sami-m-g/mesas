@@ -1,0 +1,20 @@
+gfortran -c biomath_constants_mod.f90
+gfortran -c biomath_sort_mod.f90
+gfortran -c biomath_strings_mod.f90
+gfortran -c biomath_interface_mod.f90
+gfortran -c biomath_mathlib_mod.f90
+gfortran -c zero_finder.f90
+gfortran -c cdf_aux_mod.f90
+gfortran -c cdf_beta_mod.f90
+gfortran -c cdf_binomial_mod.f90
+gfortran -c cdf_gamma_mod.f90
+gfortran -c cdf_chisq_mod.f90
+gfortran -c cdf_f_mod.f90
+gfortran -c cdf_nc_chisq_mod.f90
+gfortran -c cdf_nc_f_mod.f90
+gfortran -c cdf_normal_mod.f90
+gfortran -c cdf_t_mod.f90
+gfortran -c cdf_nc_t_mod.f90
+gfortran -c cdf_neg_binomial_mod.f90
+gfortran -c cdf_poisson_mod.f90
+
