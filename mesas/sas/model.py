@@ -11,7 +11,7 @@ from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
-from solver import solver as solve
+from mesas.solver import solve
 
 dtype = np.float64
 
@@ -364,7 +364,7 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, np.asfortranarray(Q), np.asfortranarray(SAS_args), SAS_lookup, P_list, weights,
+            J, Q, SAS_args, SAS_lookup, P_list, weights,
             sT_init, dt, verbose, debug, warning, jacobian,
             mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
             np.asfortranarray(C_eq), C_old,

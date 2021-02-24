@@ -7,6 +7,7 @@ Created on Sun Apr 27 16:11:18 2019
 from distutils import util
 from numpy.distutils.misc_util import Configuration
 import os
+import numpy
 
 cdflibnames=[ 'biomath_constants_mod', 'biomath_sort_mod', 'biomath_strings_mod', 'biomath_interface_mod', 'biomath_mathlib_mod', 'zero_finder', 'cdf_aux_mod', 'cdf_beta_mod', 'cdf_binomial_mod', 'cdf_gamma_mod', 'cdf_chisq_mod', 'cdf_f_mod', 'cdf_nc_chisq_mod', 'cdf_nc_f_mod', 'cdf_normal_mod', 'cdf_t_mod', 'cdf_nc_t_mod', 'cdf_neg_binomial_mod', 'cdf_poisson_mod']
 
@@ -36,9 +37,11 @@ def configuration(parent_package='',top_path=None):
                            sources=[f'./mesas/sas/cdflib90/{src}.f90'],
                            extra_f90_compile_args=["-Ofast"])
     config.add_extension(name='solver',
-                         sources=[add_mod_dir, util.convert_path('mesas/sas/solver.f90')],
+                         sources=[add_mod_dir, util.convert_path('./mesas/sas/solver.f90')],
+                         include_dirs=[numpy.get_include()],
                          extra_f90_compile_args=["-Ofast", '-fno-stack-arrays']
                          )
+    config.add_data_dir(('test','./mesas/test'))
     config.requires = ['pandas', 'numpy', 'scipy', 'matplotlib']
     config.make_config_py(name='__config__')
     return config
