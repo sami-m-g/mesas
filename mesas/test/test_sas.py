@@ -157,7 +157,7 @@ def steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a, j=None, ST_mi
     return model
 
 
-def steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0.,
+def disable_steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=None, ic=None, j=None, ST_min=0.,
                         n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment):
     data_df = pd.DataFrame()
     data_df['Q1'] = np.ones(timeseries_length) * Q_0 * fQ
@@ -279,8 +279,8 @@ def test_steady_uniform(benchmark):
 
         model2 = steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=1, n_segment=1)
         rdf2 = model2.result
-        SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
-        SAS_lookup2, _, _, _, _, _, _ = model2._create_sas_lookup()
+        _, SAS_lookup, _, _, _, _, _, _, _, _ = model._create_sas_lookup()
+        _, SAS_lookup2, _, _, _, _, _, _, _, _ = model2._create_sas_lookup()
         j = 1
         dSj = SAS_lookup2[timeseries_length - 1, j] - SAS_lookup[timeseries_length - 1, j]
 
@@ -321,7 +321,7 @@ def test_steady_gamma():
 
     model = steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a=0.5, max_age=max_age)
     rdf = model.result
-    print(model.sas_blends['Q1'])
+    print(model.sas_specs['Q1'])
 
 
 def test_steady_piston_uniform():
@@ -497,8 +497,8 @@ def test_steady_piston_uniform():
 
         model0 = steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=1, ST_min=S_m, n_segment=1)
         rdf0 = model0.result
-        SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
-        SAS_lookup0, _, _, _, _, _, _ = model0._create_sas_lookup()
+        _, SAS_lookup, _, _, _, _, _, _, _, _ = model._create_sas_lookup()
+        _, SAS_lookup0, _, _, _, _, _, _, _, _ = model0._create_sas_lookup()
         j = 1
         dSj = SAS_lookup0[timeseries_length - 1, j] - SAS_lookup[timeseries_length - 1, j]
         printcheck(rdf, rdf0, 'dsTdSj', 'sT', dsTdSjdisc, j)
@@ -507,8 +507,8 @@ def test_steady_piston_uniform():
 
         modelm = steady_run(timeseries_length, dt, Q_0, S_0, C_J, j=0, ST_min=S_m, n_segment=1)
         rdfm = modelm.result
-        SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
-        SAS_lookupm, _, _, _, _, _, _ = modelm._create_sas_lookup()
+        _, SAS_lookup, _, _, _, _, _, _, _, _ = model._create_sas_lookup()
+        _, SAS_lookupm, _, _, _, _, _, _, _, _ = modelm._create_sas_lookup()
         j = 0
         dSj = SAS_lookupm[timeseries_length - 1, j] - SAS_lookup[timeseries_length - 1, j]
         printcheck(rdf, rdfm, 'dmTdSj', 'mT', dmTdSmdisc, j)
@@ -643,7 +643,7 @@ def test_multiple():
                 print('')
                 raise
 
-        SAS_lookup, _, _, _, _, _, _ = model._create_sas_lookup()
+        _, SAS_lookup, _, _, _, _, _, _, _, _ = model._create_sas_lookup()
         for iq, ic, ip0 in [(0, 0, 0 * (n_segment + 1)), (1, 0, 1 * (n_segment + 1)), (1, 1, 2 * (n_segment + 1))]:
             for j in range(n_segment + 1):
                 ip = ip0 + j
@@ -651,7 +651,7 @@ def test_multiple():
                 modelp = steady_run_multiple(timeseries_length, dt, Q_0, S_0, C_J, iq=iq, ic=ic, j=j, ST_min=S_m,
                                              n_substeps=n_substeps, fQ=fQ, fc=fc, n_segment=n_segment)
                 rdfp = modelp.result
-                SAS_lookupp, _, _, _, _, _, _ = modelp._create_sas_lookup()
+                _, SAS_lookupp, _, _, _, _, _, _, _, _ = modelp._create_sas_lookup()
                 dSj = SAS_lookupp[timeseries_length - 1, ip] - SAS_lookup[timeseries_length - 1, ip]
 
                 printcheck(rdf, rdfp, 'dsTdSj', 'sT', Q_0, ip)

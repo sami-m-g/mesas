@@ -5,13 +5,12 @@
 
     Text here
 """
-from __future__ import absolute_import
 import copy
 from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
-from solver import solve
+from solve import solvesas as solve
 
 dtype = np.float64
 

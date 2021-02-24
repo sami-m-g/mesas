@@ -1,5 +1,5 @@
 ! -*- f90 -*-
-subroutine solve(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
+subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_init_ts, dt, &
         verbose, debug, warning, jacobian,&
         mT_init_ts, C_J_ts, alpha_ts, k1_ts, C_eq_ts, C_old, &
         n_substeps, numcomponent_list, numargs_list, numbreakpt_list, numflux, numsol, max_age, &
@@ -242,7 +242,7 @@ subroutine solve(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_init_t
         do ic = component_index_list(iq), component_index_list(iq+1) - 1
             breakpt_index_list(ic + 1) = breakpt_index_list(ic) + numbreakpt_list(ic)
             args_index_list(ic + 1) = args_index_list(ic) + numargs_list(ic)
-            component_type(ic) = int(P_list(0, breakpt_index_list(ic)))
+            component_type(ic) = int(SAS_args(0, args_index_list(ic)))
         enddo
     enddo
     call f_debug('breakpt_index_list', one8 * breakpt_index_list(:))
@@ -642,9 +642,9 @@ subroutine solve(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_init_t
                         call cpu_time(start)
                         do iq = 0, numflux - 1
                             do ic = component_index_list(iq), component_index_list(iq+1) - 1
-                                if (component_type(ic)<0) then
-                                    call f_warning('MY TYPE IS <0!!!')
-                                elseif (component_type(ic)==1) then
+                                if (component_type(ic)==-1) then
+                                    !call f_warning('MY TYPE IS <0!!!')
+                                !elseif (component_type(ic)==1) then
                                     !$acc kernels
                                     !$acc loop independent
                                     do c = 0, N - 1
@@ -1351,4 +1351,4 @@ contains
         endif
     end subroutine f_verbose
 
-end subroutine solve
+end subroutine solveSAS

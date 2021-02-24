@@ -192,12 +192,13 @@ class Piecewise(_SASFunctionBase):
 
         else:
 
+
             self.nsegment = nsegment
 
-            if auto == 'uniform':
+            if auto=='uniform':
                 self._ST = np.linspace(self.ST_min, self.ST_max, self.nsegment + 1)
                 self._parameter_list = self._convert_ST_to_segment_list(self._ST)
-            elif auto == 'random':
+            elif auto=='random':
                 # Generate a random function
                 # Note this should probably be encapsulated in a function
                 self._ST = np.zeros(self.nsegment + 1)
@@ -351,7 +352,7 @@ class Piecewise(_SASFunctionBase):
         concentrations at each timestep to variations in the sas function at that timestep, and neglects
         the cumulative effects that changing the sas function would have on the state variables (ST and MS).
 
-        :param dCdSj: jacobian produced by solver.f90
+        :param dCdSj: jacobian produced by solve.f90
         :param index: index of timesteps to calculate the jacobian for
         :param mode: If 'endpoint' return the derivatives with respect to the ST of the endpoints,
         otherwise if 'segment' return the derivatives wrt the segment lengths
@@ -391,7 +392,7 @@ class Continuous(_SASFunctionBase):
         self.ST_max = np.float(ST_max)
 
         # Make a list of probabilities P
-        # If solver.f90 uses cdflib90 these are only used for plotting purposes
+        # If solve.f90 uses cdflib90 these are only used for plotting purposes
         if P is not None:
             # Use the supplied values
             self.nsegment = len(P) - 1
