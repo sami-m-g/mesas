@@ -6,9 +6,9 @@ subroutine solve(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_init_t
         timeseries_length, numcomponent_total, numargs_total, numbreakpt_total, &
         sT_ts, pQ_ts, WaterBalance_ts, &
         mT_ts, mQ_ts, mR_ts, C_Q_ts, ds_ts, dm_ts, dC_ts, SoluteBalance_ts)
-    use cdf_gamma_mod
-    use cdf_beta_mod
-    use cdf_normal_mod
+    !use cdf_gamma_mod
+    !use cdf_beta_mod
+    !use cdf_normal_mod
     implicit none
 
     ! Start by declaring and initializing all the variables we will be using

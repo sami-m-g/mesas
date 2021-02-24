@@ -11,7 +11,7 @@ from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
-from mesas.solver import solve
+from solver import solve
 
 dtype = np.float64
 
