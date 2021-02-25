@@ -7,7 +7,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
         sT_ts, pQ_ts, WaterBalance_ts, &
         mT_ts, mQ_ts, mR_ts, C_Q_ts, ds_ts, dm_ts, dC_ts, SoluteBalance_ts)
     use cdf_gamma_mod
-    !use cdf_beta_mod
+    use cdf_beta_mod
     !use cdf_normal_mod
     implicit none
 
@@ -693,8 +693,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
                                     enddo
                                     !$acc end kernels
                                 elseif (component_type(ic)==1) then
-                                    !print *, iT_s, hr
-                                    ! Gamma distribution
+                                    !Gamma distribution
                                     !$acc kernels
                                     !$acc loop independent
                                     do c = 0, N - 1
@@ -703,16 +702,41 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
                                         a_arg = SAS_args(jt(c), args_index_list(ic) + 3)
                                         X = (STcum_in(c) - loc) / scale
                                         PQcum_component = 0
-                                        !print *, c, jt(c), loc, scale, a_arg
                                         if (X.gt.0) then
                                             PQcum_component = CUM_GAMMA(X, a_arg, one8, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
                                         end if
-                                        !print *, PQcum_component, CDFLIB90_STATUS
-                                        !if (CDFLIB90_STATUS.ne.0) then
-                                        !    if (warning) then
-                                        !        print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
-                                        !    endif
-                                        !end if
+                                        if (CDFLIB90_STATUS.ne.0) then
+                                            if (warning) then
+                                                print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
+                                            endif
+                                        end if
+                                        if (topbot==0) then
+                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                        else
+                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                        end if
+                                    end do
+                                    !$acc end kernels
+                                endif
+                                elseif (component_type(ic)==2) then
+                                    !beta distribution
+                                    !$acc kernels
+                                    !$acc loop independent
+                                    do c = 0, N - 1
+                                        loc = SAS_args(jt(c), args_index_list(ic) + 1)
+                                        scale = SAS_args(jt(c), args_index_list(ic) + 2)
+                                        a_arg = SAS_args(jt(c), args_index_list(ic) + 3)
+                                        b_arg = SAS_args(jt(c), args_index_list(ic) + 4)
+                                        X = (STcum_in(c) - loc) / scale
+                                        PQcum_component = 0
+                                        if (X.gt.0) then
+                                            PQcum_component = CUM_BETA(X, a_arg, b_arg, one8, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
+                                        end if
+                                        if (CDFLIB90_STATUS.ne.0) then
+                                            if (warning) then
+                                                print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
+                                            endif
+                                        end if
                                         if (topbot==0) then
                                             PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
                                         else
