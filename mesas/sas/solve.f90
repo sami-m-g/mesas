@@ -6,7 +6,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
         timeseries_length, numcomponent_total, numargs_total, numbreakpt_total, &
         sT_ts, pQ_ts, WaterBalance_ts, &
         mT_ts, mQ_ts, mR_ts, C_Q_ts, ds_ts, dm_ts, dC_ts, SoluteBalance_ts)
-    !use cdf_gamma_mod
+    use cdf_gamma_mod
     !use cdf_beta_mod
     !use cdf_normal_mod
     implicit none
@@ -94,7 +94,9 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
     integer :: iq, s, M, N, ip, ic, c, rk
     integer :: carry
     integer :: leftbreakpt
-    real(8) :: PQcum_component
+    real(8) :: PQcum_component, X, scale, loc, a_arg, b_arg
+    integer :: CDFLIB90_STATUS
+    logical :: CDFLIB90_CHECKINPUT
     integer :: jt_this, topbot
     integer :: na
     integer :: ia
@@ -103,6 +105,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
     logical :: foundit
     real(8) :: start, finish
     real(8), dimension(37) :: runtime
+    CDFLIB90_CHECKINPUT = .true.
     runtime = 0.
 
     !$acc data &
@@ -563,7 +566,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
                 end if
                 ! ########################## ^^ NEW STATE ^^ ##########################
             end if
-            if (rk<5) then
+                if (rk<5) then
                 !$acc update self(pQ_temp, sT_temp)
                 call f_debug('GET FLUX  rk           ', (/rk*one8, iT_s*one8/))
                 call f_debug('sT_temp                ', sT_temp(:))
@@ -643,8 +646,6 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
                         do iq = 0, numflux - 1
                             do ic = component_index_list(iq), component_index_list(iq+1) - 1
                                 if (component_type(ic)==-1) then
-                                    !call f_warning('MY TYPE IS <0!!!')
-                                !elseif (component_type(ic)==1) then
                                     !$acc kernels
                                     !$acc loop independent
                                     do c = 0, N - 1
@@ -658,16 +659,6 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
                                                 PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
                                                 leftbreakpt_bot(c, ic) = -1
                                             end if
-                                        !else if (STcum_in(c).ge.SAS_lookup( jt(c), breakpt_index_list(ic + 1) - 1)) then
-                                        !    if (topbot==0) then
-                                        !        PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
-                                        !        PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
-                                        !        leftbreakpt_top(c, ic) = numbreakpt_list(ic) - 1
-                                        !    else
-                                        !        PQcum_component = P_list( jt(c), breakpt_index_list(ic + 1) - 1)
-                                        !        PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
-                                        !        leftbreakpt_bot(c, ic) = numbreakpt_list(ic) - 1
-                                        !    end if
                                         else
                                             na = numbreakpt_list(ic)
                                             ia = 0
@@ -700,8 +691,36 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
                                             end if
                                         endif
                                     enddo
+                                    !$acc end kernels
+                                elseif (component_type(ic)==1) then
+                                    !print *, iT_s, hr
+                                    ! Gamma distribution
+                                    !$acc kernels
+                                    !$acc loop independent
+                                    do c = 0, N - 1
+                                        loc = SAS_args(jt(c), args_index_list(ic) + 1)
+                                        scale = SAS_args(jt(c), args_index_list(ic) + 2)
+                                        a_arg = SAS_args(jt(c), args_index_list(ic) + 3)
+                                        X = (STcum_in(c) - loc) / scale
+                                        PQcum_component = 0
+                                        !print *, c, jt(c), loc, scale, a_arg
+                                        if (X.gt.0) then
+                                            PQcum_component = CUM_GAMMA(X, a_arg, one8, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
+                                        end if
+                                        !print *, PQcum_component, CDFLIB90_STATUS
+                                        !if (CDFLIB90_STATUS.ne.0) then
+                                        !    if (warning) then
+                                        !        print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
+                                        !    endif
+                                        !end if
+                                        if (topbot==0) then
+                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                        else
+                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                        end if
+                                    end do
+                                    !$acc end kernels
                                 endif
-                                !$acc end kernels
                             enddo
                         end do
                         call cpu_time(finish)
@@ -1235,9 +1254,9 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, SAS_lookup, P_list, weights_ts, sT_ini
     !$acc update self(mR_ts)
     call cpu_time(finish)
     runtime(37) = runtime(37) + 1000*(finish-start)
-    do i = 1, 37
-        print '("Time for section ",i2," = :",f10.0,": milliseconds")', i, runtime(i)
-    end do
+    !do i = 1, 37
+        !print '("Time for section ",i2," = :",f10.0,": milliseconds")', i, runtime(i)
+    !end do
 
     ! Calculate a water balance
     ! Difference of starting and ending age-ranked storage

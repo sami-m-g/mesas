@@ -174,6 +174,7 @@ class Piecewise(_SASFunctionBase):
 
         self.ST_min = np.float(ST_min)
         self.ST_max = np.float(ST_max)
+        self._args = [-1]
         self._has_params = False
 
         # Note that the variables _ST, _P and _parameter_list are assigned to below
@@ -414,10 +415,13 @@ class Continuous(_SASFunctionBase):
         self._has_params = True
         self._ST = self.func.ppf(self._P)
         myargs = self._frozen_func.kwds.copy()
-        self._args = [myargs.pop('loc'), myargs.pop('scale')]
         if self._frozen_func.dist.name == 'gamma':
+            self._args = [1]
+            self._args += [myargs.pop('loc'), myargs.pop('scale')]
             self._args += [myargs.pop('a')]
         if self._frozen_func.dist.name == 'beta':
+            self._args = [2]
+            self._args += [myargs.pop('loc'), myargs.pop('scale')]
             self._args += [myargs.pop('a'), myargs.pop('b')]
         return self
 
