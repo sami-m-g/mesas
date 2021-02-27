@@ -23,12 +23,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.stats import rv_continuous
+import importlib
 
+
+typedict = {'gamma':1, 'beta':2}
 
 class _SASFunctionBase:
     """
     Base function for SAS functions
     """
+
+    _use = None
 
     def __init__(self):
         pass
@@ -45,9 +50,9 @@ class _SASFunctionBase:
     def set_args(self, *args, **kwargs):
         raise NotImplementedError("Method for setting SAS function parameters has not been defined")
 
-    @property
-    def has_params(self):
-        return self._has_params
+    #@property
+    #def has_params(self):
+    #    return self._has_params
 
     @property
     def args(self):
@@ -55,6 +60,14 @@ class _SASFunctionBase:
 
     @args.setter
     def args(self, new_args):
+        raise NotImplementedError("Method for setting args directly has not been defined")
+    @property
+
+    def argsP(self):
+        return self._argsP
+
+    @args.setter
+    def argsP(self, new_args):
         raise NotImplementedError("Method for setting args directly has not been defined")
 
     @property
@@ -174,8 +187,7 @@ class Piecewise(_SASFunctionBase):
 
         self.ST_min = np.float(ST_min)
         self.ST_max = np.float(ST_max)
-        self._args = [-1]
-        self._has_params = False
+        #self._has_params = False
 
         # Note that the variables _ST, _P and _parameter_list are assigned to below
         # instead of their corresponding properties. This is to avoid triggering the _make_interpolators function
@@ -227,10 +239,9 @@ class Piecewise(_SASFunctionBase):
             # Make P equally-spaced
             self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
 
-        self._has_params = True
+        #self._has_params = True
         # call this to make the interpolation functions
         self._make_interpolators()
-        self._args = [-1.0]
         return self
 
     def _make_interpolators(self):
@@ -247,6 +258,14 @@ class Piecewise(_SASFunctionBase):
                                  fill_value=(0., 1.),
                                  kind='linear', copy=False,
                                  bounds_error=False, assume_sorted=True)
+
+    @property
+    def args(self):
+        return self._ST
+
+    @property
+    def argsP(self):
+        return self._P
 
     @_SASFunctionBase.ST.setter
     def ST(self, new_ST):
@@ -388,49 +407,62 @@ class Continuous(_SASFunctionBase):
     Base function for SAS functions
     """
 
-    def __init__(self, func, func_kwargs=None, P=None, nsegment=25, ST_max=1.797693134862315e+308):
+    _builtinfuncs = ['gamma', 'beta']
+    def __init__(self, use, func, func_kwargs, P=None, nsegment=25, ST_max=1.797693134862315e+308):
 
-        self.ST_max = np.float(ST_max)
 
-        # Make a list of probabilities P
-        # If solve.f90 uses cdflib90 these are only used for plotting purposes
-        if P is not None:
-            # Use the supplied values
-            self.nsegment = len(P) - 1
-            self._P = np.r_[P]
+        if use=='builtin' and func in self._builtinfuncs:
+            self._func = importlib.import_module(f"scipy.stats.{func}")
+        elif use=='scipy.stats' and isinstance(func, rv_continuous):
+            self._func = func
+        elif use=='scipy.stats' and isinstance(func, str):
+            self._func = importlib.import_module(f"scipy.stats.{func}")
         else:
-            # Make P equally-spaced
-            self.nsegment = nsegment
-            self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+            raise Exception("'use' keyword must be either 'builtin' or 'scipy.stats'")
+        self._use = use
 
-        assert isinstance(func, rv_continuous)
-        self._func = func
-        if func_kwargs is not None:
-            self.set_args(**func_kwargs)
-        else:
-            self._has_params = False
+        self.set_args(**func_kwargs)
+
+        if use=='scipy.stats':
+            # generate a piecewise approximation
+            self.ST_max = np.float(ST_max)
+            # Make a list of probabilities P
+            if P is not None:
+                # Use the supplied values
+                self.nsegment = len(P) - 1
+                self._P = np.r_[P]
+            else:
+                # Make P equally-spaced
+                self.nsegment = nsegment
+                self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+
 
     def set_args(self, *args, **kwargs):
         self._frozen_func = self._func(*args, **kwargs)
-        self._has_params = True
-        self._ST = self.func.ppf(self._P)
+        #self._has_params = True
+        #self._ST = self.func.ppf(self._P)
         myargs = self._frozen_func.kwds.copy()
         if self._frozen_func.dist.name == 'gamma':
-            self._args = [1]
+            self._args = []
             self._args += [myargs.pop('loc'), myargs.pop('scale')]
             self._args += [myargs.pop('a')]
         if self._frozen_func.dist.name == 'beta':
-            self._args = [2]
+            self._args = []
             self._args += [myargs.pop('loc'), myargs.pop('scale')]
             self._args += [myargs.pop('a'), myargs.pop('b')]
         return self
 
     @property
+    def args(self):
+        return self._args
+
+    @property
+    def argsP(self):
+        return np.ones_like(self._args)*np.NaN
+
+    @property
     def func(self):
-        if self._has_params:
-            return self._frozen_func
-        else:
-            raise UnboundLocalError("Parameter values must be set before you can call the underlying function")
+        return self._frozen_func
 
     @func.setter
     def func(selfs, new_func):
@@ -451,9 +483,8 @@ class Continuous(_SASFunctionBase):
             self.ST_max = self._ST[-1]
         else:
             self._ST = np.r_[new_ST, self.ST_max]
-        self._parameter_list = self._convert_ST_to_segment_list(self._ST)
-        if self._has_params:
-            self._P = self.func.cdf(self._ST)
+        #if self._has_params:
+        self._P = self.func.cdf(self._ST)
 
     @_SASFunctionBase.P.setter
     def P(self, new_P):
@@ -461,8 +492,8 @@ class Continuous(_SASFunctionBase):
         assert new_P[-1] == 1
         assert np.all(np.diff(new_P) >= 0)
         self._P = new_P
-        if self._has_params:
-            self._ST = self.func.ppf(self._P)
+        #if self._has_params:
+        self._ST = self.func.ppf(self._P)
 
     def inv(self, P):
         """
@@ -479,19 +510,19 @@ class Continuous(_SASFunctionBase):
     def __repr__(self):
         """Return a repr of the SAS function"""
         repr = f'       {self._func.name} distribution\n'
-        if self._has_params:
-            repr += f'        parameters: {self._frozen_func.args}\n'
-            repr += '        Lookup table version:\n'
-            repr += '          ST: '
-            for i in range(self.nsegment + 1):
-                repr += '{ST:<10.4}  '.format(ST=self.ST[i])
-            repr += '\n'
-            repr += '          P : '
-            for i in range(self.nsegment + 1):
-                repr += '{P:<10.4}  '.format(P=self.P[i])
-            repr += '\n'
-        else:
-            repr = f'        (parameters not set)'
+        #if self._has_params:
+        repr += f'        parameters: {self._frozen_func.args}\n'
+        repr += '        Lookup table version:\n'
+        repr += '          ST: '
+        for i in range(self.nsegment + 1):
+            repr += '{ST:<10.4}  '.format(ST=self.ST[i])
+        repr += '\n'
+        repr += '          P : '
+        for i in range(self.nsegment + 1):
+            repr += '{P:<10.4}  '.format(P=self.P[i])
+        repr += '\n'
+        #else:
+            #repr = f'        (parameters not set)'
         return repr
 
     def get_jacobian(self, dCdSj, index=None, mode='segment', logtransform=True):

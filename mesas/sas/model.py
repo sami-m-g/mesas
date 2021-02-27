@@ -180,8 +180,8 @@ class Model:
     @sas_specs.setter
     def sas_specs(self, new_sas_specs):
         self._sas_specs = new_sas_specs
-        for sas_spec in self._sas_specs.values():
-            sas_spec.make_spec_ts(self.data_df)
+        #for sas_spec in self._sas_specs.values():
+        #    sas_spec.make_spec_ts(self.data_df)
         self._numflux = len(self._sas_specs)
         self._fluxorder = list(self._sas_specs.keys())
 
@@ -311,23 +311,21 @@ class Model:
 
     def _create_sas_lookup(self):
         nC_list = []
-        nA_list = []
-        nP_list = []
+        nargs_list = []
         component_list = []
+        component_type = []
         for flux in self._fluxorder:
             nC_list.append(len(self._sas_specs[flux].components))
             for component in self._sas_specs[flux]._componentorder:
                 component_list.append(self.sas_specs[flux].components[component])
-                nP_list.append(len(component_list[-1].P))
-                nA_list.append(len(component_list[-1].args))
+        nargs_list = [len(component.args) for component in component_list]
+        component_type = [component.type for component in component_list]
         nC_total = np.sum(nC_list)
-        nA_total = np.sum(nA_list)
-        nP_total = np.sum(nP_list)
+        nargs_total = np.sum(nargs_list)
         SAS_args = np.column_stack([[component.args] for component in component_list]).T
-        SAS_lookup = np.column_stack([[component.ST] for component in component_list]).T
-        P_list = np.column_stack([[component.P] for component in component_list]).T
+        P_list = np.column_stack([[component.argsP] for component in component_list]).T
         weights = np.column_stack([component.weights for component in component_list])
-        return SAS_args, SAS_lookup, P_list, weights, nC_list, nC_total, nA_list, nA_total, nP_list, nP_total
+        return SAS_args, P_list, weights, component_type, nC_list, nC_total, nargs_list, nargs_total
 
     def run(self):
         """
@@ -342,9 +340,8 @@ class Model:
         numflux = self._numflux
         #
         # SAS lookup table
-        SAS_args, SAS_lookup, P_list, weights, nC_list, nC_total, nA_list, nA_total, nP_list, nP_total = self._create_sas_lookup()
+        SAS_args, P_list, weights, component_type, nC_list, nC_total, nargs_list, nargs_total = self._create_sas_lookup()
         SAS_args = np.asfortranarray(SAS_args)
-        SAS_lookup = np.asfortranarray(SAS_lookup)
         P_list = np.asfortranarray(P_list)
         weights = np.asfortranarray(weights)
         #
@@ -363,11 +360,11 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, Q, SAS_args, SAS_lookup, P_list, weights,
+            J, Q, SAS_args, P_list, weights,
             sT_init, dt, verbose, debug, warning, jacobian,
             mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
             np.asfortranarray(C_eq), C_old,
-            n_substeps, nC_list, nA_list, nP_list, numflux, numsol, max_age, timeseries_length, nC_total, nA_total, nP_total)
+            n_substeps, component_type, nC_list, nargs_list, numflux, numsol, max_age, timeseries_length, nC_total, nargs_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
         if numsol > 0:

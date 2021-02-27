@@ -7,8 +7,7 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from collections import Iterable
 
-from mesas.sas.functions import Continuous, Piecewise
-
+from mesas.sas.functions import Continuous, Piecewise, typedict
 
 class SAS_Spec:
 
@@ -158,16 +157,28 @@ class Component:
         P = self.expand(spec.pop('P')) if 'P' in spec else _NoneList()
         if 'args' in spec:
             assert isinstance(spec['args'], dict)
-            self._args = OrderedDict()
+            argdict = OrderedDict()
             for arg, value in spec.pop('args').items():
-                self._args[arg] = self.expand(value)
-            self._args = [dict(zip(self._args, values)) for values in zip(*self._args.values())]
-        if 'scipy.stats' in spec:
-            fun = spec.pop('scipy.stats')
-            self._sas_funs = [Continuous(fun, func_kwargs=self._args[i], P=P[i, :], **spec)
-                              for i in range(self.N)]
-        else:
+                argdict[arg] = self.expand(value)
+            self._args = [dict(zip(argdict, values)) for values in zip(*argdict.values())]
+            if 'scipy.stats' in spec:
+                use = 'scipy.stats'
+                func = spec.pop('scipy.stats')
+            else:
+                use = spec.pop('use', None)
+                func = spec.pop('func')
+
+            if use == 'scipy.stats':
+                self.type = -1
+            else:
+                self.type = typedict[func]
+            self._sas_funs = [Continuous(use, func, func_kwargs=self._args[i], P=P[i, :], **spec)
+                                  for i in range(self.N)]
+        elif ST is not None:
+            self.type = -1
             self._sas_funs = [Piecewise(ST=ST[i, :], P=P[i, :], **spec) for i in range(self.N)]
+        else:
+            raise Exception(f"Insufficient information to specify SAS function for {label}")
 
 
     def expand(self, value):
@@ -184,12 +195,16 @@ class Component:
         return np.concatenate([[sas_fun.ST] for sas_fun in self._sas_funs]).T
 
     @property
+    def P(self):
+        return np.concatenate([[sas_fun.P] for sas_fun in self._sas_funs]).T
+
+    @property
     def args(self):
         return np.concatenate([[sas_fun.args] for sas_fun in self._sas_funs]).T
 
     @property
-    def P(self):
-        return np.concatenate([[sas_fun.P] for sas_fun in self._sas_funs]).T
+    def argsP(self):
+        return np.concatenate([[sas_fun.argsP] for sas_fun in self._sas_funs]).T
 
     @property
     def sas_fun(self):
