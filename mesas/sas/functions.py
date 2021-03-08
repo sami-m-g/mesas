@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.stats import rv_continuous
+import scipy.stats
 import importlib
 
 
@@ -412,11 +413,11 @@ class Continuous(_SASFunctionBase):
 
 
         if use=='builtin' and func in self._builtinfuncs:
-            self._func = importlib.import_module(f"scipy.stats.{func}")
+            self._func = getattr(scipy.stats, func)
         elif use=='scipy.stats' and isinstance(func, rv_continuous):
             self._func = func
         elif use=='scipy.stats' and isinstance(func, str):
-            self._func = importlib.import_module(f"scipy.stats.{func}")
+            self._func = getattr(scipy.stats, func)
         else:
             raise Exception("'use' keyword must be either 'builtin' or 'scipy.stats'")
         self._use = use

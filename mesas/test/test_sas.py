@@ -140,16 +140,34 @@ def steady_run_continuous(timeseries_length, dt, Q_0, S_0, C_J, a, j=None, ST_mi
     data_df['Ca'] = np.ones(timeseries_length) * C_J
     data_df['S_0'] = np.ones(timeseries_length) * S_0
     data_df['S_m'] = np.ones(timeseries_length) * S_m
+    data_df['steady_run_continuous_old'] = np.ones(timeseries_length) /3.
+    data_df['steady_run_continuous_scipy'] = np.ones(timeseries_length) /3.
+    data_df['steady_run_continuous_builtin'] = np.ones(timeseries_length) /3.
     kwargs = {'a': a, 'scale': S_0, 'loc': ST_min}
     if j is not None:
         kwargs[j] = kwargs[j] + eps
     sas_specs = {'Q1':
-                     {'steady_run_continuous':
+                     {'steady_run_continuous_old_scipy':
                           {'scipy.stats': gamma,
                            'args': {'a': 2.,
                                     'scale': 'S_0',
                                     'loc': 'S_m'},
-                           'nsegment': 20}}}
+                           'nsegment': 20},
+                      'steady_run_continuous_new_scipy':
+                          {'func': 'gamma',
+                           'use': 'scipy.stats',
+                           'args': {'a': 2.,
+                                    'scale': 'S_0',
+                                    'loc': 'S_m'},
+                           'nsegment': 20},
+                      'steady_run_continuous_builtin':
+                          {'func': 'gamma',
+                           'args': {'a': 2.,
+                                    'scale': 'S_0',
+                                    'loc': 'S_m'},
+                           },
+                      }
+                 }
     solute_parameters = {'Ca': {'C_old': C_old, 'observations': ['Q1']}}
     model = Model(data_df, sas_specs, solute_parameters, debug=debug, verbose=verbose, dt=dt, n_substeps=n_substeps,
                   jacobian=jacobian, max_age=max_age)

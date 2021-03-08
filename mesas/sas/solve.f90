@@ -691,11 +691,12 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                         PQcum_component = 0
                                         if (X.gt.0) then
                                             PQcum_component = CUM_GAMMA(X, a_arg, one8, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
-                                        end if
-                                        if (CDFLIB90_STATUS.ne.0) then
-                                            if (warning) then
-                                                print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
-                                            endif
+                                            if (CDFLIB90_STATUS.ne.0) then
+                                                if (warning) then
+                                                    print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
+                                                    print *, X, a_arg, one8
+                                                endif
+                                            end if
                                         end if
                                         if (topbot==0) then
                                             PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
@@ -717,11 +718,12 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                         PQcum_component = 0
                                         if (X.gt.0) then
                                             PQcum_component = CUM_BETA(X, a_arg, b_arg, one8, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
-                                        end if
-                                        if (CDFLIB90_STATUS.ne.0) then
-                                            if (warning) then
-                                                print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
-                                            endif
+                                            if (CDFLIB90_STATUS.ne.0) then
+                                                if (warning) then
+                                                    print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
+                                                    print *, X, a_arg, b_arg, one8
+                                                endif
+                                            end if
                                         end if
                                         if (topbot==0) then
                                             PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component

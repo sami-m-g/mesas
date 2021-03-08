@@ -165,12 +165,12 @@ class Component:
                 use = 'scipy.stats'
                 func = spec.pop('scipy.stats')
             else:
-                use = spec.pop('use', None)
+                use = spec.pop('use', 'builtin')
                 func = spec.pop('func')
-
             if use == 'scipy.stats':
                 self.type = -1
             else:
+                assert use =='builtin'
                 self.type = typedict[func]
             self._sas_funs = [Continuous(use, func, func_kwargs=self._args[i], P=P[i, :], **spec)
                                   for i in range(self.N)]
