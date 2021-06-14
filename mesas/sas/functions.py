@@ -56,18 +56,18 @@ class _SASFunctionBase:
     #    return self._has_params
 
     @property
-    def args(self):
-        return self._args
+    def argsS(self):
+        return None
 
-    @args.setter
-    def args(self, new_args):
+    @argsS.setter
+    def argsS(self, new_args):
         raise NotImplementedError("Method for setting args directly has not been defined")
     @property
 
     def argsP(self):
-        return self._argsP
+        return None
 
-    @args.setter
+    @argsP.setter
     def argsP(self, new_args):
         raise NotImplementedError("Method for setting args directly has not been defined")
 
@@ -171,10 +171,7 @@ class Piecewise(_SASFunctionBase):
 
     """
 
-    def __init__(self, *args, **kwargs):
-        self.set_args(*args, **kwargs)
-
-    def set_args(self, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0., auto='uniform'):
+    def __init__(self, ST=None, P=None, nsegment=1, ST_max=1., ST_min=0., auto='uniform'):
         """
         Initializes a Piecewise sas function.
 
@@ -201,7 +198,7 @@ class Piecewise(_SASFunctionBase):
             assert np.all(np.diff(ST) > 0)
             assert len(ST) > 1
             self.nsegment = len(ST) - 1
-            self._ST = np.array(ST, dtype=np.float)
+            self._ST = np.array(ST, dtype=float)
             self._parameter_list = self._convert_ST_to_segment_list(self._ST)
 
         else:
@@ -243,7 +240,6 @@ class Piecewise(_SASFunctionBase):
         #self._has_params = True
         # call this to make the interpolation functions
         self._make_interpolators()
-        return self
 
     def _make_interpolators(self):
         """
@@ -261,7 +257,7 @@ class Piecewise(_SASFunctionBase):
                                  bounds_error=False, assume_sorted=True)
 
     @property
-    def args(self):
+    def argsS(self):
         return self._ST
 
     @property
@@ -422,44 +418,42 @@ class Continuous(_SASFunctionBase):
             raise Exception("'use' keyword must be either 'builtin' or 'scipy.stats'")
         self._use = use
 
-        self.set_args(**func_kwargs)
-
-        if use=='scipy.stats':
+        self._frozen_func = self._func(**func_kwargs)
+        if self._use=='builtin':
+            #self._has_params = True
+            #self._ST = self.func.ppf(self._P)
+            myargs = self._frozen_func.kwds.copy()
+            if self._frozen_func.dist.name == 'gamma':
+                self._argsS = []
+                self._argsS += [myargs.pop('loc'), myargs.pop('scale')]
+                self._argsS += [myargs.pop('a')]
+            if self._frozen_func.dist.name == 'beta':
+                self._argsS = []
+                self._argsS += [myargs.pop('loc'), myargs.pop('scale')]
+                self._argsS += [myargs.pop('a'), myargs.pop('b')]
+            self._argsP = np.ones_like(self._argsS)*np.NaN
+        elif self._use=='scipy.stats':
             # generate a piecewise approximation
             self.ST_max = np.float(ST_max)
             # Make a list of probabilities P
             if P is not None:
                 # Use the supplied values
                 self.nsegment = len(P) - 1
-                self._P = np.r_[P]
+                self.P = np.r_[P]
             else:
                 # Make P equally-spaced
                 self.nsegment = nsegment
-                self._P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
-
-
-    def set_args(self, *args, **kwargs):
-        self._frozen_func = self._func(*args, **kwargs)
-        #self._has_params = True
-        #self._ST = self.func.ppf(self._P)
-        myargs = self._frozen_func.kwds.copy()
-        if self._frozen_func.dist.name == 'gamma':
-            self._args = []
-            self._args += [myargs.pop('loc'), myargs.pop('scale')]
-            self._args += [myargs.pop('a')]
-        if self._frozen_func.dist.name == 'beta':
-            self._args = []
-            self._args += [myargs.pop('loc'), myargs.pop('scale')]
-            self._args += [myargs.pop('a'), myargs.pop('b')]
-        return self
+                self.P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+            self._argsS = self._ST
+            self._argsP = self._P
 
     @property
-    def args(self):
-        return self._args
+    def argsS(self):
+        return self._argsS
 
     @property
     def argsP(self):
-        return np.ones_like(self._args)*np.NaN
+        return self._argsP
 
     @property
     def func(self):
@@ -484,7 +478,6 @@ class Continuous(_SASFunctionBase):
             self.ST_max = self._ST[-1]
         else:
             self._ST = np.r_[new_ST, self.ST_max]
-        #if self._has_params:
         self._P = self.func.cdf(self._ST)
 
     @_SASFunctionBase.P.setter

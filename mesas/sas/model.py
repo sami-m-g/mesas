@@ -318,11 +318,11 @@ class Model:
             nC_list.append(len(self._sas_specs[flux].components))
             for component in self._sas_specs[flux]._componentorder:
                 component_list.append(self.sas_specs[flux].components[component])
-        nargs_list = [len(component.args) for component in component_list]
+        nargs_list = [len(component.argsS) for component in component_list]
         component_type = [component.type for component in component_list]
         nC_total = np.sum(nC_list)
         nargs_total = np.sum(nargs_list)
-        SAS_args = np.column_stack([[component.args] for component in component_list]).T
+        SAS_args = np.column_stack([[component.argsS] for component in component_list]).T
         P_list = np.column_stack([[component.argsP] for component in component_list]).T
         weights = np.column_stack([component.weights for component in component_list])
         return SAS_args, P_list, weights, component_type, nC_list, nC_total, nargs_list, nargs_total

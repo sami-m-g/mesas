@@ -199,8 +199,8 @@ class Component:
         return np.concatenate([[sas_fun.P] for sas_fun in self._sas_funs]).T
 
     @property
-    def args(self):
-        return np.concatenate([[sas_fun.args] for sas_fun in self._sas_funs]).T
+    def argsS(self):
+        return np.concatenate([[sas_fun.argsS] for sas_fun in self._sas_funs]).T
 
     @property
     def argsP(self):
