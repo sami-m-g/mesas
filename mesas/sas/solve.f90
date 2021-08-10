@@ -553,7 +553,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                 end if
                 ! ########################## ^^ NEW STATE ^^ ##########################
             end if
-                if (rk<5) then
+            if (rk<5) then
                 !$acc update self(pQ_temp, sT_temp)
                 call f_debug('GET FLUX  rk           ', (/rk*one8, iT_s*one8/))
                 call f_debug('sT_temp                ', sT_temp(:))
@@ -658,7 +658,6 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                                 endif
                                             enddo
                                             if (.not. foundit) then
-                                                call f_warning('I could not find the ST value. This should never happen!!!')
                                                 PQcum_component = P_list( jt(c), args_index_list(ic + 1) - 1)
                                                 ia = na - 1
                                             else
@@ -717,11 +716,11 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                         X = (STcum_in(c) - loc) / scale
                                         PQcum_component = 0
                                         if (X.gt.0) then
-                                            PQcum_component = CUM_BETA(X, a_arg, b_arg, one8, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
+                                            PQcum_component = CUM_BETA(X, 1-X, a_arg, b_arg,  CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
                                             if (CDFLIB90_STATUS.ne.0) then
                                                 if (warning) then
                                                     print *, "CDFLIB90_STATUS=", CDFLIB90_STATUS
-                                                    print *, X, a_arg, b_arg, one8
+                                                    print *, X, a_arg, b_arg, PQcum_component, one8
                                                 endif
                                             end if
                                         end if
@@ -807,8 +806,10 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                 ! If there are first-order reactions, get the total mass rate
                 call cpu_time(start)
                 !$acc kernels
-                do c = 0, N - 1
-                    mR_temp(c, :) = k1_ts(jt(c), :) * (C_eq_ts(jt(c), :) * sT_temp(c) - mT_temp(c, :))
+                do s = 0, numsol - 1
+                    do c = 0, N - 1
+                        mR_temp(c, s) = k1_ts(jt(c), s) * (C_eq_ts(jt(c), s) * sT_temp(c) - mT_temp(c, s))
+                    end do
                 end do
                 !$acc end kernels
                 call cpu_time(finish)

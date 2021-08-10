@@ -39,6 +39,21 @@ class _SASFunctionBase:
     def __init__(self):
         pass
 
+    def _make_interpolators(self):
+        """
+        Create functions that can be called to return the CDF and inverse CDF
+
+        Uses scipy.optimize.interp1d
+        """
+        self.interp1d_inv = interp1d(self.P, self.ST,
+                                     fill_value=(self.ST_min, self.ST_max),
+                                     kind='linear', copy=False,
+                                     bounds_error=False, assume_sorted=True)
+        self.interp1d = interp1d(self.ST, self.P,
+                                 fill_value=(0., 1.),
+                                 kind='linear', copy=False,
+                                 bounds_error=False, assume_sorted=True)
+
     def __getitem__(self, i):
         return self
 
@@ -47,9 +62,6 @@ class _SASFunctionBase:
 
     # Next we define a number of properties. These act like attributes, but special functions
     # are called when the attributes are queried or assigned to
-
-    def set_args(self, *args, **kwargs):
-        raise NotImplementedError("Method for setting SAS function parameters has not been defined")
 
     #@property
     #def has_params(self):
@@ -241,20 +253,6 @@ class Piecewise(_SASFunctionBase):
         # call this to make the interpolation functions
         self._make_interpolators()
 
-    def _make_interpolators(self):
-        """
-        Create functions that can be called to return the CDF and inverse CDF
-
-        Uses scipy.optimize.interp1d
-        """
-        self.interp1d_inv = interp1d(self.P, self.ST,
-                                     fill_value=(self.ST_min, self.ST_max),
-                                     kind='linear', copy=False,
-                                     bounds_error=False, assume_sorted=True)
-        self.interp1d = interp1d(self.ST, self.P,
-                                 fill_value=(0., 1.),
-                                 kind='linear', copy=False,
-                                 bounds_error=False, assume_sorted=True)
 
     @property
     def argsS(self):
@@ -322,7 +320,7 @@ class Piecewise(_SASFunctionBase):
         """
         P_arr = np.array(P)
         P_ravel = P_arr.ravel()
-        return self.interp1d(P_ravel).reshape(P_arr.shape)
+        return self.interp1d_inv(P_ravel).reshape(P_arr.shape)
 
     def __call__(self, ST):
         """
