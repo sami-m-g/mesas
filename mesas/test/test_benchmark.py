@@ -78,7 +78,7 @@ unsteady_benchmarks = {
     }
 }
 #%%
-def test_steady(makefigure=True):
+def test_steady(makefigure=False):
 #%%
     np.random.seed(2)
     timeseries_length = 100
@@ -166,9 +166,8 @@ def test_steady(makefigure=True):
         fig.savefig('test_steady.pdf')
 # %%
 
-def test_unsteady(makefigure=True):
+def test_unsteady(makefigure=False):
 #%%
-    makefigure=True
     np.random.seed(1)
     timeseries_length = 300
     max_age = timeseries_length
@@ -202,54 +201,53 @@ def test_unsteady(makefigure=True):
 
 
     if makefigure:
-        fig = plt.gcf()
-    for name, bm in unsteady_benchmarks.items():
-        data_df[f'{name} benchmark C'] = CQ
-        data_df[f'{name} benchmark t'] = data_df['t']
+        fig = plt.figure()
+        for name, bm in unsteady_benchmarks.items():
+            data_df[f'{name} benchmark C'] = CQ
+            data_df[f'{name} benchmark t'] = data_df['t']
 
-        data_df[name] = Q_0
-        solute_parameters = {
-            "C":{
-                "C_old": C_old, 
-                "observations": {name:f'{name} benchmark C'},
+            data_df[name] = Q_0
+            solute_parameters = {
+                "C":{
+                    "C_old": C_old, 
+                    "observations": {name:f'{name} benchmark C'},
+                }
             }
-        }
-        sas_specs = {name:{f'{name}_SAS':bm['spec']}}
+            sas_specs = {name:{f'{name}_SAS':bm['spec']}}
 
-        model = Model(
-            data_df,
-            sas_specs,
-            solute_parameters,
-            debug=debug,
-            verbose=verbose,
-            dt=dt,
-            n_substeps=n_substeps,
-            jacobian=jacobian,
-            max_age=max_age,
-            warning=True
-        )
-        model.run()
-        data_df = model.data_df
-        err = (data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)/data_df[f'{name} benchmark C'].values
-        logging.info(f'Unsteady {name} error = {err.mean()}')
-        assert err.mean()<1E-2
-        if makefigure:
-            ax = plt.subplot()
-            ax.plot(data_df['t'], data_df[f'C --> {name}'], alpha=0.3, lw=2)
-            ax.plot(data_df[f'{name} benchmark t'], data_df[f'{name} benchmark C'], 'r--', alpha=0.3, lw=2)
-            ax.set_title(name)
-            #ax.set_ylim((500, 2500))
-            ax.set_ylabel('Tracer conc.')
-            ax.set_xlabel('Time')
+            model = Model(
+                data_df,
+                sas_specs,
+                solute_parameters,
+                debug=debug,
+                verbose=verbose,
+                dt=dt,
+                n_substeps=n_substeps,
+                jacobian=jacobian,
+                max_age=max_age,
+                warning=True
+            )
+            model.run()
+            data_df = model.data_df
+            err = (data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)/data_df[f'{name} benchmark C'].values
+            logging.info(f'Unsteady {name} error = {err.mean()}')
+            assert err.mean()<1E-2
+            if makefigure:
+                ax = plt.subplot()
+                ax.plot(data_df['t'], data_df[f'C --> {name}'], alpha=0.3, lw=2)
+                ax.plot(data_df[f'{name} benchmark t'], data_df[f'{name} benchmark C'], 'r--', alpha=0.3, lw=2)
+                ax.set_title(name)
+                #ax.set_ylim((500, 2500))
+                ax.set_ylabel('Tracer conc.')
+                ax.set_xlabel('Time')
     if makefigure:
         fig.tight_layout()
         fig.savefig('test_unsteady.pdf')
         fig.show()
 # %%
 
-def test_part_multiple(makefigure=True):
+def test_part_multiple(makefigure=False):
 #%%
-    makefigure=True
     timeseries_length = 300
     max_age = timeseries_length
     dt = 0.1
@@ -276,8 +274,7 @@ def test_part_multiple(makefigure=True):
 
 
     if makefigure:
-        fig = plt.gcf()
-    if True:
+        fig = plt.figure()
         name = 'Uniform'
         bm = steady_benchmarks[name]
         j = np.arange(timeseries_length)
@@ -350,18 +347,12 @@ def test_part_multiple(makefigure=True):
         fig.show()
 # %%
 
-def test_reaction(makefigure=True):
+def test_reaction(makefigure=False):
 #%%
     u = 1 # No effect
     v = 1 # No effect
-    # TRY LOOKING AT mR matrix?
-    makefigure=True
-    #timeseries_length = 5000
-    #dt = 0.01
     timeseries_length = 500
     dt = 1 * u
-    #timeseries_length = 50
-    #dt = 0.1
     Q_0 = 1.0 / u * v # <-- steady-state flow rate
     C_J = 0. * np.ones(timeseries_length)
     C_eq = 1000.
@@ -384,8 +375,7 @@ def test_reaction(makefigure=True):
 
 
     if makefigure:
-        fig = plt.gcf()
-    if True:
+        fig = plt.figure()
         bm = steady_benchmarks['Uniform']
         j = np.arange(timeseries_length)
         pQdisc = np.zeros_like(j, dtype=float)
@@ -450,7 +440,7 @@ def test_reaction(makefigure=True):
 # %%
 
 if __name__=='__main__':
-    test_steady()
-    test_unsteady()
-    test_part_multiple()
-    test_reaction()
+    test_steady(makefigure=True)
+    test_unsteady(makefigure=True)
+    test_part_multiple(makefigure=True)
+    test_reaction(makefigure=True)
