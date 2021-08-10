@@ -23,10 +23,70 @@ Level 3: ``key:value`` pairs giving properties of the SAS function
 
 There are four ways to specify a SAS function in the level 3 dict:
 
+ - As an exact gamma or beta distribution
  - Using any distribution from ``scipy.stats`` (which will be converted into a piecewise linear approximation in the model)
  - As a piecewise linear CDF
  - As a B-Spline PDF (not yet implemented)
- - As an exact gamma or beta distribution (not yet implemented)
+
+----------------------------------
+Using a gamma or beta distribution
+----------------------------------
+
+The gamma and beta distributions are often used to model SAS functions due to their flexibility. An important difference between them is that the beta distribution only has non-zero probability over a finite interval, while the gamma distribution is defined for infinitely large values. The beta distribution is useful when the total storage volume can be reliably inferred from tracer data. The gamma may be preferable where a large portion of the storage volume turns over very slowly, and so its volume is difficult to constrain from the tracer data.
+
+The PDF of a beta distribution is given by:
+
+.. math:: f(x)=x^{\alpha-1}(1-x)^{\beta-1}N(\alpha,\beta)
+
+..
+
+where :math:`\alpha` and :math:`\beta` are parameters and :math:`N(\alpha,\beta)` normalizes the distribution to have unit area. The gamma distribution is given by:
+
+.. math:: f(x)=x^{\alpha-1}e^{-x}N(\alpha)
+
+..
+
+which has only one shape parameter, :math:`\alpha`, and again :math:`N(\alpha,\beta)` normalizes the distribution. These distributions can be used flexibly by converting the input values of :math:`S_T` into a normalized form :math:`x`:
+
+.. math:: x(T,t)=\frac{S_T(T,t) - S_\mathrm{loc}(t)}{S_\mathrm{scale}(t)}
+
+..
+
+where 
+
+ - :math:`S_\mathrm{loc}(t)` or ``'loc'`` : the location parameter, which shifts the distribution to the right for values >0 and to the left for values <0 (default is 0)
+ - :math:`S_\mathrm{scale}(t)` or ``'scale'`` : the scale parameter (default is 1)
+
+The desired distribution is specified using the key ``'func'``, and the associated parameters using the keyword ``'args'``, as illustrated in the example below. All parameters can be made time-varying by setting them to a string corresponding to a column in ``data_df``.
+
++++++++
+Example
++++++++
+
+Here is an examples of a SAS specification for two fluxes, ``'Discharge'`` and ``'ET'``, whose SAS function will be modeled as a gamma and beta distribution respectively. The scale parameter of the discharge gamma distribution is set to ``'S0'`` indicating that its values can be found in that column of the ``data_df`` dataframe.
+
+.. testcode:: ['a']
+
+    sas_specs = {'Discharge':
+                     {'Discharge SAS fun':
+                          {'func': 'gamma',
+                           'args': {'a': 0.62,
+                                    'scale': 'S0',
+                                    'loc': 0.}}},
+                 'ET':
+                     {'ET SAS fun':
+                          {'func': 'beta',
+                           'args': {'a': 2.31,
+                                    'b': 0.627,
+                                    'scale': 1402,
+                                    'loc': 248}}}}
+
+In this case the model will look for columns in ``data_df`` called ``'Discharge'`` and ``'ET'``, and assume the values in these columns are timeseries of outflows from the control volume. Note that the values in these columns must be in the same units.
+
+The ``'Discharge'`` flux has a single component SAS function named 'Discharge SAS fun'. Since there is only one component SAS function for the 'Discharge' flux there does not need to be a column in the dataframe called 'Discharge SAS fun'. We specify the SAS function as a gamma distribution with the key:value pair ``'scipy.stats': gamma``. The distribution properties are set in the dictionary labeled ``'args'``. The gamma distribution with shape parameter ``'a'`` which is here set to ``0.62``.
+
+The 'ET' flux has a SAS function named ``'ET SAS fun'``.  This is specified to be a beta distribution, which has two shape parameters: ``'a'`` and ``'b'``.  As before, these are set in the ``'args'`` dictionary, along with the scale and shape parameters.
+
 
 --------------------------------------------------
 Using parameterized distributions from scipy.stats
@@ -36,9 +96,10 @@ Using parameterized distributions from scipy.stats
 
 The continuous distribution is converted into a piecewise linear approximation, which is then passed into the core number-crunching part of the code. This is done because evaluating the native ``scipy.stats`` functions was found to be too computationally expensive.
 
-To use them, the distributions must be imported from ``scipy.stats`` and passed into the ``sas_spec`` dictionary. The Level 3 dictionary in this case should have three key:value pairs
+To use them, the distributions are specified using the same format as above, but with the additional key ``'use': 'scipy.stats'``. The Level 3 dictionary in this case should therefore have four key:value pairs
 
- - ``'scipy.stats'`` : <an instance of the ``rv_continuous`` class>
+ - ``'func'`` : <a string giving the name of a ``scipy.stats`` distribution>
+ - ``'use'`` : ``'scipy.stats'``
  - ``'args'`` : <a dict of parameters to be passed to the distribution
  - ``'nsegment'`` : <an integer giving the number of segments to use in the piecewise linear approximation (optional, default is 25)>
 
@@ -49,15 +110,13 @@ Each function in ``scipy.stats`` requires at least two parameters:
  - ``'loc'`` : the location parameter, which shifts the distribution to the right for values >0 and to the left for values <0 (default is 0)
  - ``'scale'`` : the scale parameter (default is 1)
 
-These two parameters are used to convert the input values of :math:`S_T` into a normalized form :math:`X`:
+These two parameters are used to convert the input values of :math:`S_T` into a normalized form :math:`x`:
 
-.. math:: X(T,t)=\frac{S_T(T,t) - S_\mathrm{loc}(t)}{S_\mathrm{scale}(t)}
+.. math:: x(T,t)=\frac{S_T(T,t) - S_\mathrm{loc}(t)}{S_\mathrm{scale}(t)}
 
 ..
 
 Additional parameters are needed for a subset of functions (see the ``scipy.stats`` `documentation <https://docs.scipy.org/doc/scipy/reference/stats.html>`_). For example, the gamma distribution requires a shape parameter ``'a'``, and the beta distribution requires two parameters ``'a'`` and ``'b'``.
-
-All parameters can be made time-varying by setting them to a string corresponding to a column in ``data_df``.
 
 +++++++
 Example
@@ -65,19 +124,21 @@ Example
 
 Here is an examples of a SAS specification for two fluxes, ``'Discharge'`` and ``'ET'``, whose SAS function will be modeled as a gamma and beta distribution respectively. The first line imports the gamma and beta distributions from the scipy.stats library. The SAS dict specification begins on the second line:
 
-.. testcode:: ['a']
+.. testcode:: ['b']
 
     from scipy.stats import gamma, beta
     sas_specs = {'Discharge':
                      {'Discharge SAS fun':
-                          {'scipy.stats': gamma,
+                          {'func': gamma,
+                           'use': 'scipy.stats',
                            'args': {'a': 0.62,
                                     'scale': 5724.,
                                     'loc': 0.},
                            'nsegment': 50}},
                  'ET':
                      {'ET SAS fun':
-                          {'scipy.stats': beta,
+                          {'func': 'beta',
+                           'use': 'scipy.stats',
                            'args': {'a': 2.31,
                                     'b': 0.627,
                                     'scale': 1402,
@@ -85,17 +146,11 @@ Here is an examples of a SAS specification for two fluxes, ``'Discharge'`` and `
                            'nsegment': 50}}}
 
 
-In this case the model will look for columns in ``data_df`` called ``'Discharge'`` and ``'ET'``, and assume the values in these columns are timeseries of outflows from the control volume. Note that the values in these columns must be in the same units.
-
-The ``'Discharge'`` flux has a single component SAS function named 'Discharge SAS fun'. Since there is only one component SAS function for the 'Discharge' flux there does not need to be a column in the dataframe called 'Discharge SAS fun'. We specify the SAS function as a gamma distribution with the key:value pair ``'scipy.stats': gamma``. The distribution properties are set in the dictionary labeled ``'args'``. The gamma distribution with shape parameter ``'a'`` which is here set to ``0.62``.
-
-The 'ET' flux has a SAS function named ``'ET SAS fun'``.  This is specified to be a beta distribution, which has two shape parameters: ``'a'`` and ``'b'``.  As before, these are set in the ``'args'`` dictionary, along with the scale and shape parameters.
-
 -------------------------
 As a piecewise linear CDF
 -------------------------
 
-The second way to specify a SAS function is to supply the breakpoints of a piecewise linear cumulative distribution (i.e. a piecewise constant PDF).
+A SAS function can be specified by supplying the breakpoints of a piecewise linear cumulative distribution (i.e. a piecewise constant PDF).
 
 At minimum, the values of :math:`S_T` (corresponding to breakpoints in the piecewise linear approximation) must be supplied. These are given by the ``'ST'`` key, which must be associated with a list of strictly-increasing non-negative values. Non-increasing or negative values in this list will result in an error. The first value does not need to be zero. The values can be given as a fixed number, or as a string referring to a column in ``data_df``.
 
@@ -107,7 +162,7 @@ Example
 
 Here is an example, where storage is given in units of millimeters:
 
-.. testcode:: ['b']
+.. testcode:: ['c']
 
     sas_specs = {'Discharge':
                     {'Discharge SAS fun':
