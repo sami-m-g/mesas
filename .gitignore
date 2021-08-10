@@ -5,5 +5,6 @@ dist/
 *.swo
 *.swp
 /mesas/junk/
+/mesas/dev/
 /doc/_build/
 /.idea/
