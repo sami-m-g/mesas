@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
-from collections import Iterable
+from collections.abc import Iterable
 
 from mesas.sas.functions import Continuous, Piecewise, typedict
 

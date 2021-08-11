@@ -8,6 +8,8 @@
 import copy
 from collections import OrderedDict
 from copy import deepcopy
+import pandas as pd
+import json
 
 import numpy as np
 from solve import solvesas as solve
@@ -16,6 +18,22 @@ dtype = np.float64
 
 from mesas.sas.specs import SAS_Spec
 from collections import OrderedDict
+
+import os
+
+def _processinputs(input):
+    if isinstance(input, dict):
+        return input
+    elif isinstance(input, str):
+        if os.path.isfile(input):
+            with open(input) as json_file:
+                data = json.load(json_file) 
+            return data
+        else:
+            raise FileNotFoundError(f'I could not find the input file: {input}')
+    else:
+        raise TypeError('input must be either a dict, or a path to a .json file')
+
 
 
 class Model:
@@ -27,10 +45,16 @@ class Model:
     associated with a dataset (`data_df`) and run using the `.run()` method.
     '''
 
-    def __init__(self, data_df, sas_specs, solute_parameters=None, **kwargs):
+    def __init__(self, data_df, config=None, sas_specs=None, solute_parameters=None, **kwargs):
         # defaults
         self._result = None
         self.jacobian = {}
+        # load the timeseries data
+        self.data_df = data_df
+        # check for a configuration file
+        if config:
+            config = _processinputs(config)
+        # process any options
         self._default_options = {
             'dt': 1,
             'verbose': False,
@@ -46,12 +70,24 @@ class Model:
         }
         self._options = self._default_options
         components_to_learn = kwargs.get('components_to_learn')
-        # do input Checking
-        self.data_df = data_df
+        if config and 'options' in config.keys():
+            self.options = config['options']
         self.options = kwargs
+        # get the SAS specification
+        if config and 'sas_specs' in config.keys():
+            sas_specs = config['sas_specs']
+        elif sas_specs:
+            sas_specs = _processinputs(sas_specs)
+        else:
+            raise ValueError("No SAS specification found!")
         self.sas_specs = self.parse_sas_specs(sas_specs)
         self._numflux = len(self.sas_specs)
         self._fluxorder = list(self.sas_specs.keys())
+        # get solute transport parameters
+        if config and 'solute_parameters' in config.keys():
+            solute_parameters = config['solute_parameters']
+        elif solute_parameters:
+            solute_parameters = _processinputs(solute_parameters)
         # defaults for solute transport
         self._default_parameters = {
             'mT_init': 0.,
@@ -147,8 +183,14 @@ class Model:
 
     @data_df.setter
     def data_df(self, new_data_df):
-        self._data_df = new_data_df.copy()
+        if isinstance(new_data_df, pd.core.frame.DataFrame):
+            self._data_df = new_data_df.copy()
+        elif isinstance(new_data_df, str):
+            self._data_df = pd.read_csv(new_data_df)
+        else:
+            raise TypeError('data_df must be either a pandas dataframe, or a path to a .csv file')
         self._timeseries_length = len(self._data_df)
+
 
     @property
     def options(self):
@@ -158,6 +200,7 @@ class Model:
 
     @options.setter
     def options(self, new_options):
+        new_options = _processinputs(new_options)
         invalid_options = [optkey for optkey in new_options.keys()
                            if optkey not in self._default_options.keys()]
         if any(invalid_options):
@@ -179,9 +222,7 @@ class Model:
 
     @sas_specs.setter
     def sas_specs(self, new_sas_specs):
-        self._sas_specs = new_sas_specs
-        #for sas_spec in self._sas_specs.values():
-        #    sas_spec.make_spec_ts(self.data_df)
+        self._sas_specs = _processinputs(new_sas_specs)
         self._numflux = len(self._sas_specs)
         self._fluxorder = list(self._sas_specs.keys())
 
@@ -266,6 +307,7 @@ class Model:
         # set parameters for solute transport
         # provide defaults if absent
         if new_solute_parameters is not None:
+            new_solute_parameters = _processinputs(new_solute_parameters)
             self._solute_parameters = {}
             for sol, params in new_solute_parameters.items():
                 self._solute_parameters[sol] = deepcopy(self._default_parameters)

@@ -135,8 +135,8 @@ def test_steady(makefigure=False):
 
         model = Model(
             data_df,
-            sas_specs,
-            solute_parameters,
+            sas_specs=sas_specs,
+            solute_parameters=solute_parameters,
             debug=debug,
             verbose=verbose,
             dt=dt,
@@ -217,8 +217,8 @@ def test_unsteady(makefigure=False):
 
             model = Model(
                 data_df,
-                sas_specs,
-                solute_parameters,
+                sas_specs=sas_specs,
+                solute_parameters=solute_parameters,
                 debug=debug,
                 verbose=verbose,
                 dt=dt,
@@ -313,8 +313,8 @@ def test_part_multiple(makefigure=False):
 
         model = Model(
             data_df,
-            sas_specs,
-            solute_parameters,
+            sas_specs=sas_specs,
+            solute_parameters=solute_parameters,
             debug=debug,
             verbose=verbose,
             dt=dt,
@@ -408,8 +408,8 @@ def test_reaction(makefigure=False):
 
         model = Model(
             data_df,
-            sas_specs,
-            solute_parameters,
+            sas_specs=sas_specs,
+            solute_parameters=solute_parameters,
             debug=debug,
             verbose=verbose,
             dt=dt,

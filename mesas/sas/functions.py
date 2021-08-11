@@ -195,8 +195,8 @@ class Piecewise(_SASFunctionBase):
         :param ST_min: The upper bound of the sas function support
         """
 
-        self.ST_min = np.float(ST_min)
-        self.ST_max = np.float(ST_max)
+        self.ST_min = float(ST_min)
+        self.ST_max = float(ST_max)
         #self._has_params = False
 
         # Note that the variables _ST, _P and _parameter_list are assigned to below
