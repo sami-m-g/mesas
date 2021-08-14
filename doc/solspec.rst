@@ -4,20 +4,36 @@
 Specifying solute parameters
 ============================
 
-Solute parameters are also given using a nested set of dictionaries, which is usually passed into the model when it is created. See below for how to change solute parameters after initiation.
+Solute parameters are also given using a nested set of python dictionaries or a JSON entry in a ``config.json`` file. These are usually set when the model object is created. See below for how to change solute parameters after model creation.
 
-Keys of the highest level dictionary are assumed to be the ``data_df`` column names for the input concentrations of each solute. The value associated with each key should be a (possibly empty) dictionary of parameters. For example:
+Keys of the highest level of the dictionary are assumed to be the ``data_df`` column names for the input concentrations of each solute. The value associated with each key should be a (possibly empty) dictionary of parameters. For example:
+
+.. code-block:: json
+
+    {
+    
+    "...": "...",
+    
+    "solute_parameters": {
+        "C1 [per mil]": {},
+        "C2 [stone/bushel]": {}
+        }
+    }
+
+The ``"...": "..."`` in the example above should not be included in a real file. There are used here to show where additional information :ref:`sasspec` and setting :ref:`options` may be included.
+
+The equivalent python dictionary is:
 
 .. code-block:: python
 
-    my_solute_parameters = {'C1 [per mil]': {},
-                            'C2 [stone/bushel]': {}}
+    my_solute_parameters = {
+        "C1 [per mil]": {},
+        "C2 [stone/bushel]": {}
+        }
 
-    my_model = Model(data_df=my_dataframe..., solute_parameters=my_solute_parameters, ...)
+In this case `mesas.py` would expect to find columns ``"C1 [per mil]"`` and ``"C2 [stone/bushel]"`` in the :ref:`timeseries input data <inputs>` that contain the input concentrations of two solutes. Since an empty dict ``{}`` is passed in each case, default parameters (representing a conservative ideal tracer initially absent from the system) will be used.
 
-In this case ``my_model`` would expect to find columns ``'C1 [per mil]'`` and ``'C2 [stone/bushel]'`` in ``data_df`` containing the input concentrations of two solutes. Since an empty dict ``{}`` is passed in each case, default parameters (representing a conservative ideal tracer initially absent from the system) will be used.
-
-The parameter dict may specify any of the following default key:value pairs. If a key:value pair does not appear in the dict, the default value will be used.
+The parameter dictionary may specify any of the following default ``key:value`` pairs. If a ``key:value`` pair does not appear in the dictionary, the default value will be used.
 
 ``mT_init`` (array-like, default = [0.0, 0.0, ...])
   Initial age-ranked mass in the system. This is useful if the system is initialized by some sort of spin-up. Each entry is age-ranked mass in an age interval of duration :math:`\Delta t`. If ``mT_init`` is specified, ``sT_init`` must also be specified in :ref:`options`, and be of the same length. The element-wise ratio ``mT_init/sT_init`` gives the age-ranked concentration ``CS`` of the water in storage at time zero. Note that if ``sT_init`` is specified but ``mT_init`` is not, the concentrations associated with each non-zero value of ``sT_init`` will be zero.
@@ -47,10 +63,10 @@ The parameter dict may specify any of the following default key:value pairs. If 
   Thus if :math:`\alpha_q^s=1` the outflow concentration of water of a given age will equal that in storage. If :math:`\alpha_q^s=0`, the solute will not be exported with outflow :math:`q`. Values of :math:`0<\alpha_q^s<1` will result in partial exclusion of the solute from the outflow, and :math:`\alpha_q^s>1` will result in preferential removal via outflow outflow :math:`q`.
 
   The keys in the ``alpha`` dict must match keys in top level keys of ``sas_spec``. Each key may be associated with a number or a string referring to a column of partitioning coefficients in ``data_df``.
-  {'Q': 1., ...}   # Partitioning coefficient for flux 'Q'
+  {"Q": 1., ...}   # Partitioning coefficient for flux "Q"
 
 ``observations`` (dict, default = None)
-  This dict provides the name of columns in `data_df` that contain observations that may be used to calibrate/validate the model's predictions of outflow concentrations. Keys are outflow fluxes named in top level keys of ``sas_spec``, e.g. ``'observations':{'Q': 'obs C in Q', ...}``.
+  This dict provides the name of columns in `data_df` that contain observations that may be used to calibrate/validate the model"s predictions of outflow concentrations. Keys are outflow fluxes named in top level keys of ``sas_spec``, e.g. ``"observations":{"Q": "obs C in Q", ...}``.
 
 --------------------
 Modifying parameters
@@ -61,15 +77,15 @@ There are two equivalent ways to modify the parameters of an existing model.
 Assigning a dict
   The model property ``<my_model>.solute_parameters`` can be assigned a dict of valid key-value pairs. This will overwrite existing parameters for all the properties in the dict, but leave the remainder unchanged.
 
-  To remove all solute parameters (so no solute transport will be modelled) set ``<my_model>.solute_parameters=None``. Default parameters can then be set by assigning an empty dict to each solute ``<my_model>.solute_parameters={'C1':{}, ...}``
+  To remove all solute parameters (so no solute transport will be modelled) set ``<my_model>.solute_parameters=None``. Default parameters can then be set by assigning an empty dict to each solute ``<my_model>.solute_parameters={"C1":{}, ...}``
 
 Using the ``<my_model>.set_solute_parameters()`` function
   Individual properties of a solute can be set using this convenience function. Individual parameters are set as keyword arguments, like this:
 
 .. code-block:: python
 
-    <my_model>.set_solute_parameters('C1', C_old=22.5)
+    <my_model>.set_solute_parameters("C1", C_old=22.5)
 
-This would set the ``C_old`` property associated with solute ``'C1'`` to ``22.5``.
+This would set the ``C_old`` property associated with solute ``"C1"`` to ``22.5``.
 
 

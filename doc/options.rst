@@ -1,10 +1,26 @@
 .. _options:
 
-=======
-Options
-=======
+===================
+Optional parameters
+===================
 
-A number of optional parameters can be set on a ``Model``. These can be set as keywords when the instance is created::
+A number of optional parameters can be set. These can be specified in the ``config.json`` file under the ``"options"`` key:
+
+.. code-block:: json
+
+    {
+    
+    "...": "...",
+
+    "options":{
+        "dt":{
+            "dt": 3600,
+            "n_substeps": 5
+            }
+        }
+    }
+
+Options can be set as keywords when the instance is created::
 
     my_model = Model(..., option1='value', option2='another')
 

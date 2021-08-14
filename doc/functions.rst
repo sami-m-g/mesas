@@ -1,9 +1,7 @@
 SAS Functions
 =============
 
-Functions will be documented here.
-
-Blah blah blah
+Functions will be documented here. Some of this is out of date.
 
 mesas.sas.functions module
 ----------------------------

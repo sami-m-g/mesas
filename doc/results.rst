@@ -4,7 +4,13 @@
 Extracting results
 ==================
 
-Once the model has been run, raw results in the form of output arrays can be accessed through the ``my_model.results`` property, which returns a dict with the following keys:
+Once the model has been run, timeseries of solute outputs can be found in ``<Model object>.data_df``. To save these as a ``.csv`` use::
+
+    my_model.data_df.to_csv('my_model_outputs.csv')
+
+where ``my_model`` is a Model object.
+
+Alternatively, raw results in the form of output arrays can be accessed through the ``<Model object>.results`` property, which returns a dict with the following keys:
 
     ``sT`` : m x n+1 numpy float64 2D array
         Array of instantaneous age-ranked storage for n+1 times, m ages. First column is initial condition (given by the ``sT_init`` option if provided, or all zeros otherwise)
@@ -23,5 +29,5 @@ Once the model has been run, raw results in the form of output arrays can be acc
     ``SoluteBalance`` : m x n x s float64 ndarray
         Should always be within tolerances of zero, unless something is very wrong.
 
-The order that the fluxes ``q`` and solutes ``s`` appear in these matricies is given by the properties ``my_model.fluxorder`` and ``my_model.solorder``. These provide lists of the column names in the order they are given in ``results``.
+The order that the fluxes ``q`` and solutes ``s`` appear in these arrays is given by the properties ``my_model.fluxorder`` and ``my_model.solorder``. These provide lists of the column names in the order they are given in ``results``.
 

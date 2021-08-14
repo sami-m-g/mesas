@@ -46,6 +46,7 @@ Table of contents
    :caption: User guide
 
    inputs
+   config
    sasspec
    solspec
    options
