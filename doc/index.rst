@@ -31,6 +31,14 @@ mesas.utils.vis
 
 I hope to expand these in the future, and welcome contributors through the `GitHub repository <https://github.com/charman2/mesas>`_
 
+Support, bugs, suggestions, etc.
+--------------------------------
+If you find a bug please open an issue on GitHub here: https://github.com/charman2/mesas/issues
+
+You can also use the issue tracer to make suggestions to improve the code.
+
+If you need further help using the code or interpreting the results, please get in touch: charman1 at jhu dot edu
+
 
 Table of contents
 -----------------
