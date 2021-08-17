@@ -44,7 +44,7 @@ config['libraries'] = []
 for src in cdflibnames:
     config['libraries'] += [(
         src,
-        {'sources': [f'./mesas/sas/cdflib90/{src}.f90'], 'extra_f90_compile_args': ["-Ofast"]}
+        {'sources': [f'mesas/sas/cdflib90/{src}.f90'], 'extra_f90_compile_args': ["-Ofast"]}
     )]
 #extra_f90_compile_args=["-Ofast", '-fno-stack-arrays'],
 #extra_f90_compile_args=["-fast", '-acc', '-Minfo', '-Mvect=levels:10', '-ta=tesla:cc35'],
