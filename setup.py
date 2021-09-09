@@ -37,7 +37,7 @@ config = {
     'ext_modules': [Extension(name='solve', sources=[add_mod_dir, util.convert_path('mesas/sas/solve.f90')],
                               include_dirs=[numpy.get_include()],
                               extra_f90_compile_args=["-Ofast", '-fno-stack-arrays'],
-                              libraries=cdflibnames)],
+                              libraries=reversed(cdflibnames))],
 }
 
 config['libraries'] = []
