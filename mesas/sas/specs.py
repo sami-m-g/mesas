@@ -7,7 +7,7 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from collections.abc import Iterable
 
-from mesas.sas.functions import Continuous, Piecewise, typedict
+from mesas.sas.functions import Continuous, Piecewise
 
 class SAS_Spec:
 
@@ -167,13 +167,13 @@ class Component:
             else:
                 use = spec.pop('use', 'builtin')
                 func = spec.pop('func')
+            self._sas_funs = [Continuous(use, func, func_kwargs=self._args[i], P=P[i, :], **spec)
+                                  for i in range(self.N)]
             if use == 'scipy.stats':
                 self.type = -1
             else:
                 assert use =='builtin'
-                self.type = typedict[func]
-            self._sas_funs = [Continuous(use, func, func_kwargs=self._args[i], P=P[i, :], **spec)
-                                  for i in range(self.N)]
+                self.type = self._sas_funs[0]._builtinfunctype
         elif ST is not None:
             self.type = -1
             self._sas_funs = [Piecewise(ST=ST[i, :], P=P[i, :], **spec) for i in range(self.N)]

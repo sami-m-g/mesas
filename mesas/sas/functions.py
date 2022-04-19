@@ -27,7 +27,6 @@ import scipy.stats
 import importlib
 
 
-typedict = {'gamma':1, 'beta':2}
 
 class _SASFunctionBase:
     """
@@ -207,7 +206,7 @@ class Piecewise(_SASFunctionBase):
 
             # Use the given ST values
             assert ST[0] >= 0
-            assert np.all(np.diff(ST) > 0)
+            #assert np.all(np.diff(ST) > 0)
             assert len(ST) > 1
             self.nsegment = len(ST) - 1
             self._ST = np.array(ST, dtype=float)
@@ -396,39 +395,58 @@ class Piecewise(_SASFunctionBase):
         else:
             return J_seg
 
+from scipy.stats import rv_continuous
+class kumaraswamy_gen(rv_continuous):
+    "Kumaraswamy distribution"
+    def _cdf(self, x, a, b):
+        return 1 - (1 - x**a)**b
+    def _pdf(self, x, a, b):
+        return a*b*x**(a-1)*(1 - x**a)**(b-1)
+
+kumaraswamy = kumaraswamy_gen(a=0.0, b=1.0, name='kumaraswamy')
 
 class Continuous(_SASFunctionBase):
     """
     Base function for SAS functions
     """
 
-    _builtinfuncs = ['gamma', 'beta']
+    _builtinfuncdict = {'gamma':1, 'beta':2, 'kumaraswamy':3}
     def __init__(self, use, func, func_kwargs, P=None, nsegment=25, ST_max=1.797693134862315e+308):
 
 
-        if use=='builtin' and func in self._builtinfuncs:
-            self._func = getattr(scipy.stats, func)
+        if use=='builtin' and func in self._builtinfuncdict.keys():
+            try:
+                self._func = getattr(scipy.stats, func)
+            except AttributeError:
+                if func=='kumaraswamy':
+                    self._func = kumaraswamy
+                else:
+                    self._func = None
+            self._builtinfunctype = self._builtinfuncdict[func]
         elif use=='scipy.stats' and isinstance(func, rv_continuous):
             self._func = func
+            self._builtinfunctype = None
         elif use=='scipy.stats' and isinstance(func, str):
             self._func = getattr(scipy.stats, func)
+            self._builtinfunctype = None
         else:
             raise Exception("'use' keyword must be either 'builtin' or 'scipy.stats'")
         self._use = use
 
         self._frozen_func = self._func(**func_kwargs)
         if self._use=='builtin':
-            #self._has_params = True
-            #self._ST = self.func.ppf(self._P)
-            myargs = self._frozen_func.kwds.copy()
-            if self._frozen_func.dist.name == 'gamma':
+            if func == 'gamma':
                 self._argsS = []
-                self._argsS += [myargs.pop('loc'), myargs.pop('scale')]
-                self._argsS += [myargs.pop('a')]
-            if self._frozen_func.dist.name == 'beta':
+                self._argsS += [func_kwargs['loc'], func_kwargs['scale']]
+                self._argsS += [func_kwargs['a']]
+            if func == 'beta':
                 self._argsS = []
-                self._argsS += [myargs.pop('loc'), myargs.pop('scale')]
-                self._argsS += [myargs.pop('a'), myargs.pop('b')]
+                self._argsS += [func_kwargs['loc'], func_kwargs['scale']]
+                self._argsS += [func_kwargs['a'], func_kwargs['b']]
+            if func == 'kumaraswamy':
+                self._argsS = []
+                self._argsS += [func_kwargs['loc'], func_kwargs['scale']]
+                self._argsS += [func_kwargs['a'], func_kwargs['b']]
             self._argsP = np.ones_like(self._argsS)*np.NaN
         elif self._use=='scipy.stats':
             # generate a piecewise approximation

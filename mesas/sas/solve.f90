@@ -714,6 +714,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                         a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
                                         b_arg = SAS_args(jt(c), args_index_list(ic) + 3)
                                         X = (STcum_in(c) - loc) / scale
+                                        X = DMIN1(DMAX1(0.0,X),1.0)
                                         PQcum_component = 0
                                         if (X.gt.0) then
                                             PQcum_component = CUM_BETA(X, 1-X, a_arg, b_arg,  CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
@@ -724,6 +725,24 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                                 endif
                                             end if
                                         end if
+                                        if (topbot==0) then
+                                            PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                        else
+                                            PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts( jt(c), ic) * PQcum_component
+                                        end if
+                                    end do
+                                elseif (component_type(ic)==3) then
+                                    !kumaraswamy distribution
+                                    !$acc kernels
+                                    !$acc loop independent
+                                    do c = 0, N - 1
+                                        loc = SAS_args(jt(c), args_index_list(ic) + 0)
+                                        scale = SAS_args(jt(c), args_index_list(ic) + 1)
+                                        a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
+                                        b_arg = SAS_args(jt(c), args_index_list(ic) + 3)
+                                        X = (STcum_in(c) - loc) / scale
+                                        X = DMIN1(DMAX1(0.0,X),1.0)
+                                        PQcum_component = 1 - (1 - X**a_arg)**b_arg
                                         if (topbot==0) then
                                             PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts( jt(c), ic) * PQcum_component
                                         else
