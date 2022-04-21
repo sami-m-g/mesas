@@ -25,7 +25,7 @@ config = {
     'url': '',
     'download_url': '',
     'author_email': 'charman1@jhu.edu',
-    'version': '0.2022.0419',
+    'version': '0.2022.0421',
     'packages': ['mesas', 'mesas.sas', 'mesas.me', 'mesas.utils'],
     'package_dir': {'mesas': 'mesas',
                     'mesas.sas': util.convert_path('mesas/sas'),
