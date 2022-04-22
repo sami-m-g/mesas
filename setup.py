@@ -7,6 +7,7 @@ Created on Sun Apr 27 16:11:18 2019
 
 from distutils import util
 import os
+from pathlib import Path
 
 import numpy
 from numpy.distutils.core import Extension
@@ -15,6 +16,13 @@ from numpy.distutils.core import setup
 cdflibnames=['biomath_constants_mod', 'biomath_sort_mod', 'biomath_strings_mod', 'biomath_interface_mod', 'biomath_mathlib_mod', 'zero_finder', 'cdf_aux_mod', 'cdf_beta_mod', 'cdf_binomial_mod', 'cdf_gamma_mod', 'cdf_chisq_mod', 'cdf_f_mod', 'cdf_nc_chisq_mod', 'cdf_nc_f_mod', 'cdf_normal_mod', 'cdf_t_mod', 'cdf_nc_t_mod', 'cdf_neg_binomial_mod', 'cdf_poisson_mod']
 
 def add_mod_dir(ext,build_dir):
+    for i in range(5):
+        print('X'*72)
+    print('The build directory is '+build_dir)
+    print('Contents of next directory up:')
+    print(*Path(build_dir+'/../').iterdir(), sep="\n")
+    for i in range(5):
+        print('X'*72)
     build_path = build_dir.split(os.sep)
     mod_dir = os.path.join(build_path[0], build_path[1].replace("src", "temp"))
     ext.include_dirs += [mod_dir]
