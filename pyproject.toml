@@ -1,0 +1,50 @@
+[build-system]
+requires = ["numpy", "setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mesas"
+version = "0.2022.0421"
+description = "MESAS - Multiscale Estimation of StorAge Selection."
+readme = "README.md"
+authors = [
+  {email = "charman1@jhu.edu"},
+  {name = "Ciaran J. Harman"}
+]
+maintainers = [
+  {email = "charman1@jhu.edu"},
+  {name = "Ciaran J. Harman"}
+]
+keywords = [
+  "hydrology",
+  "SAS",
+  "Storage selection functions",
+]
+license = {file = "LICENSE.txt"}
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Cython",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.8"
+dependencies = [
+  "pandas",
+  "numpy",
+  "scipy",
+  "matplotlib"
+]
+
+[project.urls]
+homepage = "https://mesas.readthedocs.io/"
+documentation = "https://mesas.readthedocs.io/"
+repository = "https://github.com/charman2/mesas"
+
+[tool.setuptools]
+packages = ["mesas", "mesas.sas", "mesas.me", "mesas.utils"]
+
