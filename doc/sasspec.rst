@@ -9,7 +9,7 @@ SAS functions are specified using a nested dictionary-like structure, stored as 
 .. code-block:: json
 
     {
-    "sas_spec":{
+    "sas_specs":{
         "Flux out":{
             "SAS fun":{
                 "ST": [0, 100]
@@ -36,7 +36,7 @@ The equivalent python dictionary looks like this:
             }
         }
 
-The levels of the ``sas_spec`` nested dictionary / JSON entry are as follows:
+The levels of the ``sas_specs`` nested dictionary / JSON entry are as follows:
 
 Level 1: One ``key:value`` pair per outflow flux (e.g. discharge, ET, groudwater discharge, etc.)
   Each key is a string that corresponds to a column in the input timeseries dataset ``data_df`` that contains the corresponding outflow flux rates. To specify multiple outflows, just add additional ``key:value`` pairs to this level of the dictionary.
@@ -94,7 +94,7 @@ Here is an examples of a SAS specification for two fluxes, ``"Discharge"`` and `
 .. code-block:: json
 
     {
-    "sas_specs":{
+    "sas_specss":{
         "Discharge": {
             "Discharge SAS fun": {
                 "func": "gamma", 
@@ -168,7 +168,7 @@ Here is an examples of a SAS specification for two fluxes, ``"Discharge"`` and `
 .. code-block:: json
 
     {
-    "sas_specs": {
+    "sas_specss": {
         "Discharge": {
             "Discharge SAS fun": {
                 "func": "gamma",
@@ -220,7 +220,7 @@ Here is an example, where storage is given in units of millimeters:
 .. code-block:: json
 
     {
-    "sas_specs": {
+    "sas_specss": {
         "Discharge": {
             "Discharge SAS fun": {
                 "ST": [0, 553, "Total Storage"]

@@ -11,7 +11,7 @@ The recommended way of providing configuration data is in a text file formatted 
 .. code-block:: json
 
     {
-    "sas_spec":{
+    "sas_specs":{
         "Flux out":{
             "SAS fun":{
                 "ST": [0, 100]
@@ -25,7 +25,7 @@ This specifies a single uniform SAS function between 0 and 100 associated with t
 
 `mesas.py` looks for three top-level entries in the file:
 
-* ``"sas_spec"``: spcification of the SAS functions (see :ref:`sasspec`)
+* ``"sas_specs"``: spcification of the SAS functions (see :ref:`sasspec`)
 * ``"solute_parameters"``: information about solutes to be transported through the system (see :ref:`solspec`)
 * ``"options"``: optional arguments for customizing the model run (see :ref:`options`)
 
@@ -34,7 +34,7 @@ For more information click the links above. Here is an example of the contents o
 .. code-block:: json
 
     {
-    "sas_spec":{
+    "sas_specs":{
         "Flux out":{
             "SAS fun":{
                 "ST": [0, 100]

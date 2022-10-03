@@ -75,13 +75,13 @@ A simple steady flow model can be constructed by creating timeseries with consta
 
     my_model.run()
 
-The name of the column that contains the inputs is ``'J'`` by default, but can be modified by changing the ``'influx'`` option (see :ref:`options`). The name of the column that contains each flux is specified in the ``sas_spec`` input dictionary (see :ref:`sasspec`)
+The name of the column that contains the inputs is ``'J'`` by default, but can be modified by changing the ``'influx'`` option (see :ref:`options`). The name of the column that contains each flux is specified in the ``sas_specs`` input dictionary (see :ref:`sasspec`)
 
 ----------------------
 Other input timeseries
 ----------------------
 
-The timeseries dataframe also stores timeseries used in the specification of SAS functions (see :ref:`sasspec`) and solutes (see :ref:`solspec`). The column names specified in the ``sas_spec`` and ``solute_parameters`` inputs must exactly match a column in the ``data_df`` dataframe.
+The timeseries dataframe also stores timeseries used in the specification of SAS functions (see :ref:`sasspec`) and solutes (see :ref:`solspec`). The column names specified in the ``sas_specs`` and ``solute_parameters`` inputs must exactly match a column in the ``data_df`` dataframe.
 
 Here is a minimal example with steady inflow, time-variable discharge according to a linear storage-discharge relationship, uniform sampling, and a pulse of tracer input at a timestep some short time after the storage begins to fill. Note that the total storage ``S`` is stored in a column of the dataframe named ``'S'``, which is used in the specification of the uniform SAS function in ``my_sas_spec``. Similarly, the concentration timeseries is stored in a column of the dataframe named ``'Cin'``, which corresponds to a top-level key in ``my_solute_parameters``.
 
@@ -118,7 +118,7 @@ Here is a minimal example with steady inflow, time-variable discharge according 
         }
 
     config = {
-        'sas_spec': my_sas_specs,
+        'sas_specs': my_sas_specs,
         'solute_parameters': my_solute_parameters
         }
 
@@ -144,7 +144,7 @@ Here is a minimal example with steady inflow, time-variable discharge according 
 Output timeseries
 -----------------
 
-If a timeseries of solute input concentrations is provided and its name appears as a top-level key in the ``solute_parameters`` dictionary, timeseries of output concentrations will be generated for each output flux specified in the ``sas_spec``.
+If a timeseries of solute input concentrations is provided and its name appears as a top-level key in the ``solute_parameters`` dictionary, timeseries of output concentrations will be generated for each output flux specified in the ``sas_specs``.
 
 The predicted outflow concentration timeseries will appear as a new column in the dataframe with the name ``'<solute column name> --> <flux column name>'``. For example, the outflow concentrations in the simple model given above will appear in the column ``'Cin --> Q'``.
 

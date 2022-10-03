@@ -27,8 +27,9 @@ def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, c
     MT = np.r_[0, np.cumsum(mT)] * dt
     MQ = np.r_[0, np.cumsum(mQ)] * dt
 
-    ST_mod = np.r_[0., model.sas_blends[flux].ST[i, :]]
-    PQ_mod = np.r_[0., model.sas_blends[flux].P[i, :]]
+    model.sas_specs['Uniform'].make_spec_ts()
+    ST_mod = np.r_[0., model.sas_specs[flux].ST[i, :]]
+    PQ_mod = np.r_[0., model.sas_specs[flux].P[i, :]]
     omega_mod = np.diff(PQ_mod) / np.diff(ST_mod)
     if omega_max is None:
         omega_max = np.nanmax(omega_mod) * 1.1
