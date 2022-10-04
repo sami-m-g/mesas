@@ -25,3 +25,5 @@ Documentation for the code is available here: https://mesas.readthedocs.io/en/la
 ## Citation
 
 A paper describing the code and presenting validation results is in preparation
+
+[![DOI](https://zenodo.org/badge/183813641.svg)](https://zenodo.org/badge/latestdoi/183813641)
