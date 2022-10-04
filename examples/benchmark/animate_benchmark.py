@@ -15,13 +15,17 @@ from scipy.stats import norm as gaussian
 
 
 def plot_transport_column(model, flux, sol, i=None, axTC=None, axTQ=None, dST=None, nST=20, cmap='inferno', vrange=None,
-                          ST_max=None, omega_max=None, artists_dict=OrderedDict(), do_init=True, SASfun=None, **kwargs):
+                          ST_max=None, omega_max=None, artists_dict=OrderedDict(), do_init=True, SASfun=None, bounded_ST=True, **kwargs):
     if i is None:
         i = 0
 
     dt = model.options['dt']
     Q = model.data_df[flux].iloc[i]
     S = model.data_df['S_0'].iloc[i]
+    if bounded_ST:
+        ST_bound = S
+    else:
+        ST_bound = ST_max
     C_old = model.solute_parameters[sol]['C_old']
     C_J = model.data_df[sol]
 
@@ -88,7 +92,7 @@ def plot_transport_column(model, flux, sol, i=None, axTC=None, axTQ=None, dST=No
         else:
             if f'TCpatch {j}' in artists_dict:
                 artists_dict[f'TCpatch {j}'].set_visible(False)
-    artists_dict[f'TCpatch C_old'].set_bounds((0, ST[-1], 1, ST_max - ST[-1]))
+    artists_dict[f'TCpatch C_old'].set_bounds((0, ST[-1], 1, ST_bound - ST[-1]))
     artists_dict[f'TCpatch C_old'].set_facecolor(cmap(norm(C_old)))
     artists_dict[f'TCpatch C_old'].set_visible(True)
 
@@ -444,7 +448,9 @@ def make_transport_column_animation(model, flux, sol, fig=None, frames=None, **k
 def clip(f, x, xmin, xmax):
     return np.where( (xmin<=x) & (x<=xmax), f, 0)
 
-if __name__=="__main__":
+from scipy.stats import gamma
+#if __name__=="__main__":
+if True:
     scenarios = {
         'Uniform':{
             'spec':{
@@ -454,6 +460,7 @@ if __name__=="__main__":
             'pQdisc0':lambda delta: (1 + np.exp(delta)*(-1 + delta))/(np.exp(delta)*delta),
             'subplot': 0,
             'distname': 'Uniform',
+            'bounded_ST': True,
             'SASfun': lambda ST, df: clip(1/(df['S_m0']-df['S_m']), ST, df['S_m'], df['S_m0'])
         },
         'Exponential':{
@@ -464,7 +471,17 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: (2*np.log(1 + i*delta) - np.log((1 + (-1 + i)*delta)*(1 + delta + i*delta)))/delta,
             'pQdisc0':lambda delta: (delta + np.log(1/(1 + delta)))/delta,
             'subplot': 1,
+            'bounded_ST': False,
             'distname': 'Gamma(1.0)'
+        },
+        'Gamma(0.25)':{
+            'spec':{
+                "func": "gamma",
+                "args": {"a": 0.25, "scale": "S_0", "loc": "S_m"},
+            },
+            'distname': 'Gamma(0.5)',
+            'SASfun': lambda ST, df: gamma.pdf(ST, a=0.25, scale=df['S_0'], loc=df['S_m']),
+            'bounded_ST': False
         },
         'Biased old (Beta)':{
             'spec':{
@@ -474,6 +491,7 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: (2*1/np.cosh(delta - i*delta)*1/np.cosh(delta + i*delta)*np.sinh(delta)**2*np.tanh(i*delta))/delta,
             'pQdisc0':lambda delta: 1 - np.tanh(delta)/delta,
             'subplot': 2,
+            'bounded_ST': True,
             'distname': 'Beta(2,1)'
         },
         'Biased young (Beta)':{
@@ -484,6 +502,7 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: (2*delta)/((1 + (-1 + i)*delta)*(1 + i*delta)*(1 + delta + i*delta)),
             'pQdisc0':lambda delta: delta/(1 + delta),
             'subplot': 3,
+            'bounded_ST': True,
             'distname': 'Beta(1,2)'
         },
         'Partial bypass (Beta)':{
@@ -494,6 +513,7 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: (M(delta, -1 + i) - 2*M(delta, i) + M(delta, 1 + i))/delta,
             'pQdisc0':lambda delta: (-1 + delta + M(delta, 1))/delta,
             'subplot': 4,
+            'bounded_ST': True,
             'distname': 'Beta(1/2,1)'
         },
         'Partial piston (Beta)':{
@@ -504,6 +524,7 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: delta/2,
             'pQdisc0':lambda delta: delta/4,
             'subplot': 5,
+            'bounded_ST': True,
             'distname': 'Beta(1,1/2)'
         },
         'Biased old (Kumaraswamy)':{
@@ -514,6 +535,7 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: (2*1/np.cosh(delta - i*delta)*1/np.cosh(delta + i*delta)*np.sinh(delta)**2*np.tanh(i*delta))/delta,
             'pQdisc0':lambda delta: 1 - np.tanh(delta)/delta,
             'subplot': 2,
+            'bounded_ST': True,
             'distname': 'Kumaraswamy(2,1)'
         },
         'Biased young (Kumaraswamy)':{
@@ -524,6 +546,7 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: (2*delta)/((1 + (-1 + i)*delta)*(1 + i*delta)*(1 + delta + i*delta)),
             'pQdisc0':lambda delta: delta/(1 + delta),
             'subplot': 3,
+            'bounded_ST': True,
             'distname': 'Kumaraswamy(1,2)'
         },
         'Partial bypass (Kumaraswamy)':{
@@ -534,6 +557,7 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: (M(delta, -1 + i) - 2*M(delta, i) + M(delta, 1 + i))/delta,
             'pQdisc0':lambda delta: (-1 + delta + M(delta, 1))/delta,
             'subplot': 4,
+            'bounded_ST': True,
             'distname': 'Kumaraswamy(1/2,1)',
             'SASfun': lambda ST, df: clip(
                 1/((ST-df['S_m'])/(df['S_0']-df['S_m']))**0.5/2/(df['S_0']-df['S_m']), 
@@ -547,6 +571,7 @@ if __name__=="__main__":
             'pQdisc': lambda delta, i: delta/2,
             'pQdisc0':lambda delta: delta/4,
             'subplot': 5,
+            'bounded_ST': True,
             'distname': 'Kumaraswamy(1,1/2)',
             'SASfun': lambda ST, df: clip(
                 1/((df['S_0']-ST)/(df['S_0']-df['S_m']))**0.5/2/(df['S_0']-df['S_m']), 
@@ -565,6 +590,7 @@ if __name__=="__main__":
                 "args": {"a": 'a_IS', "b":1.0, "scale": "S_0", "loc": "S_m"},
             },
             'distname': 'Kumaraswamy(a,1)',
+            'bounded_ST': True,
             'SASfun': lambda ST, df: clip(
                 df['a_IS']*((ST-df['S_m'])/(df['S_0']-df['S_m']))**(df['a_IS']-1)/(df['S_0']-df['S_m']), 
             ST, df['S_m'], df['S_0'])
@@ -604,12 +630,13 @@ if __name__=="__main__":
         }
     }
 
-    n_substeps = 2
+    n_substeps = 4
     debug = False
     verbose = True
     jacobian = False
 
-    for name in ['Partial bypass (Kumaraswamy)', 'Partial piston (Kumaraswamy)', 'Uniform', 'Inverse Storage Effect']:
+    #for name in ['Inverse Storage Effect']:
+    for name in ['Partial bypass (Kumaraswamy)', 'Partial piston (Kumaraswamy)', 'Uniform', 'Inverse Storage Effect','Gamma(0.25)']:
         bm = scenarios[name]
         print(name)
         i = np.arange(timeseries_length)
@@ -632,7 +659,7 @@ if __name__=="__main__":
         model.run()
         data_df = model.data_df
 
-        F = make_transport_column_animation(model, 'Q', 'C', cmap='turbo', omega_max=0.01, ST_max=500)
+        F = make_transport_column_animation(model, 'Q', 'C', cmap='turbo', omega_max=0.01, ST_max=500, bounded_ST=bm['bounded_ST'])
         from matplotlib import animation
         F.save(f"{name}.mp4", dpi=300, writer=animation.FFMpegWriter(fps=5))
 

@@ -1,4 +1,5 @@
 build/
+misc/
 mesas.egg-info/
 dist/
 *.pyc
@@ -9,3 +10,6 @@ dist/
 /doc/_build/
 /.idea/
 /.vscode/
+examples/benchmark/Ciaran/
+examples/miniLEO
+test/test.log
