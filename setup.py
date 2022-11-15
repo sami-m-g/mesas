@@ -21,11 +21,21 @@ def add_mod_dir(ext,build_dir):
     print('The build directory is '+build_dir)
     print('Contents of next directory up:')
     print(*Path(build_dir+'/../').iterdir(), sep="\n")
+    #for i in range(5):
+    #    print('X'*72)
+    build_path = build_dir.split(os.sep)
+    #mod_dir = os.path.join(build_path[0], build_path[1].replace("src", "temp"))
+    #ext.include_dirs += [mod_dir]
+    print('Adding:')
+    all_dirs = [os.path.join(build_path[0], p) for p in os.listdir(build_dir+'/../')]
+    print(all_dirs)
+    #path = Path(build_dir+'/../')
+    #path = [p.split('/') for p in path.iterdir()]
+    #all_dir = [os.path.join(p[0], p[-1]) for p in path]
+    ext.include_dirs += all_dirs
+    #print(all_dir, sep="\n")
     for i in range(5):
         print('X'*72)
-    build_path = build_dir.split(os.sep)
-    mod_dir = os.path.join(build_path[0], build_path[1].replace("src", "temp"))
-    ext.include_dirs += [mod_dir]
     return None
 
 config = {
