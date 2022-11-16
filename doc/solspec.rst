@@ -62,11 +62,11 @@ The parameter dictionary may specify any of the following default ``key:value`` 
 
   Thus if :math:`\alpha_q^s=1` the outflow concentration of water of a given age will equal that in storage. If :math:`\alpha_q^s=0`, the solute will not be exported with outflow :math:`q`. Values of :math:`0<\alpha_q^s<1` will result in partial exclusion of the solute from the outflow, and :math:`\alpha_q^s>1` will result in preferential removal via outflow outflow :math:`q`.
 
-  The keys in the ``alpha`` dict must match keys in top level keys of ``sas_spec``. Each key may be associated with a number or a string referring to a column of partitioning coefficients in ``data_df``.
+  The keys in the ``alpha`` dict must match keys in top level keys of ``sas_specs``. Each key may be associated with a number or a string referring to a column of partitioning coefficients in ``data_df``.
   {"Q": 1., ...}   # Partitioning coefficient for flux "Q"
 
 ``observations`` (dict, default = None)
-  This dict provides the name of columns in `data_df` that contain observations that may be used to calibrate/validate the model"s predictions of outflow concentrations. Keys are outflow fluxes named in top level keys of ``sas_spec``, e.g. ``"observations":{"Q": "obs C in Q", ...}``.
+  This dict provides the name of columns in `data_df` that contain observations that may be used to calibrate/validate the model"s predictions of outflow concentrations. Keys are outflow fluxes named in top level keys of ``sas_specs``, e.g. ``"observations":{"Q": "obs C in Q", ...}``.
 
 --------------------
 Modifying parameters

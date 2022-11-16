@@ -22,15 +22,14 @@ class SAS_Spec:
             self.components[label] = Component(label, component_spec, data_df, is_only_component)
         self._componentorder = list(self.components.keys())
         self._comp2learn_componentorder = self._componentorder
+        self._data_df = data_df
 
     def make_spec_ts(self, data_df=None):
         """
         Create functions that can be called to return the CDF and inverse CDF
         """
         if data_df is None:
-            data_df = self.model_data_df
-        else:
-            self.model_data_df = data_df
+            data_df = self._data_df
 
         # Trigger the method to create interpolators
         self.N = len(data_df)

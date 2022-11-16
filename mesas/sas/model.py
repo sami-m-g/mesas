@@ -498,3 +498,66 @@ class Model:
                         else:
                             index = np.concatenate((index, this_index), axis=0)
         return np.nonzero(index)[0]
+
+    def _get_result(self, X, timestep=None, agestep=None, inputtime=None):
+        if not timestep is None:
+            # Only one can be given
+            assert agestep is None
+            assert inputtime is None
+            return X[:,timestep]
+        if not agestep is None:
+            # Only one can be given
+            assert timestep is None
+            assert inputtime is None
+            return X[agestep, :]
+        if not inputtime is None:
+            # Only one can be given
+            assert agestep is None
+            assert timestep is None
+            return np.diagonal(X, offset=inputtime)
+        return X
+
+    def get_WaterBalance(self, **kwargs):
+        X = self.result['WaterBalance']
+        return self._get_result(X, **kwargs)
+
+    def get_sT(self, **kwargs):
+        X = self.result['sT']
+        return self._get_result(X, **kwargs)
+
+    def get_pQ(self, flux, **kwargs):
+        iflux = list(self._fluxorder).index(flux)
+        X = self.result['pQ'][:,:,iflux]
+        return self._get_result(X, **kwargs)
+
+    def get_mT(self, sol, **kwargs):
+        isol = list(self._solorder).index(sol)
+        X = self.result['mT'][:,:,isol]
+        return self._get_result(X, **kwargs)
+
+    def get_CT(self, sol, **kwargs):
+        isol = list(self._solorder).index(sol)
+        sT = self._get_result(self.result['sT'], **kwargs)
+        mT = self._get_result(self.result['mT'][:,:,isol], **kwargs)
+        return np.where(sT>0, mT / sT, np.NaN)
+
+    def get_mR(self, sol, **kwargs):
+        isol = list(self._solorder).index(sol)
+        X = self.result['mR'][:,:,isol]
+        return self._get_result(X, **kwargs)
+
+    def get_SoluteBalance(self, sol, **kwargs):
+        isol = list(self._solorder).index(sol)
+        X = self.result['SoluteBalance'][:,:,isol]
+        return self._get_result(X, **kwargs)
+
+    def get_mQ(self, flux, sol, **kwargs):
+        iflux = list(self._fluxorder).index(flux)
+        isol = list(self._solorder).index(sol)
+        X = self.result['mQ'][:,:,iflux, isol]
+        return self._get_result(X, **kwargs)
+
+    def get_ST(self, **kwargs):
+        sT = self.get_sT()
+        ST = np.cumsum(sT, axis=0) * self.options['dt']
+        return self._get_result(ST, **kwargs)
