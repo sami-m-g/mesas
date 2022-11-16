@@ -13,4 +13,5 @@ dist/
 examples/benchmark/Ciaran/
 examples/miniLEO
 test/test.log
-*.orig
+/mesas/sas/cdflib90/_build/
+*.so

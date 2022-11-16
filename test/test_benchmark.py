@@ -425,8 +425,7 @@ def test_unsteady_uniform(makefigure=False, tmax=500):
     logging.info(f'Unsteady uniform error = {RMSE}')
     assert RMSE<1E-2
 
-    #if makefigure:
-    if True:
+    if makefigure:
         fig = plt.figure()
         ax = plt.subplot()
         ax.plot(data_df[f'C in --> Q'], alpha=0.3, lw=2, label="mesas")
