@@ -13,3 +13,4 @@ dist/
 examples/benchmark/Ciaran/
 examples/miniLEO
 test/test.log
+*.orig
