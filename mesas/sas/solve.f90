@@ -103,7 +103,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
     real(8) :: start, finish
     real(8), dimension(37) :: runtime
     CDFLIB90_CHECKINPUT = .true.
-    runtime = 0.
+    !runtime = 0.
 
 
 
@@ -189,9 +189,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
 
     call f_verbose('...Setting initial conditions...')
     sT_ts(0, :) = sT_init_ts
-    do s = 0, numsol - 1
-        mT_ts(0, s, :) = mT_init_ts(:, s)
-    end do
+    mT_ts(0, :, :) = mT_init_ts
 
 
     call f_verbose('...Starting main loop...')
@@ -202,16 +200,16 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
 
             iT_s = iT * n_substeps +  iT_substep
 
-            call cpu_time(start)
+            !call cpu_time(start)
             do c = 0, N - 1
                 jt_s(c) = mod(c + iT_s, N)
                 jt_substep = mod(jt_s(c), n_substeps)
                 jt(c) = (jt_s(c)-jt_substep) / n_substeps
             end do
-            call cpu_time(finish)
-            runtime(1) = runtime(1) + 1000*(finish-start)
+            !call cpu_time(finish)
+            !runtime(1) = runtime(1) + 1000*(finish-start)
 
-            call cpu_time(start)
+            !call cpu_time(start)
 
             pQ_aver  = 0
             mQ_aver  = 0
@@ -221,55 +219,33 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                 mT_start(N - iT_s, :) = mT_init_ts(iT_prev, :)
             end if
 
-            do c = 0, N - 1
-                sT_temp(c) = sT_start(c)
-            end do
-            do s = 0, numsol - 1
-                do c = 0, N - 1
-                    mT_temp(c, s) = mT_start(c, s)
-                end do
-            end do
+            sT_temp = sT_start
+            mT_temp = mT_start
 
-            call cpu_time(finish)
-            runtime(2) = runtime(2) + 1000*(finish-start)
+            !call cpu_time(finish)
+            !runtime(2) = runtime(2) + 1000*(finish-start)
 
             if (jacobian) then
-                call cpu_time(start)
+                !call cpu_time(start)
                 fs_aver  = 0
                 fsQ_aver = 0
                 fm_aver  = 0
                 fmQ_aver = 0
                 fmR_aver = 0
-                call cpu_time(finish)
-                runtime(3) = runtime(3) + 1000*(finish-start)
+                !call cpu_time(finish)
+                !runtime(3) = runtime(3) + 1000*(finish-start)
                 if (iT_s>0) then
-                    call cpu_time(start)
-                    do ip = 0, numargs_total - 1
-                        ds_start( N - iT_s, ip) = 0.
-                    end do
-                    do ip = 0, numargs_total - 1
-                        do s = 0, numsol - 1
-                            dm_start( N - iT_s, ip, s) = 0.
-                        end do
-                    end do
-                    call cpu_time(finish)
-                    runtime(4) = runtime(4) + 1000*(finish-start)
+                    !call cpu_time(start)
+                    ds_start( N - iT_s, :) = 0.
+                    dm_start( N - iT_s, :, :) = 0.
+                    !call cpu_time(finish)
+                    !runtime(4) = runtime(4) + 1000*(finish-start)
                 end if
-                call cpu_time(start)
-                do ip = 0, numargs_total - 1
-                    do c = 0, N - 1
-                        ds_temp(c, ip) = ds_start(c, ip)
-                    end do
-                end do
-                do s = 0, numsol - 1
-                    do ip = 0, numargs_total - 1
-                        do c = 0, N - 1
-                            dm_temp(c, ip, s) = dm_start(c, ip, s)
-                        end do
-                    end do
-                end do
-                call cpu_time(finish)
-                runtime(5) = runtime(5) + 1000*(finish-start)
+                !call cpu_time(start)
+                ds_temp = ds_start
+                dm_temp = dm_start
+                !call cpu_time(finish)
+                !runtime(5) = runtime(5) + 1000*(finish-start)
             end if
 
 
@@ -285,89 +261,51 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                 call f_debug('NEW STATE rk           ', (/rk*one8, iT_s*one8/))
                 call f_debug('pQ_temp                ', pQ_temp(:, 0))
                 call f_debug('sT_temp 0              ', sT_temp(:))
-                call cpu_time(start)
-                do c = 0, N - 1
-                    sT_temp(c) = sT_start(c) ! Initial value
-                end do
-                do s = 0, numsol - 1
-                    do c = 0, N - 1
-                        mT_temp(c, s) = mT_start(c, s) + mR_temp(c, s) * hr ! Initial value + reaction
-                    end do
-                end do
-                call cpu_time(finish)
+                !call cpu_time(start)
+                sT_temp = sT_start ! Initial value
+                mT_temp = mT_start + mR_temp * hr ! Initial value + reaction
+                !call cpu_time(finish)
                 call f_debug('sT_temp 1              ', sT_temp(:))
-                runtime(6) = runtime(6) + 1000*(finish-start)
-                call cpu_time(start)
+                !runtime(6) = runtime(6) + 1000*(finish-start)
+                !call cpu_time(start)
                 ! Fluxes in & out
                 if (iT_s == 0) then
-                    call cpu_time(start)
+                    !call cpu_time(start)
                     do c = 0, N - 1
                         sT_temp(c) = sT_temp(c) + J_ts(jt(c)) * hr / h
-                    end do
-                    do s = 0, numsol - 1
-                        do c = 0, N - 1
-                            mT_temp(c, s) = mT_temp(c, s) + J_ts(jt(c)) * C_J_ts(jt(c), s) * (hr/h)
-                        end do
+                        mT_temp(c, :) = mT_temp(c, :) + J_ts(jt(c)) * C_J_ts(jt(c), :) * (hr/h)
                     end do
                     call f_debug('sT_temp 2              ', sT_temp(:))
-                    call cpu_time(finish)
-                    runtime(7) = runtime(7) + 1000*(finish-start)
+                    !call cpu_time(finish)
+                    !runtime(7) = runtime(7) + 1000*(finish-start)
                 end if
-                call cpu_time(start)
+                !call cpu_time(start)
                 do iq = 0, numflux - 1
                     do c = 0, N - 1
                         sT_temp(c) = sT_temp(c) - Q_ts(jt(c), iq) * pQ_temp(c, iq) * hr
+                        mT_temp(c, :) = mT_temp(c, :) - mQ_temp( c, iq, :) * hr
                         if (sT_temp(c)<0) then
                             call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
                         end if
                     end do
                 end do
-                do s = 0, numsol - 1
-                    do iq = 0, numflux - 1
-                        do c = 0, N - 1
-                            mT_temp(c, s) = mT_temp(c, s) - mQ_temp( c, iq, s) * hr
-                        end do
-                    end do
-                end do
-                call cpu_time(finish)
+                !call cpu_time(finish)
                 call f_debug('sT_temp 3              ', sT_temp(:))
-                runtime(8) = runtime(8) + 1000*(finish-start)
+                !runtime(8) = runtime(8) + 1000*(finish-start)
                 if (jacobian) then
                     ! Calculate new parameter sensitivity
-                    call cpu_time(start)
+                    !call cpu_time(start)
                     do iq = 0, numflux - 1
-                        do ip = 0, numargs_total - 1
-                            do c = 0, N - 1
-                                ds_temp(c, ip) = ds_start(c, ip) - fsQ_temp(c, ip, iq) * hr
-                            end do
-                        end do
+                        ds_temp = ds_start - fsQ_temp(:, :, iq) * hr
+                        dm_temp = dm_start - fmQ_temp(:, :, iq, :) * hr
                     end do
-                    do s = 0, numsol - 1
-                        do iq = 0, numflux - 1
-                            do ip = 0, numargs_total - 1
-                                do c = 0, N - 1
-                                    dm_temp(c, ip, s) = dm_start(c, ip, s) - fmQ_temp(c, ip, iq, s) * hr
-                                end do
-                            end do
-                        end do
-                    end do
-                    call cpu_time(finish)
-                    runtime(9) = runtime(9) + 1000*(finish-start)
-                    call cpu_time(start)
-                    do ip = 0, numargs_total - 1
-                        do c = 0, N - 1
-                            ds_temp(c, ip) = ds_temp(c, ip) - fs_temp(c, ip) * hr
-                        end do
-                    end do
-                    do s = 0, numsol - 1
-                        do ip = 0, numargs_total - 1
-                            do c = 0, N - 1
-                                dm_temp(c, ip, s) = dm_temp(c, ip, s) - fm_temp(c, ip, s) * hr - fmR_temp(c, ip, s) * hr
-                            end do
-                        end do
-                    end do
-                    call cpu_time(finish)
-                    runtime(10) = runtime(10) + 1000*(finish-start)
+                    !call cpu_time(finish)
+                    !runtime(9) = runtime(9) + 1000*(finish-start)
+                    !call cpu_time(start)
+                    ds_temp = ds_temp - fs_temp * hr
+                    dm_temp = dm_temp - fm_temp * hr - fmR_temp * hr
+                    !call cpu_time(finish)
+                    !runtime(10) = runtime(10) + 1000*(finish-start)
                 end if
                 ! ########################## ^^ NEW STATE ^^ ##########################
             end if
@@ -379,7 +317,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                 ! ########################## vv GET FLUX vv ##########################
                 ! First get the cumulative age-ranked storage
                 if ((iT_s==0).and.(hr==0)) then
-                    call cpu_time(start)
+                    !call cpu_time(start)
                     STcum_top = 0
                     PQcum_top = 0
                     leftbreakpt_top = -1
@@ -387,50 +325,44 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                     PQcum_bot = 0
                     leftbreakpt_bot = -1
                     pQ_temp = 0
-                    call cpu_time(finish)
-                    runtime(11) = runtime(11) + 1000*(finish-start)
+                    !call cpu_time(finish)
+                    !runtime(11) = runtime(11) + 1000*(finish-start)
                 else
                     if (iT_s==0) then
-                        call cpu_time(start)
+                        !call cpu_time(start)
                         STcum_top = 0
-                        do c = 0, N - 1
-                            STcum_bot(c) = STcum_top(c) + sT_temp(c) * hr
-                        end do
-                        call cpu_time(finish)
-                        runtime(12) = runtime(12) + 1000*(finish-start)
+                        STcum_bot = STcum_top + sT_temp * hr
+                        !call cpu_time(finish)
+                        !runtime(12) = runtime(12) + 1000*(finish-start)
                     else
-                        call cpu_time(start)
+                        !call cpu_time(start)
                         do c = 0, N - 1
                             STcum_top(c) = STcum_top_start(jt_s(c)) * (1-hr/h) + STcum_bot_start(jt_s(c)+1) * (hr/h)
-                            STcum_bot(c) = STcum_top(c) + sT_temp(c) * h
                         end do
-                        call cpu_time(finish)
-                        runtime(13) = runtime(13) + 1000*(finish-start)
+                        STcum_bot = STcum_top + sT_temp * h
+                        !call cpu_time(finish)
+                        !runtime(13) = runtime(13) + 1000*(finish-start)
                     end if
 
-                    call cpu_time(start)
+                    !call cpu_time(start)
                     PQcum_top = 0
                     PQcum_bot = 0
-                    call cpu_time(finish)
-                    runtime(14) = runtime(14) + 1000*(finish-start)
+                    !call cpu_time(finish)
+                    !runtime(14) = runtime(14) + 1000*(finish-start)
                     do topbot = 0, 1
                         ! Main lookup loop
                         if (topbot==0) then
-                            call cpu_time(start)
-                            do c = 0, N - 1
-                                STcum_in(c) = STcum_top(c)
-                            end do
-                            call cpu_time(finish)
-                            runtime(15) = runtime(15) + 1000*(finish-start)
+                            !call cpu_time(start)
+                            STcum_in = STcum_top
+                            !call cpu_time(finish)
+                            !runtime(15) = runtime(15) + 1000*(finish-start)
                         else
-                            call cpu_time(start)
-                            do c = 0, N - 1
-                            STcum_in(c) = STcum_bot(c)
-                            end do
-                            call cpu_time(finish)
-                            runtime(16) = runtime(16) + 1000*(finish-start)
+                            !call cpu_time(start)
+                            STcum_in = STcum_bot
+                            !call cpu_time(finish)
+                            !runtime(16) = runtime(16) + 1000*(finish-start)
                         end if
-                        call cpu_time(start)
+                        !call cpu_time(start)
                         do iq = 0, numflux - 1
                             do ic = component_index_list(iq), component_index_list(iq+1) - 1
                                 if (component_type(ic)==-1) then
@@ -543,44 +475,36 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                 endif
                             enddo
                         end do
-                        call cpu_time(finish)
-                        runtime(17) = runtime(17) + 1000*(finish-start)
+                        !call cpu_time(finish)
+                        !runtime(17) = runtime(17) + 1000*(finish-start)
                     end do
 
                     if (iT_s==0) then
-                        call cpu_time(start)
-                        do iq = 0, numflux - 1
-                            do c = 0, N - 1
-                                pQ_temp(c, iq) = (PQcum_bot(c, iq) - PQcum_top(c, iq)) / hr
-                            end do
-                        end do
-                        call cpu_time(finish)
-                        runtime(18) = runtime(18) + 1000*(finish-start)
+                        !call cpu_time(start)
+                        pQ_temp = (PQcum_bot - PQcum_top) / hr
+                        !call cpu_time(finish)
+                        !runtime(18) = runtime(18) + 1000*(finish-start)
                     else
-                        call cpu_time(start)
-                        do iq = 0, numflux - 1
-                            do c = 0, N - 1
-                                pQ_temp(c, iq) = (PQcum_bot(c, iq) - PQcum_top(c, iq)) / h
-                            end do
-                        end do
-                        call cpu_time(finish)
-                        runtime(19) = runtime(19) + 1000*(finish-start)
+                        !call cpu_time(start)
+                        pQ_temp = (PQcum_bot - PQcum_top) / h
+                        !call cpu_time(finish)
+                        !runtime(19) = runtime(19) + 1000*(finish-start)
                     end if
                 end if
 
-                call cpu_time(start)
+                !call cpu_time(start)
                 do iq = 0, numflux - 1
                     where (sT_temp==0)
                         pQ_temp( :, iq) = 0
                     end where
                 end do
-                call cpu_time(finish)
-                runtime(20) = runtime(20) + 1000*(finish-start)
+                !call cpu_time(finish)
+                !runtime(20) = runtime(20) + 1000*(finish-start)
 
                 ! Solute mass flux accounting
 
                 ! Get the mass flux out
-                call cpu_time(start)
+                !call cpu_time(start)
                 do iq = 0, numflux - 1
                     do s = 0, numsol - 1
                         do c = 0, N - 1
@@ -595,27 +519,25 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                         end do
                     enddo
                 enddo
-                call cpu_time(finish)
-                runtime(21) = runtime(21) + 1000*(finish-start)
+                !call cpu_time(finish)
+                !runtime(21) = runtime(21) + 1000*(finish-start)
 
                 ! Reaction mass accounting
                 ! If there are first-order reactions, get the total mass rate
-                call cpu_time(start)
-                do s = 0, numsol - 1
-                    do c = 0, N - 1
-                        mR_temp(c, s) = k1_ts(jt(c), s) * (C_eq_ts(jt(c), s) * sT_temp(c) - mT_temp(c, s))
-                    end do
+                !call cpu_time(start)
+                do c = 0, N - 1
+                    mR_temp(c, :) = k1_ts(jt(c), :) * (C_eq_ts(jt(c), :) * sT_temp(c) - mT_temp(c, :))
                 end do
-                call cpu_time(finish)
-                runtime(22) = runtime(22) + 1000*(finish-start)
+                !call cpu_time(finish)
+                !runtime(22) = runtime(22) + 1000*(finish-start)
 
                 if (jacobian) then
-                    call cpu_time(start)
+                    !call cpu_time(start)
                     fs_temp = 0.
                     fsQ_temp = 0.
-                    call cpu_time(finish)
-                    runtime(23) = runtime(23) + 1000*(finish-start)
-                    call cpu_time(start)
+                    !call cpu_time(finish)
+                    !runtime(23) = runtime(23) + 1000*(finish-start)
+                    !call cpu_time(start)
                     do c = 0, N - 1
                         if (sT_temp(c)>0) then
                             do iq = 0, numflux - 1
@@ -624,9 +546,9 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                             end do
                         end if
                     end do
-                    call cpu_time(finish)
-                    runtime(24) = runtime(24) + 1000*(finish-start)
-                    call cpu_time(start)
+                    !call cpu_time(finish)
+                    !runtime(24) = runtime(24) + 1000*(finish-start)
+                    !call cpu_time(start)
                     do iq = 0, numflux - 1
                         do ic = component_index_list(iq), component_index_list(iq+1) - 1
                             do c = 0, N - 1
@@ -679,14 +601,14 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                             end do
                         end do
                     end do
-                    call cpu_time(finish)
-                    runtime(25) = runtime(25) + 1000*(finish-start)
-                    call cpu_time(start)
+                    !call cpu_time(finish)
+                    !runtime(25) = runtime(25) + 1000*(finish-start)
+                    !call cpu_time(start)
                     fm_temp = 0
                     fmQ_temp = 0
-                    call cpu_time(finish)
-                    runtime(26) = runtime(26) + 1000*(finish-start)
-                    call cpu_time(start)
+                    !call cpu_time(finish)
+                    !runtime(26) = runtime(26) + 1000*(finish-start)
+                    !call cpu_time(start)
                     do s = 0, numsol - 1
                         do iq = 0, numflux - 1
                             do ip = 0, numargs_total - 1
@@ -708,9 +630,9 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                             end do
                         end do
                     end do
-                    call cpu_time(finish)
-                    runtime(27) = runtime(27) + 1000*(finish-start)
-                    call cpu_time(start)
+                    !call cpu_time(finish)
+                    !runtime(27) = runtime(27) + 1000*(finish-start)
+                    !call cpu_time(start)
                     do iq = 0, numflux - 1
                         do ic = component_index_list(iq), component_index_list(iq+1) - 1
                             do c = 0, N - 1
@@ -756,66 +678,28 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                     end do
                                 end if
                             end do
-                            call cpu_time(finish)
-                            runtime(28) = runtime(28) + 1000*(finish-start)
+                            !call cpu_time(finish)
+                            !runtime(28) = runtime(28) + 1000*(finish-start)
                         end do
                     end do
                 end if
                 ! ########################## ^^ GET FLUX ^^ ##########################
 
-                call cpu_time(start)
-                do iq = 0, numflux - 1
-                    do c = 0, N - 1
-                        pQ_aver(c, iq)  = pQ_aver(c, iq)  + rk_coeff(rk) * pQ_temp(c, iq)
-                    end do
-                end do
-                do s = 0, numsol - 1
-                    do iq = 0, numflux - 1
-                        do c = 0, N - 1
-                            mQ_aver(c, iq, s)  = mQ_aver(c, iq, s)  + rk_coeff(rk) * mQ_temp(c, iq, s)
-                        end do
-                    end do
-                end do
-                do s = 0, numsol - 1
-                    do c = 0, N - 1
-                        mR_aver(c, s)  = mR_aver(c, s)  + rk_coeff(rk) * mR_temp(c, s)
-                    end do
-                end do
-                call cpu_time(finish)
-                runtime(29) = runtime(29) + 1000*(finish-start)
+                !call cpu_time(start)
+                pQ_aver  = pQ_aver  + rk_coeff(rk) * pQ_temp
+                mQ_aver  = mQ_aver  + rk_coeff(rk) * mQ_temp
+                mR_aver  = mR_aver  + rk_coeff(rk) * mR_temp
+                !call cpu_time(finish)
+                !runtime(29) = runtime(29) + 1000*(finish-start)
                 if (jacobian) then
-                    call cpu_time(start)
-                    do ip = 0, numargs_total - 1
-                        do c = 0, N - 1
-                            fs_aver  (c, ip)= fs_aver(c, ip)+ rk_coeff(rk) * fs_temp(c, ip)
-                        end do
-                    end do
-                    do iq = 0, numflux - 1
-                        do ip = 0, numargs_total - 1
-                            do c = 0, N - 1
-                                fsQ_aver (c, ip, iq)= fsQ_aver(c, ip, iq)+ rk_coeff(rk) * fsQ_temp(c, ip, iq)
-                            end do
-                        end do
-                    end do
-                    do s = 0, numsol - 1
-                        do ip = 0, numargs_total - 1
-                            do c = 0, N - 1
-                                fm_aver  (c, ip, s)= fm_aver(c, ip, s)+ rk_coeff(rk) * fm_temp(c, ip, s)
-                                fmR_aver (c, ip, s)= fmR_aver(c, ip, s)+ rk_coeff(rk) * fmR_temp(c, ip, s)
-                            end do
-                        end do
-                    end do
-                    do s = 0, numsol - 1
-                        do iq = 0, numflux - 1
-                            do ip = 0, numargs_total - 1
-                                do c = 0, N - 1
-                                    fmQ_aver (c, ip, iq, s)= fmQ_aver(c, ip, iq, s)+ rk_coeff(rk) * fmQ_temp(c, ip, iq, s)
-                                end do
-                            end do
-                        end do
-                    end do
-                    call cpu_time(finish)
-                    runtime(30) = runtime(30) + 1000*(finish-start)
+                    !call cpu_time(start)
+                    fs_aver  = fs_aver+ rk_coeff(rk) * fs_temp
+                    fsQ_aver = fsQ_aver+ rk_coeff(rk) * fsQ_temp
+                    fm_aver  = fm_aver+ rk_coeff(rk) * fm_temp
+                    fmR_aver = fmR_aver+ rk_coeff(rk) * fmR_temp
+                    fmQ_aver = fmQ_aver+ rk_coeff(rk) * fmQ_temp
+                    !call cpu_time(finish)
+                    !runtime(30) = runtime(30) + 1000*(finish-start)
                 end if
 
                 call f_debug('pQ_temp end            ', pQ_temp(:, 0))
@@ -824,7 +708,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                 if (rk==4) then
                     call f_debug('FINALIZE  rk           ', (/rk*one8, iT_s*one8/))
                     ! zero out the probabilities if there is no outflux this timestep
-                    call cpu_time(start)
+                    !call cpu_time(start)
                     do iq = 0, numflux - 1
                         do c = 0, N - 1
                             if (Q_ts( jt(c), iq)==0) then
@@ -833,39 +717,23 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                             end if
                         end do
                     end do
-                    call cpu_time(finish)
-                    runtime(31) = runtime(31) + 1000*(finish-start)
-                    call cpu_time(start)
+                    !call cpu_time(finish)
+                    !runtime(31) = runtime(31) + 1000*(finish-start)
+                    !call cpu_time(start)
                     pQ_temp  = pQ_aver
                     mQ_temp  = mQ_aver
                     mR_temp  = mR_aver
-                    call cpu_time(finish)
-                    runtime(32) = runtime(32) + 1000*(finish-start)
+                    !call cpu_time(finish)
+                    !runtime(32) = runtime(32) + 1000*(finish-start)
                     if (jacobian) then
-                        call cpu_time(start)
-                        do c = 0, N - 1
-                            do ip = 0, numargs_total - 1
-                                fs_temp(c, ip)  = fs_aver(c, ip)
-                            end do
-                            do iq = 0, numflux - 1
-                                do ip = 0, numargs_total - 1
-                                    fsQ_temp(c, ip, iq) = fsQ_aver(c, ip, iq)
-                                end do
-                            end do
-                            do s = 0, numsol - 1
-                                do ip = 0, numargs_total - 1
-                                    fm_temp(c, ip, s)  = fm_aver(c, ip, s)
-                                    fmR_temp(c, ip, s) = fmR_aver(c, ip, s)
-                                end do
-                                do iq = 0, numflux - 1
-                                    do ip = 0, numargs_total - 1
-                                        fmQ_temp(c, ip, iq, s) = fmQ_aver(c, ip, iq, s)
-                                    end do
-                                end do
-                            end do
-                        end do
-                        call cpu_time(finish)
-                        runtime(33) = runtime(33) + 1000*(finish-start)
+                        !call cpu_time(start)
+                        fs_temp  = fs_aver
+                        fsQ_temp = fsQ_aver
+                        fm_temp  = fm_aver
+                        fmR_temp = fmR_aver
+                        fmQ_temp = fmQ_aver
+                        !call cpu_time(finish)
+                        !runtime(33) = runtime(33) + 1000*(finish-start)
                     end if
                 call f_debug('pQ_aver                ', pQ_aver( :, 0))
                 end if
@@ -873,20 +741,20 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
             call f_debug_blank()
 
             ! Update the state with the new estimates
-            call cpu_time(start)
+            !call cpu_time(start)
             sT_start = sT_temp
             mT_start = mT_temp
-            call cpu_time(finish)
-            runtime(34) = runtime(34) + 1000*(finish-start)
+            !call cpu_time(finish)
+            !runtime(34) = runtime(34) + 1000*(finish-start)
             if (jacobian) then
-                call cpu_time(start)
+                !call cpu_time(start)
                 ds_start = ds_temp
                 dm_start = dm_temp
-                call cpu_time(finish)
-                runtime(35) = runtime(35) + 1000*(finish-start)
+                !call cpu_time(finish)
+                !runtime(35) = runtime(35) + 1000*(finish-start)
             end if
             ! Aggregate data from substep to timestep
-            call cpu_time(start)
+            !call cpu_time(start)
             STcum_top_start(0) = STcum_bot_start(0)
             STcum_bot_start(0) = STcum_bot_start(0) + sT_init_ts(iT) * h
             do c = 0, N - 1
@@ -936,31 +804,22 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                         enddo
                     end if
 
-                    ! Extract substep state at timesteps
-                    ! age-ranked storage at the end of the timestep
                     if (jt_substep==n_substeps-1) then
+                        ! Extract substep state at timesteps
+                        ! age-ranked storage at the end of the timestep
                         sT_ts(jt_i+1, iT) = sT_ts(jt_i+1, iT) + sT_start(c) / n_substeps
+                        ! Age-ranked solute mass
+                        mT_ts(jt_i+1, :, iT) = mT_ts(jt_i+1, :, iT) + mT_start(c,  :) / n_substeps
                         ! parameter sensitivity
                         if (jacobian) then
-                            do ip = 0, numargs_total - 1
-                                ds_ts(jt_i+1, ip, iT) = ds_ts(jt_i+1, ip, iT) + ds_start(c, ip) / n_substeps
-                            enddo
+                            ds_ts(jt_i+1, :, iT) = ds_ts(jt_i+1, :, iT) + ds_start(c, :) / n_substeps
+                            dm_ts(jt_i+1, :, :, iT) = dm_ts(jt_i+1, :, :, iT) + dm_start(c, :, :) / n_substeps
                         end if
-                        ! Age-ranked solute mass
-                        do s = 0, numsol - 1
-                            mT_ts(jt_i+1, s, iT) = mT_ts(jt_i+1, s, iT) + mT_start(c,  s) / n_substeps
-                            ! parameter sensitivity
-                            if (jacobian) then
-                                do ip = 0, numargs_total - 1
-                                    dm_ts(jt_i+1, ip, s, iT) = dm_ts(jt_i+1, ip, s, iT) + dm_start(c, ip, s) / n_substeps
-                                enddo
-                            end if
-                        enddo
                     end if
                 enddo
             enddo
-            call cpu_time(finish)
-            runtime(36) = runtime(36) + 1000*(finish-start)
+            !call cpu_time(finish)
+            !runtime(36) = runtime(36) + 1000*(finish-start)
 
             call f_debug('sT_ts(iT, :)     ', sT_ts(iT, :))
             call f_debug('pQ_aver0         ', pQ_aver(0,:))
@@ -978,9 +837,9 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
             call f_verbose(tempdebugstring)
         endif
     enddo
-    call cpu_time(start)
-    call cpu_time(finish)
-    runtime(37) = runtime(37) + 1000*(finish-start)
+    !call cpu_time(start)
+    !call cpu_time(finish)
+    !runtime(37) = runtime(37) + 1000*(finish-start)
     !do i = 1, 37
         !print '("Time for section ",i2," = :",f10.0,": milliseconds")', i, runtime(i)
     !end do
