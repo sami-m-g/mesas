@@ -12,7 +12,7 @@ import pandas as pd
 import json
 
 import numpy as np
-from solve import solvesas as solve
+from .solve import solvesas as solve
 
 dtype = np.float64
 
