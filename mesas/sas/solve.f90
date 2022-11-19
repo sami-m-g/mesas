@@ -81,6 +81,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
    real(8), dimension(0:timeseries_length*n_substeps - 1) :: STcum_in
    integer, dimension(0:timeseries_length*n_substeps - 1) :: jt
    integer, dimension(0:timeseries_length*n_substeps - 1) :: jt_s
+   real(8), dimension(0:timeseries_length - 1, 0:numargs_total - 1) :: grad
    integer :: iT_substep, iT, iT_s, iT_prev, jt_substep, jt_i
    real(8) :: one8, norm
    real(8) :: dS, dP, dSe, dPe, dSs, dPs
@@ -98,7 +99,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
    integer :: na
    integer :: ia
    integer :: i
-   real(8) :: dif, grad
+   real(8) :: dif
    logical :: foundit
    real(8) :: start, finish
    real(8), dimension(37) :: runtime
@@ -172,6 +173,19 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
    end do
    call f_debug('args_index_list', one8*args_index_list(:))
 
+
+   do iq = 0, numflux - 1
+      do ic = component_index_list(iq), component_index_list(iq + 1) - 1
+         if (component_type(ic) == -1) then
+            do ia = 0, numargs_list(ic) - 1
+               grad(:, args_index_list(ic) + ia) = &
+               (P_list(:, args_index_list(ic) + ia + 1) - P_list(:, args_index_list(ic) + ia)) &
+               /(SAS_args(:, args_index_list(ic) + ia + 1) - SAS_args(:, args_index_list(ic) + ia))
+            end do
+         end if
+      end do
+   end do
+      
    ! modify the number of ages and the timestep by a facotr of n_substeps
    M = max_age*n_substeps
    N = timeseries_length*n_substeps
@@ -333,11 +347,8 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                           ia = na - 1
                                        else
                                           dif = STcum_in(c) - SAS_args(jt(c), args_index_list(ic) + ia)
-                                          grad = (P_list(jt(c), args_index_list(ic) + ia + 1) &
-                                                - P_list(jt(c), args_index_list(ic) + ia)) &
-                                                /(SAS_args(jt(c), args_index_list(ic) + ia + 1) &
-                                                   - SAS_args(jt(c), args_index_list(ic) + ia))
-                                          PQcum_component = P_list(jt(c), args_index_list(ic) + ia) + dif*grad
+                                          PQcum_component = P_list(jt(c), args_index_list(ic) + ia) &
+                                                            + dif*grad(jt(c), args_index_list(ic) + ia)
                                        end if
                                        if (topbot == 0) then
                                           PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt(c), ic)*PQcum_component

@@ -22,9 +22,8 @@ setup(
             sources=["mesas/sas/solve.f90"],
             include_dirs=[str(CDFLIB_MODULE_DIR)],
             library_dirs=[str(CDFLIB_MODULE_DIR), str(CDFLIB_BUILD_DIR)],
-            libraries=CDFLIB_MODULES
+            libraries=CDFLIB_MODULES,
+            extra_f90_compile_args=["-Ofast", "-fno-stack-arrays", "-g"],
         )
     ]
 )
-
-            #extra_f90_compile_args=["-Ofast", "-fno-stack-arrays", "-pg","-O"], extra_link_args=["-pg", "-O"],f2py_options=['-pg','-O']

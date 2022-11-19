@@ -8,7 +8,7 @@ import logging
 
 from mesas.sas.model import Model
 #from scipy.stats import gamma, beta
-#from scipy.special import lambertw
+from scipy.special import lambertw
 #%%
 logging.basicConfig(filename='test.log', level=logging.INFO)
 
@@ -144,7 +144,7 @@ def test_steady(makefigure=False):
     S_m = 1 * Q_0
     n_substeps = 1
     debug = False
-    verbose = False
+    verbose = True
     jacobian = False
 
     data_df = pd.DataFrame(index=range(timeseries_length))
