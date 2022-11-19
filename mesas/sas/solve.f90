@@ -253,28 +253,24 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                call f_debug('sT_temp 1              ', sT_temp(:))
                ! Fluxes in & out
                if (iT_s == 0) then
-                  do c = 0, N - 1
+                  do concurrent (c = 0: N - 1)
                      sT_temp(c) = sT_temp(c) + J_ts(jt(c))*hr/h
                      mT_temp(c, :) = mT_temp(c, :) + J_ts(jt(c))*C_J_ts(jt(c), :)*(hr/h)
                   end do
                   call f_debug('sT_temp 2              ', sT_temp(:))
                end if
-               do iq = 0, numflux - 1
-                  do c = 0, N - 1
-                     sT_temp(c) = sT_temp(c) - Q_ts(jt(c), iq)*pQ_temp(c, iq)*hr
-                     mT_temp(c, :) = mT_temp(c, :) - mQ_temp(c, iq, :)*hr
-                     if (sT_temp(c) < 0) then
-                        call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
-                     end if
-                  end do
+               do concurrent (c = 0: N - 1)
+                  sT_temp(c) = sT_temp(c) - sum(Q_ts(jt(c), :)*pQ_temp(c, :))*hr
+                  !if (sT_temp(c) < 0) then
+                  !   call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
+                  !end if
                end do
+               mT_temp = mT_temp - sum(mQ_temp,dim=2)*hr
                call f_debug('sT_temp 3              ', sT_temp(:))
                if (jacobian) then
                   ! Calculate new parameter sensitivity
-                  do iq = 0, numflux - 1
-                     ds_temp = ds_start - fsQ_temp(:, :, iq)*hr
-                     dm_temp = dm_start - fmQ_temp(:, :, iq, :)*hr
-                  end do
+                  ds_temp = ds_start - sum(fsQ_temp, dim=3)*hr
+                  dm_temp = dm_start - sum(fmQ_temp, dim=3)*hr
                   ds_temp = ds_temp - fs_temp*hr
                   dm_temp = dm_temp - fm_temp*hr - fmR_temp*hr
                end if
@@ -300,7 +296,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                      STcum_top = 0
                      STcum_bot = STcum_top + sT_temp*hr
                   else
-                     do c = 0, N - 1
+                     do concurrent (c = 0: N - 1)
                         STcum_top(c) = STcum_top_start(jt_s(c))*(1 - hr/h) + STcum_bot_start(jt_s(c) + 1)*(hr/h)
                      end do
                      STcum_bot = STcum_top + sT_temp*h
@@ -319,7 +315,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                         do ic = component_index_list(iq), component_index_list(iq + 1) - 1
                            if (component_type(ic) == -1) then
                               ! Piecewise
-                              do c = 0, N - 1
+                              do concurrent (c = 0: N - 1)
                                  if (sT_temp(c)>0) then
                                     if (STcum_in(c) .le. SAS_args(jt(c), args_index_list(ic))) then
                                        if (topbot == 0) then
@@ -414,7 +410,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                               end do
                            elseif (component_type(ic) == 3) then
                               !kumaraswamy distribution
-                              do c = 0, N - 1
+                              do concurrent (c = 0: N - 1)
                                  if (sT_temp(c)>0) then
                                     loc = SAS_args(jt(c), args_index_list(ic) + 0)
                                     scale = SAS_args(jt(c), args_index_list(ic) + 1)
@@ -449,27 +445,17 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                end do
 
                ! Solute mass flux accounting
-
-               ! Get the mass flux out
-               do iq = 0, numflux - 1
-                  do s = 0, numsol - 1
-                     do c = 0, N - 1
-                        if (sT_temp(c) > 0) then
-                           mQ_temp(c, iq, s) = mT_temp(c, s)*alpha_ts(jt(c), iq, s)*Q_ts(jt(c), iq) &
-                                               *pQ_temp(c, iq)/sT_temp(c)
-
-                           ! unless there is nothing in storage
-                        else
-                           mQ_temp(c, iq, s) = 0.
-                        end if
-                     end do
-                  end do
+               mQ_temp = 0.
+               do concurrent (s = 0: numsol - 1, iq = 0: numflux - 1, c = 0: N - 1, sT_temp(c) .gt. 0)
+                  ! Get the mass flux out
+                  mQ_temp(c, iq, s) = mT_temp(c, s)*alpha_ts(jt(c), iq, s)*Q_ts(jt(c), iq) &
+                                       *pQ_temp(c, iq)/sT_temp(c)
                end do
 
                ! Reaction mass accounting
                ! If there are first-order reactions, get the total mass rate
-               do c = 0, N - 1
-                  mR_temp(c, :) = k1_ts(jt(c), :)*(C_eq_ts(jt(c), :)*sT_temp(c) - mT_temp(c, :))
+               do concurrent (s = 0: numsol - 1, c = 0: N - 1, k1_ts(jt(c), s) .gt. 0)
+                  mR_temp(c, s) = k1_ts(jt(c), s)*(C_eq_ts(jt(c), s)*sT_temp(c) - mT_temp(c, s))
                end do
 
                if (jacobian) then
@@ -631,13 +617,9 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
             if (rk == 4) then
                call f_debug('FINALIZE  rk           ', (/rk*one8, iT_s*one8/))
                ! zero out the probabilities if there is no outflux this timestep
-               do iq = 0, numflux - 1
-                  do c = 0, N - 1
-                     if (Q_ts(jt(c), iq) == 0) then
+               do concurrent(iq = 0: numflux - 1, c = 0: N - 1, Q_ts(jt(c), iq) == 0)
                         pQ_aver(c, iq) = 0.
                         mQ_aver(c, iq, :) = 0.
-                     end if
-                  end do
                end do
                pQ_temp = pQ_aver
                mQ_temp = mQ_aver
@@ -672,7 +654,6 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
          do jt_i = 0, timeseries_length - 1
             do jt_substep = 0, n_substeps - 1
                c = mod(N + jt_i*n_substeps + jt_substep - iT_s, N)
-               !print *, c, jt_i, jt(c), jt_i * n_substeps + jt_substep, jt_s(c)
                if (jt_substep < iT_substep) then
                   if (iT < max_age - 1) then
                      pQ_ts(jt_i, :, iT + 1) = pQ_ts(jt_i, :, iT + 1) + pQ_aver(c, :)*norm
