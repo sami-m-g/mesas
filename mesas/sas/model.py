@@ -400,6 +400,10 @@ class Model:
         n_substeps = self.options['n_substeps']
         max_age = self.options['max_age']
 
+        # Enforce max_age
+        sT_init = sT_init[:max_age]
+        mT_init = mT_init[:max_age, :]
+
         # call the Fortran code
         fresult = solve(
             J, Q, SAS_args, P_list, weights,
