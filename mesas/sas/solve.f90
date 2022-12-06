@@ -196,6 +196,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
    mT_ts(0, :, :) = mT_init_ts
 
    call f_verbose('...Starting main loop...')
+   ! Loop over ages
    do iT = 0, max_age - 1
 
       ! Start the substep loop
@@ -207,6 +208,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
          do c = 0, N - 1
             jt_s(c) = mod(c + iT_s, N)
             jt_substep = mod(jt_s(c), n_substeps)
+            ! jt(c) maps characteristic index c to the timestep it is currently intersecting
             jt(c) = (jt_s(c) - jt_substep)/n_substeps
          end do
          !!call cpu_time(finish)
@@ -306,6 +308,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                   PQcum_bot = 0
                   do topbot = 0, 1
                      ! Main lookup loop
+                     ! This is where we calculate the SAS functions
                      if (topbot == 0) then
                         STcum_in = STcum_top
                      else
@@ -314,7 +317,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                      do iq = 0, numflux - 1
                         do ic = component_index_list(iq), component_index_list(iq + 1) - 1
                            if (component_type(ic) == -1) then
-                              ! Piecewise
+                              ! Piecewise SAS function
                               do concurrent (c = 0: N - 1)
                                  if (sT_temp(c)>0) then
                                     if (STcum_in(c) .le. SAS_args(jt(c), args_index_list(ic))) then
@@ -600,6 +603,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                end if
                ! ########################## ^^ GET FLUX ^^ ##########################
 
+               ! Average the rates of change using weights according to Runge-Kutta algorithm
                pQ_aver = pQ_aver + rk_coeff(rk)*pQ_temp
                mQ_aver = mQ_aver + rk_coeff(rk)*mQ_temp
                mR_aver = mR_aver + rk_coeff(rk)*mR_temp
@@ -650,7 +654,9 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
             STcum_top_start(jt_s(c) + 1) = STcum_bot_start(jt_s(c) + 1)
             STcum_bot_start(jt_s(c) + 1) = STcum_bot_start(jt_s(c) + 1) + sT_start(c)*h
          end do
+
          ! Get the timestep-averaged transit time distribution
+         ! by aggregating from the substeps to the timesteps
          do jt_i = 0, timeseries_length - 1
             do jt_substep = 0, n_substeps - 1
                c = mod(N + jt_i*n_substeps + jt_substep - iT_s, N)
