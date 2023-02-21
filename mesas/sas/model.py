@@ -400,13 +400,15 @@ class Model:
         n_substeps = self.options['n_substeps']
         max_age = self.options['max_age']
 
+        index_ts = list(range(len(J)))
+
         # call the Fortran code
         fresult = solve(
             J, Q, SAS_args, P_list, weights,
             sT_init, dt, verbose, debug, warning, jacobian,
             mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
             np.asfortranarray(C_eq), C_old,
-            n_substeps, component_type, nC_list, nargs_list, numflux, numsol, max_age, timeseries_length, nC_total, nargs_total)
+            n_substeps, component_type, nC_list, nargs_list, numflux, numsol, max_age, timeseries_length, index_ts, len(index_ts), nC_total, nargs_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
         if numsol > 0:
