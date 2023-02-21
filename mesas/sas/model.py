@@ -67,6 +67,7 @@ class Model:
             'influx': 'J',
             'ST_smallest_segment': 1./100,
             'ST_largest_segment': np.inf,
+            'record_state': None
         }
         self._options = self._default_options
         components_to_learn = kwargs.get('components_to_learn')
@@ -214,6 +215,10 @@ class Model:
         else:
             self._options['max_age'] = len(self._options['sT_init'])
         self._max_age = self._options['max_age']
+        if self._options['record_state'] is None:
+            self._index_ts = np.array([self._timeseries_length-1])
+        else:
+            self._index_ts = np.where(self.data_df[self._options['record_state']])[0]
 
     @property
     def sas_specs(self):
@@ -400,7 +405,8 @@ class Model:
         n_substeps = self.options['n_substeps']
         max_age = self.options['max_age']
 
-        index_ts = list(range(len(J)))
+        index_ts = self._index_ts
+        print(f'{index_ts=}')
 
         # call the Fortran code
         fresult = solve(
@@ -408,7 +414,7 @@ class Model:
             sT_init, dt, verbose, debug, warning, jacobian,
             mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
             np.asfortranarray(C_eq), C_old,
-            n_substeps, component_type, nC_list, nargs_list, numflux, numsol, max_age, timeseries_length, index_ts, len(index_ts), nC_total, nargs_total)
+            n_substeps, component_type, nC_list, nargs_list, index_ts, numflux, numsol, max_age, timeseries_length, len(index_ts), nC_total, nargs_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
         if numsol > 0:

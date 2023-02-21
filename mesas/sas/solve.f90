@@ -1198,7 +1198,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                 C_Q_ts(jt_i, iq, :) = C_Q_ts(jt_i, iq, :) + mQ_aver(c, iq, :) * norm / Q_ts(jt_i, iq) * dt
                         end if
                     enddo
-                    P_old(jt_i, :) = P_old(jt_i, :) - pQ_aver(c, :) * dt
+                    P_old(jt_i, :) = P_old(jt_i, :) - pQ_aver(c, :) * norm * dt
                 enddo
             enddo
 
