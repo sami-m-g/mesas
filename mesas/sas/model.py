@@ -67,7 +67,7 @@ class Model:
             'influx': 'J',
             'ST_smallest_segment': 1./100,
             'ST_largest_segment': np.inf,
-            'record_state': None
+            'record_state': False
         }
         self._options = self._default_options
         components_to_learn = kwargs.get('components_to_learn')
@@ -215,8 +215,10 @@ class Model:
         else:
             self._options['max_age'] = len(self._options['sT_init'])
         self._max_age = self._options['max_age']
-        if self._options['record_state'] is None:
+        if self._options['record_state']==False:
             self._index_ts = np.array([self._timeseries_length-1])
+        elif self._options['record_state']==True:
+            self._index_ts = np.arange(self._timeseries_length)
         else:
             self._index_ts = np.where(self.data_df[self._options['record_state']])[0]
 

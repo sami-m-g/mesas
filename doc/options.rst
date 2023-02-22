@@ -56,3 +56,6 @@ Default options are
 ``influx``: (str, default=``J``)
   The name of the column in ``data_df`` containing the inflow rate
 
+``record_state``: (str, default=False)
+  Record the state variables at some or all timesteps. Default value of ``False`` will still record the final state of the model. Note that setting this to ``True`` can greatly increase the memory requirements for large datasets. Can also be set to a string representing a column in ``data_df`` of booleans.
+
