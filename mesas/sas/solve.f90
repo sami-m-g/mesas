@@ -1211,14 +1211,14 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                     !print *, c, jt_i, jt(c), jt_i * n_substeps + jt_substep, jt_s(c)
                     if (jt_substep<iT_substep) then
                         if (iT<max_age-1) then
-                            pQ_ts(jt_i, :   , iT+1) = pQ_ts(jt_i, :   , iT+1) + pQ_aver(c, :   ) * norm
-                            mQ_ts(jt_i, :, :, iT+1) = mQ_ts(jt_i, :, :, iT+1) + mQ_aver(c, :, :) * norm
-                            mR_ts(jt_i, :   , iT+1) = mR_ts(jt_i, :   , iT+1) + mR_aver(c, :   ) * norm
+                            pQ_ts(j_index_ts, :   , iT+1) = pQ_ts(j_index_ts, :   , iT+1) + pQ_aver(c, :   ) * norm
+                            mQ_ts(j_index_ts, :, :, iT+1) = mQ_ts(j_index_ts, :, :, iT+1) + mQ_aver(c, :, :) * norm
+                            mR_ts(j_index_ts, :   , iT+1) = mR_ts(j_index_ts, :   , iT+1) + mR_aver(c, :   ) * norm
                         end if
                     else
-                        pQ_ts(jt_i, :   , iT) = pQ_ts(jt_i, :   , iT) + pQ_aver(c, :   ) * norm
-                        mQ_ts(jt_i, :, :, iT) = mQ_ts(jt_i, :, :, iT) + mQ_aver(c, :, :) * norm
-                        mR_ts(jt_i, :   , iT) = mR_ts(jt_i, :   , iT) + mR_aver(c, :   ) * norm
+                        pQ_ts(j_index_ts, :   , iT) = pQ_ts(j_index_ts, :   , iT) + pQ_aver(c, :   ) * norm
+                        mQ_ts(j_index_ts, :, :, iT) = mQ_ts(j_index_ts, :, :, iT) + mQ_aver(c, :, :) * norm
+                        mR_ts(j_index_ts, :   , iT) = mR_ts(j_index_ts, :   , iT) + mR_aver(c, :   ) * norm
                     end if
                 end do
             end do
@@ -1251,20 +1251,20 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                     ! Extract substep state at timesteps
                     ! age-ranked storage at the end of the timestep
                     if (jt_substep==n_substeps-1) then
-                        sT_ts(jt_i+1, iT) = sT_ts(jt_i+1, iT) + sT_start(c) / n_substeps
+                        sT_ts(j_index_ts+1, iT) = sT_ts(j_index_ts+1, iT) + sT_start(c) / n_substeps
                         ! parameter sensitivity
                         if (jacobian) then
                             do ip = 0, numargs_total - 1
-                                ds_ts(jt_i+1, ip, iT) = ds_ts(jt_i+1, ip, iT) + ds_start(c, ip) / n_substeps
+                                ds_ts(j_index_ts+1, ip, iT) = ds_ts(j_index_ts+1, ip, iT) + ds_start(c, ip) / n_substeps
                             enddo
                         end if
                         ! Age-ranked solute mass
                         do s = 0, numsol - 1
-                            mT_ts(jt_i+1, s, iT) = mT_ts(jt_i+1, s, iT) + mT_start(c,  s) / n_substeps
+                            mT_ts(j_index_ts+1, s, iT) = mT_ts(j_index_ts+1, s, iT) + mT_start(c,  s) / n_substeps
                             ! parameter sensitivity
                             if (jacobian) then
                                 do ip = 0, numargs_total - 1
-                                    dm_ts(jt_i+1, ip, s, iT) = dm_ts(jt_i+1, ip, s, iT) + dm_start(c, ip, s) / n_substeps
+                                    dm_ts(j_index_ts+1, ip, s, iT) = dm_ts(j_index_ts+1, ip, s, iT)+dm_start(c, ip, s)/n_substeps
                                 enddo
                             end if
                         enddo
@@ -1314,30 +1314,31 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
         do j_index_ts = 0, len_index_ts - 1
             jt_i = index_ts(j_index_ts)
             if (iT==0) then
-                WaterBalance_ts( jt_i, iT) = J_ts(jt_i) - sT_ts( jt_i+1, iT)
+                WaterBalance_ts( j_index_ts, iT) = J_ts(jt_i) - sT_ts( j_index_ts+1, iT)
             else
-                WaterBalance_ts( jt_i, iT) = sT_ts( jt_i, iT-1) - sT_ts( jt_i+1, iT)
+                WaterBalance_ts( j_index_ts, iT) = sT_ts( j_index_ts, iT-1) - sT_ts( j_index_ts+1, iT)
             end if
             ! subtract time-averaged water fluxes
             do iq = 0, numflux - 1
-                WaterBalance_ts( jt_i, iT) = WaterBalance_ts( jt_i, iT) - (Q_ts( jt_i, iq) * pQ_ts( jt_i, iq, iT)) * dt
+                WaterBalance_ts( j_index_ts, iT) = WaterBalance_ts( j_index_ts, iT) - &
+                                                   (Q_ts( j_index_ts, iq) * pQ_ts( j_index_ts, iq, iT)) * dt
             end do
 
             ! Calculate a solute balance
             ! Difference of starting and ending age-ranked mass
             if (iT==0) then
                 do s = 0, numsol - 1
-                    SoluteBalance_ts( jt_i, s, iT) = C_J_ts(jt_i, s) * J_ts(jt_i) - mT_ts( jt_i+1, s, iT)
+                    SoluteBalance_ts( j_index_ts, s, iT) = C_J_ts(jt_i, s) * J_ts(jt_i) - mT_ts( j_index_ts+1, s, iT)
                 end do
             else
-                SoluteBalance_ts( jt_i, :, iT) = mT_ts( jt_i, :, iT-1) - mT_ts( jt_i+1, :, iT)
+                SoluteBalance_ts( j_index_ts, :, iT) = mT_ts( j_index_ts, :, iT-1) - mT_ts( j_index_ts+1, :, iT)
             end if
             ! Subtract timestep-averaged mass fluxes
             do iq = 0, numflux - 1
-                SoluteBalance_ts( jt_i, :, iT) = SoluteBalance_ts( jt_i, :, iT) - (mQ_ts( jt_i, iq, :, iT)) * dt
+                SoluteBalance_ts( j_index_ts, :, iT) = SoluteBalance_ts( j_index_ts, :, iT) - (mQ_ts( j_index_ts, iq, :, iT)) * dt
             end do
             ! Reacted mass
-            SoluteBalance_ts( jt_i, :, iT) = SoluteBalance_ts( jt_i, :, iT) + mR_ts( jt_i, :, iT) * dt
+            SoluteBalance_ts( j_index_ts, :, iT) = SoluteBalance_ts( j_index_ts, :, iT) + mR_ts( j_index_ts, :, iT) * dt
         enddo
 
 

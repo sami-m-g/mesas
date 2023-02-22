@@ -407,6 +407,7 @@ class Model:
 
         index_ts = self._index_ts
         print(f'{index_ts=}')
+        print(f'{len(index_ts)=}')
 
         # call the Fortran code
         fresult = solve(
