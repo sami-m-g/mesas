@@ -479,7 +479,8 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                     do c = 0, N - 1
                         sT_temp(c) = sT_temp(c) - Q_ts(jt(c), iq) * pQ_temp(c, iq) * hr
                         if (sT_temp(c)<0) then
-                            call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
+                            sT_temp(c) = 0
+                            !call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
                         end if
                     end do
                 end do

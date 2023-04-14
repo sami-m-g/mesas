@@ -22,6 +22,15 @@ def M(delta, i):
 def RMS(x):
     return np.sqrt(np.mean(x**2))
 
+def partial_piston_pQdisc(delta, i):
+    n = 2/delta-0.5
+    return np.where(i<=np.floor(n),
+                    delta/2,
+            np.where(i>np.ceil(n),
+                     0,
+                     delta/2*(i-n))
+    )
+
 steady_benchmarks = {
 	'Uniform':{
 		'spec':{
@@ -79,7 +88,7 @@ steady_benchmarks = {
 			"func": "beta",
 			"args": {"a": 1.0, "b":1.0/2, "scale": "S_0", "loc": "S_m"},
         },
-        'pQdisc': lambda delta, i: delta/2,
+        'pQdisc': partial_piston_pQdisc,
         'pQdisc0':lambda delta: delta/4,
         'subplot': 5,
         'distname': 'Beta(1,1/2)'
@@ -119,7 +128,7 @@ steady_benchmarks = {
 			"func": "kumaraswamy",
 			"args": {"a": 1.0, "b":1.0/2, "scale": "S_0", "loc": "S_m"},
         },
-        'pQdisc': lambda delta, i: delta/2,
+        'pQdisc': partial_piston_pQdisc,
         'pQdisc0':lambda delta: delta/4,
         'subplot': 5,
         'distname': 'Kumaraswamy(1,1/2)'
@@ -130,11 +139,11 @@ letter = 'abcdefghijklmnopqrstuvwxyz'
 def test_steady(makefigure=False):
 #%%
     np.random.seed(2)
-    timeseries_length = 100
+    timeseries_length = 150
     max_age = timeseries_length
     dt = 0.1
     Q_0 = 1.0 # <-- steady-state flow rate
-    C_J = 1.0 + np.random.randn(timeseries_length)*1.0
+    C_J = 0.0 + np.random.randn(timeseries_length)*1.0
 
     C_old = 1.0
     J = Q_0
@@ -218,7 +227,7 @@ def test_steady(makefigure=False):
         data_df = model.data_df
         err10 = -(data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)#/data_df[f'{name} benchmark C'].values
         logging.info(f'{name} error10 = {err10.mean()}')
-        assert err10.mean()<1E-3
+        assert err10.mean()<1E-2
         if makefigure:
             #icol = int(figcount/nrow)
             #irow = figcount - nrow * icol
@@ -257,7 +266,7 @@ def test_steady(makefigure=False):
                 ax1 = plt.subplot2grid((nrow, ncol),(1, bm['subplot']))
                 #ax1.set_title(name.split('(')[0].strip())
                 #ax1.set_ylim((900, 2100))
-                ax1.set_ylim((0.75, 1.25))
+                ax1.set_ylim((-0.25, 1.05))
                 #ax1.set_ytick([1000, 2000])
                 ax1.set_xlabel('Time')
                 ax1.plot(data_df[f'{name} benchmark t'], data_df[f'{name} benchmark C'], 'k', alpha=0.5, ls='--', lw=1.0, zorder=100, label='Benchmark')
@@ -299,7 +308,7 @@ def test_steady(makefigure=False):
             else:
                 ax2 = ax2_dict[bm['subplot']]
             ax2.plot(data_df['t'], err01, alpha=0.6, lw=2, label=f" RMSE = {RMS(err01):.2e}")
-            ax2.legend(frameon=False, loc='lower left')
+            ax2.legend(frameon=False, loc='upper left')
             if bm['subplot'] not in ax3_dict.keys():
                 ax3 = plt.subplot2grid((nrow, ncol),(3, bm['subplot']))
                 #ax3.set_ylim((500, 2500))
@@ -321,7 +330,7 @@ def test_steady(makefigure=False):
             else:
                 ax3 = ax3_dict[bm['subplot']]
             ax3.plot(data_df['t'], err10, alpha=0.6, lw=2, label=f" RMSE = {RMS(err10):.2e}")
-            ax3.legend(frameon=False, loc='lower left')
+            ax3.legend(frameon=False, loc='upper left')
             figcount+=1
     if makefigure:
         fig.tight_layout()

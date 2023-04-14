@@ -12,11 +12,7 @@ The current version of mesas.py can be installed using Conda with::
 
 This will install any additional dependencies at the same time.
 
-Alternatively, the code can be obtained from GitHub: https://github.com/charman2/mesas. Note that a fortran compiler is required to build from source (but is not required to install through Conda).
-
-Clone the git repo and open a command prompt in the mesas directory (where the setup.py file sits). Make and install with::
-
-    python setup.py install
+Alternatively, the code can be obtained from GitHub: https://github.com/charman2/mesas. Note that a fortran compiler is required to build from source (but is not required to install through Conda). Instructions for compilation can be found here: https://mesas.readthedocs.io/en/latest/installation.html
 
 ## Documentation
 
