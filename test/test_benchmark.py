@@ -42,9 +42,7 @@ steady_benchmarks = {
         'pQdisc0':lambda delta: (1 + np.exp(delta)*(-1 + delta))/(np.exp(delta)*delta),
         'subplot': 0,
         'distname': 'Uniform'
-	}
-}
-other = {
+	},
     'Exponential':{
 		'spec':{
 			"func": "gamma",
