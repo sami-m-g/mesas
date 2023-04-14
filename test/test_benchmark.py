@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import logging
 
 from mesas.sas.model import Model
-from scipy.stats import gamma, beta
+#from scipy.stats import gamma, beta
 from scipy.special import lambertw
 #%%
 logging.basicConfig(filename='test.log', level=logging.INFO)
@@ -42,7 +42,9 @@ steady_benchmarks = {
         'pQdisc0':lambda delta: (1 + np.exp(delta)*(-1 + delta))/(np.exp(delta)*delta),
         'subplot': 0,
         'distname': 'Uniform'
-	},
+	}
+}
+other = {
     'Exponential':{
 		'spec':{
 			"func": "gamma",
@@ -151,7 +153,7 @@ def test_steady(makefigure=False):
     S_m = 1 * Q_0
     n_substeps = 1
     debug = False
-    verbose = False
+    verbose = True
     jacobian = False
 
     data_df = pd.DataFrame(index=range(timeseries_length))
@@ -642,7 +644,8 @@ def test_reaction(makefigure=False):
 # %%
 
 if __name__=='__main__':
-    test_steady(makefigure=True)
-    test_unsteady_uniform(makefigure=True)
-    test_part_multiple(makefigure=True)
-    test_reaction(makefigure=True)
+    test_steady(makefigure=False)
+    #test_steady(makefigure=True)
+    #test_unsteady_uniform(makefigure=True)
+    #test_part_multiple(makefigure=True)
+    #test_reaction(makefigure=True)

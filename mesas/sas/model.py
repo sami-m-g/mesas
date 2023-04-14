@@ -409,6 +409,10 @@ class Model:
 
         index_ts = self._index_ts
 
+        # Enforce max_age
+        sT_init = sT_init[:max_age]
+        mT_init = mT_init[:max_age, :]
+
         # call the Fortran code
         fresult = solve(
             J, Q, SAS_args, P_list, weights,

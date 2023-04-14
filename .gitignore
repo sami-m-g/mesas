@@ -17,3 +17,4 @@ test/test.log
 *.so
 */_build/*
 mesas/sas/cdflib90/_build/
+*.log
