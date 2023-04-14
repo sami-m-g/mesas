@@ -15,4 +15,5 @@ examples/miniLEO
 test/test.log
 /mesas/sas/cdflib90/__build/
 *.so
-*/__build/*
+*/_build/*
+mesas/sas/cdflib90/_build/
