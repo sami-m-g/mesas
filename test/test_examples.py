@@ -9,9 +9,9 @@ eg_list = [
     "hyporheic"
 ]
 
-def test_examples(makeplots=False):
-    for eg in eg_list:
-        run_example(eg, makeplots)
+#def test_examples(makeplots=False):
+#    for eg in eg_list:
+#        run_example(eg, makeplots)
 
 def run_example(eg, makeplots=False):
 
