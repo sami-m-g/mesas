@@ -26,7 +26,7 @@
 
 !*********************************************************************
 
-      FUNCTION algdiv(a,b)
+      pure FUNCTION algdiv(a,b)
 !-----------------------------------------------------------------------
 !     COMPUTATION OF LN(GAMMA(B)/GAMMA(A+B)) WHEN B .GE. 8
 !                         --------
@@ -207,7 +207,7 @@
 
 !*********************************************************************
 
-      FUNCTION alnrel(a)
+      pure FUNCTION alnrel(a)
 !-----------------------------------------------------------------------
 !            EVALUATION OF THE FUNCTION LN(1 + A)
 !-----------------------------------------------------------------------
@@ -250,7 +250,7 @@
 
 !*********************************************************************
 
-      FUNCTION apser(a,b,x,eps)
+      pure FUNCTION apser(a,b,x,eps)
 !-----------------------------------------------------------------------
 !     APSER YIELDS THE INCOMPLETE BETA RATIO I(SUB(1-X))(B,A) FOR
 !     A .LE. MIN(EPS,EPS*B), B*X .LE. 1, AND X .LE. 0.5. USED WHEN
@@ -301,7 +301,7 @@
 
 !*********************************************************************
 
-      FUNCTION basym(a,b,lambda,eps)
+      pure FUNCTION basym(a,b,lambda,eps)
 !-----------------------------------------------------------------------
 !     ASYMPTOTIC EXPANSION FOR IX(A,B) FOR LARGE A AND B.
 !     LAMBDA = (A + B)*Y - B  AND EPS IS THE TOLERANCE USED.
@@ -427,7 +427,7 @@
 
 !*********************************************************************
 
-      FUNCTION bcorr(a0,b0)
+      pure FUNCTION bcorr(a0,b0)
 !-----------------------------------------------------------------------
 !     EVALUATION OF  DEL(A0) + DEL(B0) - DEL(A0 + B0)  WHERE
 !     LN(GAMMA(A)) = (A - 0.5)*LN(A) - A + 0.5*LN(2*PI) + DEL(A).
@@ -437,7 +437,7 @@
         REAL (dpkind) :: bcorr
 ! ..
 ! .. Scalar Arguments ..
-        REAL (dpkind) :: a0, b0
+        REAL (dpkind), intent(in) :: a0, b0
 ! ..
 ! .. Local Scalars ..
         REAL (dpkind) :: a, b, c, h, s11, s3, s5, s7, s9, t, w, x, x2
@@ -486,7 +486,7 @@
 
 !*********************************************************************
 
-      FUNCTION betaln(a0,b0)
+      pure FUNCTION betaln(a0,b0)
 !-----------------------------------------------------------------------
 !     EVALUATION OF THE LOGARITHM OF THE BETA FUNCTION
 !-----------------------------------------------------------------------
@@ -496,7 +496,7 @@
         REAL (dpkind) :: betaln
 ! ..
 ! .. Scalar Arguments ..
-        REAL (dpkind) :: a0, b0
+        REAL (dpkind), intent(in) :: a0, b0
 ! ..
 ! .. Local Scalars ..
         REAL (dpkind) :: a, b, c, h, u, v, w, z
@@ -616,7 +616,7 @@
 
 !*********************************************************************
 
-      FUNCTION bfrac(a,b,x,y,lambda,eps)
+      pure FUNCTION bfrac(a,b,x,y,lambda,eps)
 !-----------------------------------------------------------------------
 !     CONTINUED FRACTION EXPANSION FOR IX(A,B) WHEN A,B .GT. 1.
 !     IT IS ASSUMED THAT  LAMBDA = (A + B)*Y - B.
@@ -695,11 +695,11 @@
 
 !*********************************************************************
 
-      SUBROUTINE bgrat(a,b,x,y,w,eps,ierr)
+      pure SUBROUTINE bgrat(a,b,x,y,w,eps,ierr)
 ! .. Scalar Arguments ..
         REAL (dpkind), INTENT (IN) :: a, b, eps, x, y
         REAL (dpkind), INTENT (INOUT) :: w
-        INTEGER, INTENT (OUT) :: ierr
+        INTEGER, INTENT (inOUT) :: ierr
 ! ..
 ! .. Local Scalars ..
         REAL (dpkind) :: bm1, bp2n, cn, coef, dj, j, l, lnx, n2, nu, p, &
@@ -793,7 +793,7 @@
 
 !*********************************************************************
 
-      FUNCTION bpser(a,b,x,eps)
+      pure FUNCTION bpser(a,b,x,eps)
 !-----------------------------------------------------------------------
 !     POWER SERIES EXPANSION FOR EVALUATING IX(A,B) WHEN B .LE. 1
 !     OR B*X .LE. 0.7.  EPS IS THE TOLERANCE USED.
@@ -906,7 +906,7 @@
 
 !*********************************************************************
 
-      SUBROUTINE bratio(a,b,x,y,w,w1,ierr)
+      pure SUBROUTINE bratio(a,b,x,y,w,w1,ierr)
 !----------------------------------------------------------------------
 !            EVALUATION OF THE INCOMPLETE BETA FUNCTION IX(A,B)
 !                     --------------------
@@ -934,8 +934,8 @@
 !-----------------------------------------------------------------------
 ! .. Scalar Arguments ..
         REAL (dpkind), INTENT (IN) :: a, b, x, y
-        REAL (dpkind), INTENT (OUT) :: w, w1
-        INTEGER, INTENT (OUT) :: ierr
+        REAL (dpkind), INTENT (inOUT) :: w, w1
+        INTEGER, INTENT (inOUT) :: ierr
 ! ..
 ! .. Local Scalars ..
         REAL (dpkind) :: a0, b0, eps, lambda, t, x0, y0, z
@@ -1169,7 +1169,7 @@
 
 !*********************************************************************
 
-      FUNCTION brcmp1(mu,a,b,x,y)
+      pure FUNCTION brcmp1(mu,a,b,x,y)
 !-----------------------------------------------------------------------
 !          EVALUATION OF  EXP(MU) * (X**A*Y**B/BETA(A,B))
 !-----------------------------------------------------------------------
@@ -1324,7 +1324,7 @@
 
 !*********************************************************************
 
-      FUNCTION brcomp(a,b,x,y)
+      pure FUNCTION brcomp(a,b,x,y)
 !-----------------------------------------------------------------------
 !               EVALUATION OF X**A*Y**B/BETA(A,B)
 !-----------------------------------------------------------------------
@@ -1482,7 +1482,7 @@
 
 !*********************************************************************
 
-      FUNCTION bup(a,b,x,y,n,eps)
+      pure FUNCTION bup(a,b,x,y,n,eps)
 !-----------------------------------------------------------------------
 !     EVALUATION OF IX(A,B) - IX(A+N,B) WHERE N IS A POSITIVE INTEGER.
 !     EPS IS THE TOLERANCE USED.
@@ -1573,7 +1573,7 @@
 
 !*********************************************************************
 
-      FUNCTION erf(x)
+      PURE FUNCTION erf(x)
 !-----------------------------------------------------------------------
 !             EVALUATION OF THE REAL ERROR FUNCTION
 !-----------------------------------------------------------------------
@@ -1650,7 +1650,7 @@
 
 !*********************************************************************
 
-      FUNCTION erfc1(ind,x)
+      PURE FUNCTION erfc1(ind,x)
 !-----------------------------------------------------------------------
 !         EVALUATION OF THE COMPLEMENTARY ERROR FUNCTION
 !          ERFC1(IND,X) = ERFC(X)            IF IND = 0
@@ -1782,7 +1782,7 @@
 
 !*********************************************************************
 
-      FUNCTION esum(mu,x)
+      pure FUNCTION esum(mu,x)
 !-----------------------------------------------------------------------
 !                    EVALUATION OF EXP(MU + X)
 !-----------------------------------------------------------------------
@@ -1790,8 +1790,8 @@
         REAL (dpkind) :: esum
 ! ..
 ! .. Scalar Arguments ..
-        REAL (dpkind) :: x
-        INTEGER :: mu
+        REAL (dpkind), intent(in) :: x
+        INTEGER,  intent(in) :: mu
 ! ..
 ! .. Local Scalars ..
         REAL (dpkind) :: w
@@ -1830,7 +1830,7 @@
 
 !*********************************************************************
 
-      FUNCTION evaluate_polynomial(a,x)
+      PURE FUNCTION evaluate_polynomial(a,x)
 !----------------------------------------------------------------------
 !              Evaluate a PoLynomial at x
 !                              Function
@@ -1869,12 +1869,12 @@
 
 !*********************************************************************
 
-      FUNCTION exparg(l)
+      PURE FUNCTION exparg(l)
 ! .. Function Return Value ..
         REAL (dpkind) :: exparg
 ! ..
 ! .. Scalar Arguments ..
-        INTEGER :: l
+        INTEGER, intent(in) :: l
 ! ..
 ! .. Intrinsic Functions ..
         INTRINSIC HUGE, LOG, TINY
@@ -1896,7 +1896,7 @@
 
 !*********************************************************************
 
-      FUNCTION fpser(a,b,x,eps)
+      pure FUNCTION fpser(a,b,x,eps)
 !-----------------------------------------------------------------------
 !                 EVALUATION OF I (A,B)
 !                                X
@@ -1949,7 +1949,7 @@
 
 !*********************************************************************
 
-      FUNCTION gam1(a)
+      PURE FUNCTION gam1(a)
 !     ------------------------------------------------------------------
 !     COMPUTATION OF 1/GAMMA(A+1) - 1  FOR -0.5 .LE. A .LE. 1.5
 !     ------------------------------------------------------------------
@@ -2010,7 +2010,7 @@
 
 !*********************************************************************
 
-      FUNCTION gamln(a)
+      pure FUNCTION gamln(a)
 !-----------------------------------------------------------------------
 !            EVALUATION OF LN(GAMMA(A)) FOR POSITIVE A
 !-----------------------------------------------------------------------
@@ -2073,7 +2073,7 @@
 
 !*********************************************************************
 
-      FUNCTION gamln1(a)
+      pure FUNCTION gamln1(a)
 !-----------------------------------------------------------------------
 !     EVALUATION OF LN(GAMMA(1 + A)) FOR -0.2 .LE. A .LE. 1.25
 !-----------------------------------------------------------------------
@@ -2122,7 +2122,7 @@
 
 !*********************************************************************
 
-      FUNCTION gamma(a)
+      PURE FUNCTION gamma(a)
 !-----------------------------------------------------------------------
 !         EVALUATION OF THE GAMMA FUNCTION FOR REAL ARGUMENTS
 !                           -----------
@@ -2288,7 +2288,7 @@
 
 !*********************************************************************
 
-      SUBROUTINE grat1(a,x,r,p,q,eps)
+      pure SUBROUTINE grat1(a,x,r,p,q,eps)
 !-----------------------------------------------------------------------
 !        EVALUATION OF THE INCOMPLETE GAMMA RATIO FUNCTIONS
 !                      P(A,X) AND Q(A,X)
@@ -2297,7 +2297,7 @@
 !-----------------------------------------------------------------------
 ! .. Scalar Arguments ..
         REAL (dpkind), INTENT (IN) :: a, eps, r, x
-        REAL (dpkind), INTENT (OUT) :: p, q
+        REAL (dpkind), INTENT (INOUT) :: p, q
 ! ..
 ! .. Local Scalars ..
         REAL (dpkind) :: a2n, a2nm1, am0, an, an0, b2n, b2nm1, c, cma, g, &
@@ -2413,7 +2413,7 @@
 
 !*********************************************************************
 
-      SUBROUTINE gratio(a,x,ans,qans,ind)
+      PURE SUBROUTINE gratio(a,x,ans,qans,ind)
 ! ----------------------------------------------------------------------
 !        EVALUATION OF THE INCOMPLETE GAMMA RATIO FUNCTIONS
 !                      P(A,X) AND Q(A,X)
@@ -2444,7 +2444,7 @@
 !     --------------------
 ! .. Scalar Arguments ..
         REAL (dpkind), INTENT (IN) :: a, x
-        REAL (dpkind), INTENT (OUT) :: ans, qans
+        REAL (dpkind), INTENT (INOUT) :: ans, qans
         INTEGER, INTENT (IN) :: ind
 ! ..
 ! .. Local Arrays ..
@@ -2927,7 +2927,7 @@
 
 !*********************************************************************
 
-      FUNCTION gsumln(a,b)
+      pure FUNCTION gsumln(a,b)
 !-----------------------------------------------------------------------
 !          EVALUATION OF THE FUNCTION LN(GAMMA(A + B))
 !          FOR 1 .LE. A .LE. 2  AND  1 .LE. B .LE. 2
@@ -2936,7 +2936,7 @@
         REAL (dpkind) :: gsumln
 ! ..
 ! .. Scalar Arguments ..
-        REAL (dpkind) :: a, b
+        REAL (dpkind), intent(in) :: a, b
 ! ..
 ! .. Local Scalars ..
         REAL (dpkind) :: x
@@ -3169,7 +3169,7 @@
 
 !*********************************************************************
 
-      FUNCTION psi(xx)
+      pure FUNCTION psi(xx)
 !---------------------------------------------------------------------
 !                 EVALUATION OF THE DIGAMMA FUNCTION
 !                           -----------
@@ -3197,7 +3197,7 @@
         REAL (dpkind) :: psi
 ! ..
 ! .. Scalar Arguments ..
-        REAL (dpkind) :: xx
+        REAL (dpkind), intent(in) :: xx
 ! ..
 ! .. Local Scalars ..
         REAL (dpkind) :: aug, den, sgn, w, x, xmax1, xmx0, xsmall, z
@@ -3409,7 +3409,7 @@
 
 !*********************************************************************
 
-      FUNCTION rexp(x)
+      PURE FUNCTION rexp(x)
 !-----------------------------------------------------------------------
 !            EVALUATION OF THE FUNCTION EXP(X) - 1
 !-----------------------------------------------------------------------
@@ -3447,7 +3447,7 @@
 
 !*********************************************************************
 
-      FUNCTION rlog(x)
+      PURE FUNCTION rlog(x)
 !     -------------------
 !     COMPUTATION OF  X - 1 - LN(X)
 !     -------------------
@@ -3515,7 +3515,7 @@
 
 !*********************************************************************
 
-      FUNCTION rlog1(x)
+      pure FUNCTION rlog1(x)
 !-----------------------------------------------------------------------
 !             EVALUATION OF THE FUNCTION X - LN(1 + X)
 !-----------------------------------------------------------------------

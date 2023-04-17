@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 import matplotlib.pyplot as plt
 import logging
+import time
 
 from mesas.sas.model import Model
 #from scipy.stats import gamma, beta
@@ -206,10 +207,13 @@ def test_steady(makefigure=False):
             max_age=max_age,
             warning=True
         )
+        tic = time.perf_counter()
         model.run()
+        toc = time.perf_counter()
         data_df = model.data_df
         err01 = -(data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)#/data_df[f'{name} benchmark C'].values
         logging.info(f'{name} error01 = {err01.mean()}')
+        logging.info(f'{name} time 01 = {toc-tic}')
 
         model = Model(
             data_df,
@@ -223,10 +227,13 @@ def test_steady(makefigure=False):
             max_age=max_age,
             warning=True
         )
+        tic = time.perf_counter()
         model.run()
+        toc = time.perf_counter()
         data_df = model.data_df
         err10 = -(data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)#/data_df[f'{name} benchmark C'].values
         logging.info(f'{name} error10 = {err10.mean()}')
+        logging.info(f'{name} time 10 = {toc-tic}')
         assert err10.mean()<1E-2
         if makefigure:
             #icol = int(figcount/nrow)
@@ -387,7 +394,7 @@ def analytical_set(df, S_init = 1000., C_old = 50., dt=1):
 
 def test_unsteady_uniform(makefigure=False, tmax=500):
 #%%
-    data_df = pd.read_csv('./test/unsteady_data.csv')
+    data_df = pd.read_csv('unsteady_data.csv')
     data_df = data_df[:tmax]
     data_df['Q'] = data_df['Q'] + data_df['ET']
     data_df['ET'] = 0
@@ -642,8 +649,7 @@ def test_reaction(makefigure=False):
 # %%
 
 if __name__=='__main__':
-    test_steady(makefigure=False)
-    #test_steady(makefigure=True)
-    #test_unsteady_uniform(makefigure=True)
-    #test_part_multiple(makefigure=True)
-    #test_reaction(makefigure=True)
+    test_steady(makefigure=True)
+    test_unsteady_uniform(makefigure=True)
+    test_part_multiple(makefigure=True)
+    test_reaction(makefigure=True)

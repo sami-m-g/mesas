@@ -93,15 +93,16 @@
 
 !*********************************************************************
 
-      SUBROUTINE cdf_beta(which,cum,ccum,x,cx,a,b,status,check_input)
+      PURE SUBROUTINE cdf_beta(which,cum,ccum,x,cx,a,b,status,check_input)
 ! .. Use Statements ..
         USE cdf_aux_mod
         USE zero_finder
 ! ..
 ! .. Scalar Arguments ..
-        REAL (dpkind) :: a, b
-        REAL (dpkind), OPTIONAL :: ccum, cum, cx, x
-        INTEGER, OPTIONAL, INTENT (OUT) :: status
+        REAL (dpkind), intent(in) :: a, b
+        REAL (dpkind), OPTIONAL, intent(inout) :: ccum, cum
+        REAL (dpkind), OPTIONAL, intent(in) :: cx, x
+        INTEGER, OPTIONAL, INTENT (IN) :: status
         INTEGER, INTENT (IN) :: which
         LOGICAL, OPTIONAL, INTENT (IN) :: check_input
 ! ..
@@ -121,32 +122,32 @@
 ! .. Local Arrays ..
         REAL (dpkind) :: params(6)
 ! ..
-        has_status = PRESENT(status)
+        !has_status = PRESENT(status)
 
-! status = 0 means no error
+!! status = 0 means no error
 
-        IF (has_status) THEN
-          status = 0
-        END IF
+        !IF (has_status) THEN
+          !status = 0
+        !END IF
 
-        CALL check_complements(cum,ccum,the_beta%name,'cum','ccum', &
-          local_cum,local_ccum,set_values=(which/=1),bad_status=3, &
-          status=status)
+        !CALL check_complements(cum,ccum,the_beta%name,'cum','ccum', &
+          !local_cum,local_ccum,set_values=(which/=1),bad_status=3, &
+          !status=status)
 
-        IF (has_status) THEN
-          IF (status/=0) THEN
-            RETURN
-          END IF
-        END IF
+        !IF (has_status) THEN
+          !IF (status/=0) THEN
+            !RETURN
+          !END IF
+        !END IF
 
-        CALL check_complements(x,cx,the_beta%name,'x','cx',local_x, &
-          local_cx,set_values=(which/=2),bad_status=4,status=status)
+        !CALL check_complements(x,cx,the_beta%name,'x','cx',local_x, &
+          !local_cx,set_values=(which/=2),bad_status=4,status=status)
 
-        IF (has_status) THEN
-          IF (status/=0) THEN
-            RETURN
-          END IF
-        END IF
+        !IF (has_status) THEN
+          !IF (status/=0) THEN
+            !RETURN
+          !END IF
+        !END IF
 
         params(1) = local_cum
         params(2) = local_ccum
@@ -155,43 +156,43 @@
         params(5) = a
         params(6) = b
 
-        IF (PRESENT(check_input)) THEN
-          local_check_input = check_input
-        ELSE
-          local_check_input = .TRUE.
-        END IF
+        !IF (PRESENT(check_input)) THEN
+          !local_check_input = check_input
+        !ELSE
+          !local_check_input = .TRUE.
+        !END IF
 
 ! ++++++++++          ++++++++++          ++++++++++
 ! Range check arguments and see that they add to one
 ! ++++++++++          ++++++++++          ++++++++++
 
-        IF (local_check_input) THEN
-! Assure that x + cx nearly one
+        !IF (local_check_input) THEN
+!! Assure that x + cx nearly one
 
-          IF (which/=2) THEN
-            IF ( .NOT. add_to_one(local_x,local_cx,the_beta%name,'x','cx' &
-              ,4,status)) RETURN
-          END IF
+          !IF (which/=2) THEN
+            !IF ( .NOT. add_to_one(local_x,local_cx,the_beta%name,'x','cx' &
+              !,4,status)) RETURN
+          !END IF
 
-          CALL validate_parameters(the_beta,which,params,status)
+          !CALL validate_parameters(the_beta,which,params,status)
 
-          IF (has_status) THEN
-            IF (status/=0) THEN
-              RETURN
-            END IF
-          END IF
+          !IF (has_status) THEN
+            !IF (status/=0) THEN
+              !RETURN
+            !END IF
+          !END IF
 
-        END IF
+        !END IF
 
-!++++++++++++++++++++++++++++++++++++++++++++++++++
-! Compute the Answers
-!++++++++++++++++++++++++++++++++++++++++++++++++++
+!!++++++++++++++++++++++++++++++++++++++++++++++++++
+!! Compute the Answers
+!!++++++++++++++++++++++++++++++++++++++++++++++++++
 
-        IF (which>1) match_cum = (local_cum<=half)
+        !IF (which>1) match_cum = (local_cum<=half)
 
-        SELECT CASE (which)
+        !SELECT CASE (which)
 
-        CASE (1)
+        !CASE (1)
 ! Calculate cum and ccum
 
           CALL local_cum_beta(local_x,local_cx,a,b,local_cum,local_ccum)
@@ -201,108 +202,108 @@
 
           RETURN
 
-        CASE (2)
-! Calculate x and cx
+        !CASE (2)
+!! Calculate x and cx
 
-          local_x = half
-          zf_status = 0
+          !local_x = half
+          !zf_status = 0
 
-          CALL cdf_set_zero_finder(the_beta,3,local)
+          !CALL cdf_set_zero_finder(the_beta,3,local)
 
-          IF (match_cum) THEN
-            DO
-              CALL rc_interval_zf(zf_status,local_x,fx,local)
+          !IF (match_cum) THEN
+            !DO
+              !CALL rc_interval_zf(zf_status,local_x,fx,local)
 
-              IF (zf_status/=1) EXIT
+              !IF (zf_status/=1) EXIT
 
-              local_cx = one - local_x
+              !local_cx = one - local_x
 
-              CALL local_cum_beta(local_x,local_cx,a,b,try_cum,try_ccum)
+              !CALL local_cum_beta(local_x,local_cx,a,b,try_cum,try_ccum)
 
-              fx = try_cum - cum
-            END DO
+              !fx = try_cum - cum
+            !END DO
 
-          ELSE
-            DO
-              CALL rc_interval_zf(zf_status,local_cx,fx,local)
+          !ELSE
+            !DO
+              !CALL rc_interval_zf(zf_status,local_cx,fx,local)
 
-              IF (zf_status/=1) EXIT
+              !IF (zf_status/=1) EXIT
 
-              local_x = one - local_cx
+              !local_x = one - local_cx
 
-              CALL local_cum_beta(local_x,local_cx,a,b,try_cum,try_ccum)
+              !CALL local_cum_beta(local_x,local_cx,a,b,try_cum,try_ccum)
 
-              fx = try_ccum - ccum
-            END DO
-          END IF
+              !fx = try_ccum - ccum
+            !END DO
+          !END IF
 
-          IF (PRESENT(x)) x = local_x
-          IF (PRESENT(cx)) cx = local_cx
+          !IF (PRESENT(x)) x = local_x
+          !IF (PRESENT(cx)) cx = local_cx
 
-        CASE (3)
-! Calculate a
+        !CASE (3)
+!! Calculate a
 
-          a = five
-          zf_status = 0
+          !a = five
+          !zf_status = 0
 
-          CALL cdf_set_zero_finder(the_beta,5,local)
+          !CALL cdf_set_zero_finder(the_beta,5,local)
 
-          DO
-            CALL rc_step_zf(zf_status,a,fx,local)
+          !DO
+            !CALL rc_step_zf(zf_status,a,fx,local)
 
-            IF (zf_status/=1) EXIT
+            !IF (zf_status/=1) EXIT
 
-            CALL local_cum_beta(local_x,local_cx,a,b,try_cum,try_ccum)
+            !CALL local_cum_beta(local_x,local_cx,a,b,try_cum,try_ccum)
 
-            IF (match_cum) THEN
-              fx = try_cum - cum
-            ELSE
-              fx = try_ccum - ccum
-            END IF
-          END DO
+            !IF (match_cum) THEN
+              !fx = try_cum - cum
+            !ELSE
+              !fx = try_ccum - ccum
+            !END IF
+          !END DO
 
-        CASE (4)
-! Calculate b
+        !CASE (4)
+!! Calculate b
 
-          b = five
-          zf_status = 0
+          !b = five
+          !zf_status = 0
 
-          CALL cdf_set_zero_finder(the_beta,6,local)
+          !CALL cdf_set_zero_finder(the_beta,6,local)
 
-          DO
-            CALL rc_step_zf(zf_status,b,fx,local)
+          !DO
+            !CALL rc_step_zf(zf_status,b,fx,local)
 
-            IF (zf_status/=1) EXIT
+            !IF (zf_status/=1) EXIT
 
-            CALL local_cum_beta(local_x,local_cx,a,b,try_cum,try_ccum)
+            !CALL local_cum_beta(local_x,local_cx,a,b,try_cum,try_ccum)
 
-            IF (match_cum) THEN
-              fx = try_cum - cum
-            ELSE
-              fx = try_ccum - ccum
-            END IF
-          END DO
+            !IF (match_cum) THEN
+              !fx = try_cum - cum
+            !ELSE
+              !fx = try_ccum - ccum
+            !END IF
+          !END DO
 
-        END SELECT
+        !END SELECT
 
-        IF (has_status) THEN
-          CALL cdf_finalize_status(local,status)
-        END IF
+        !IF (has_status) THEN
+        !  CALL cdf_finalize_status(local,status)
+        !END IF
 
-        RETURN
+        !RETURN
 
       END SUBROUTINE cdf_beta
 
 !*********************************************************************
 
-      FUNCTION cum_beta(x,cx,a,b,status,check_input)
+      PURE FUNCTION cum_beta(x,cx,a,b,status,check_input)
 ! .. Function Return Value ..
         REAL (dpkind) :: cum_beta
 ! ..
 ! .. Scalar Arguments ..
         REAL (dpkind), INTENT (IN) :: a, b
         REAL (dpkind), OPTIONAL, INTENT (IN) :: cx, x
-        INTEGER, OPTIONAL, INTENT (OUT) :: status
+        INTEGER, OPTIONAL, INTENT (IN) :: status
         LOGICAL, OPTIONAL, INTENT (IN) :: check_input
 ! ..
         CALL cdf_beta(which=1,cum=cum_beta,x=x,cx=cx,a=a,b=b, &
@@ -321,11 +322,11 @@
 ! .. Scalar Arguments ..
         REAL (dpkind), INTENT (IN) :: a, b
         REAL (dpkind), OPTIONAL, INTENT (IN) :: ccum, cum
-        INTEGER, OPTIONAL, INTENT (OUT) :: status
+        INTEGER, OPTIONAL, INTENT (IN) :: status
         LOGICAL, OPTIONAL, INTENT (IN) :: check_input
 ! ..
-        CALL cdf_beta(which=2,cum=cum,ccum=ccum,x=inv_beta,a=a,b=b, &
-          status=status,check_input=check_input)
+        !CALL cdf_beta(which=2,cum=cum,ccum=ccum,x=inv_beta,a=a,b=b, &
+        !  status=status,check_input=check_input)
 
         RETURN
 
@@ -333,7 +334,7 @@
 
 !*********************************************************************
 
-      SUBROUTINE local_cum_beta(x,y,a,b,cum,ccum)
+      pure SUBROUTINE local_cum_beta(x,y,a,b,cum,ccum)
 !----------------------------------------------------------------------
 !          Double precision cUMulative incomplete BETa distribution
 
@@ -368,7 +369,7 @@
 ! ..
 ! .. Scalar Arguments ..
         REAL (dpkind), INTENT (IN) :: a, b, x, y
-        REAL (dpkind), INTENT (OUT) :: ccum, cum
+        REAL (dpkind), INTENT (INOUT) :: ccum, cum
 ! ..
 ! .. Local Scalars ..
         INTEGER :: ierr

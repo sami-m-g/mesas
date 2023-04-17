@@ -91,16 +91,16 @@
 
 !*********************************************************************
 
-      SUBROUTINE cdf_gamma(which,cum,ccum,x,shape,scale,status, &
+      PURE SUBROUTINE cdf_gamma(which,cum,ccum,x,shape,scale,status, &
           check_input)
 ! .. Use Statements ..
         USE zero_finder
         USE cdf_aux_mod
 ! ..
 ! .. Scalar Arguments ..
-        REAL (dpkind), OPTIONAL :: ccum, cum
-        REAL (dpkind) :: scale, shape, x
-        INTEGER, OPTIONAL, INTENT (OUT) :: status
+        REAL (dpkind), OPTIONAL, INTENT(INOUT) :: ccum, cum
+        REAL (dpkind), INTENT(IN) :: scale, shape, x
+        INTEGER, OPTIONAL, INTENT (IN) :: status
         INTEGER, INTENT (IN) :: which
         LOGICAL, OPTIONAL, INTENT (IN) :: check_input
 ! ..
@@ -118,23 +118,23 @@
 ! .. Local Arrays ..
         REAL (dpkind) :: params(6)
 ! ..
-        has_status = PRESENT(status)
+        !has_status = PRESENT(status)
 
 ! status = 0 means NO error
 
-        IF (has_status) THEN
-          status = 0
-        END IF
+        !IF (has_status) THEN
+        !  status = 0
+        !END IF
 
-        CALL check_complements(cum,ccum,the_gamma%name,'cum','ccum', &
-          local_cum,local_ccum,set_values=(which/=1),bad_status=3, &
-          status=status)
+        !CALL check_complements(cum,ccum,the_gamma%name,'cum','ccum', &
+          !local_cum,local_ccum,set_values=(which/=1),bad_status=3, &
+          !status=0)!status)
 
-        IF (has_status) THEN
-          IF (status/=0) THEN
-            RETURN
-          END IF
-        END IF
+        !IF (has_status) THEN
+        !  IF (status/=0) THEN
+        !    RETURN
+        !  END IF
+        !END IF
 
         params(1) = local_cum
         params(2) = local_ccum
@@ -142,27 +142,27 @@
         params(4) = shape
         params(5) = scale
 
-        IF (PRESENT(check_input)) THEN
-          local_check_input = check_input
-        ELSE
-          local_check_input = .TRUE.
-        END IF
+        !IF (PRESENT(check_input)) THEN
+          !local_check_input = check_input
+        !ELSE
+          !local_check_input = .TRUE.
+        !END IF
 
-        IF (local_check_input) THEN
-          CALL validate_parameters(the_gamma,which,params,status)
+        !IF (local_check_input) THEN
+          !CALL validate_parameters(the_gamma,which,params,status)
 
-          IF (has_status) THEN
-            IF (status/=0) THEN
-              RETURN
-            END IF
-          END IF
-        END IF
+          !IF (has_status) THEN
+            !IF (status/=0) THEN
+              !RETURN
+            !END IF
+          !END IF
+        !END IF
 
-        IF (which>1) match_cum = (local_cum<=half)
+        !IF (which>1) match_cum = (local_cum<=half)
 
-        SELECT CASE (which)
+        !SELECT CASE (which)
 
-        CASE (1)
+        !CASE (1)
 ! Calculate cum and ccum
 
           CALL local_cum_gamma(x,shape,scale,local_cum,local_ccum)
@@ -172,99 +172,99 @@
 
           RETURN
 
-        CASE (2)
+        !CASE (2)
 ! Calculate x
 
-          CALL gamma_inverse(shape,xx,-one,local_cum,local_ccum,ierr)
+          !CALL gamma_inverse(shape,xx,-one,local_cum,local_ccum,ierr)
 
-          IF (ierr<0) THEN
-            IF (has_status) THEN
-              status = 10
+          !IF (ierr<0) THEN
+            !IF (has_status) THEN
+              !status = 10
 
-              RETURN
-            ELSE
-              WRITE (*,*) 'Error in cdf_gamma call to gamma_inverse'
-              WRITE (*,*) 'Status: ', ierr
+              !RETURN
+            !ELSE
+              !WRITE (*,*) 'Error in cdf_gamma call to gamma_inverse'
+              !WRITE (*,*) 'Status: ', ierr
 
-              STOP 'Error in cdf_gamma call to gamma_inverse'
-            END IF
+              !STOP 'Error in cdf_gamma call to gamma_inverse'
+            !END IF
+!
+          !END IF
 
-          END IF
+          !x = xx/scale
 
-          x = xx/scale
+          !RETURN
 
-          RETURN
+        !CASE (3)
+!! Calculate SHAPE
 
-        CASE (3)
-! Calculate SHAPE
+          !shape = five
+          !zf_status = 0
 
-          shape = five
-          zf_status = 0
+          !CALL cdf_set_zero_finder(the_gamma,4,local)
 
-          CALL cdf_set_zero_finder(the_gamma,4,local)
+          !DO
 
-          DO
+            !CALL rc_step_zf(zf_status,shape,fx,local)
 
-            CALL rc_step_zf(zf_status,shape,fx,local)
+            !IF (zf_status/=1) EXIT
 
-            IF (zf_status/=1) EXIT
+            !CALL local_cum_gamma(x,shape,scale,try_cum,try_ccum)
 
-            CALL local_cum_gamma(x,shape,scale,try_cum,try_ccum)
+            !IF (match_cum) THEN
+              !fx = try_cum - local_cum
+            !ELSE
+              !fx = try_ccum - local_ccum
+            !END IF
 
-            IF (match_cum) THEN
-              fx = try_cum - local_cum
-            ELSE
-              fx = try_ccum - local_ccum
-            END IF
+          !END DO
 
-          END DO
+        !CASE (4)
+!! Calculate SCALE
 
-        CASE (4)
-! Calculate SCALE
+          !CALL gamma_inverse(shape,xx,-one,local_cum,local_ccum,ierr)
 
-          CALL gamma_inverse(shape,xx,-one,local_cum,local_ccum,ierr)
+          !IF (ierr/=0) THEN
+            !IF (has_status) THEN
+              !status = 10
 
-          IF (ierr/=0) THEN
-            IF (has_status) THEN
-              status = 10
+              !RETURN
+            !ELSE
+              !!WRITE (*,*) 'Error in cdf_gamma call to gamma_inverse'
+              !!WRITE (*,*) 'Status: ', ierr
 
-              RETURN
-            ELSE
-              WRITE (*,*) 'Error in cdf_gamma call to gamma_inverse'
-              WRITE (*,*) 'Status: ', ierr
+              !STOP 'Error in cdf_gamma call to gamma_inverse'
+            !END IF
 
-              STOP 'Error in cdf_gamma call to gamma_inverse'
-            END IF
+          !END IF
 
-          END IF
+          !scale = xx/x
 
-          scale = xx/x
+          !RETURN
 
-          RETURN
+        !END SELECT
 
-        END SELECT
+!! Gets here ONLY for which=3
 
-! Gets here ONLY for which=3
+        !IF (has_status) THEN
+!! Set the status of the zero finder
+          !CALL cdf_finalize_status(local,status)
+        !END IF
 
-        IF (has_status) THEN
-! Set the status of the zero finder
-          CALL cdf_finalize_status(local,status)
-        END IF
-
-        RETURN
+        !RETURN
 
       END SUBROUTINE cdf_gamma
 
 !*********************************************************************
 
-      FUNCTION cum_gamma(x,shape,scale,status,check_input)
+      PURE FUNCTION cum_gamma(x,shape,scale,status,check_input)
 ! .. Function Return Value ..
         REAL (dpkind) :: cum_gamma
 ! ..
 ! .. Scalar Arguments ..
 ! DMS OPTIONAL added
         REAL (dpkind), INTENT (IN) :: scale, shape, x
-        INTEGER, OPTIONAL, INTENT (OUT) :: status
+        INTEGER, OPTIONAL, INTENT (IN) :: status
         LOGICAL, OPTIONAL, INTENT (IN) :: check_input
 ! ..
         CALL cdf_gamma(which=1,cum=cum_gamma,x=x,shape=shape,scale=scale, &
@@ -707,8 +707,8 @@
         INTEGER, OPTIONAL, INTENT (OUT) :: status
         LOGICAL, OPTIONAL, INTENT (IN) :: check_input
 ! ..
-        CALL cdf_gamma(2,cum=cum,ccum=ccum,x=inv_gamma,shape=shape, &
-          scale=scale,status=status,check_input=check_input)
+        !CALL cdf_gamma(2,cum=cum,ccum=ccum,x=inv_gamma,shape=shape, &
+        !  scale=scale,status=status,check_input=check_input)
 
         RETURN
 
@@ -716,7 +716,7 @@
 
 !*********************************************************************
 
-      SUBROUTINE local_cum_gamma(x,shape,scale,cum,ccum)
+      PURE SUBROUTINE local_cum_gamma(x,shape,scale,cum,ccum)
 !----------------------------------------------------------------------
 
 !                              Function
@@ -746,7 +746,7 @@
 !    Softw. 12 (1986), 377-393.
 !----------------------------------------------------------------------
 ! .. Scalar Arguments ..
-        REAL (dpkind), INTENT (OUT) :: ccum, cum
+        REAL (dpkind), INTENT (INOUT) :: ccum, cum
         REAL (dpkind), INTENT (IN) :: scale, shape, x
 ! ..
 ! .. Local Scalars ..
