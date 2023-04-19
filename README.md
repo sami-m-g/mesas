@@ -6,15 +6,11 @@ For more information see the free HydroLearn course: [Tracers and transit times 
 
 ## Installation
 
-Add the conda-forge channel using 
-
-    conda config --append channels conda-forge
-
 The current version of mesas.py can be installed using Conda with::
 
-    conda install mesas
+    conda install -c conda-forge mesas
 
-This will install any additional dependencies at the same time. 
+This will install any additional dependencies at the same time.
 
 Alternatively, the code can be obtained from GitHub: https://github.com/charman2/mesas. Note that a fortran compiler is required to build from source (but is not required to install through Conda). Instructions for compilation can be found here: https://mesas.readthedocs.io/en/latest/installation.html
 
