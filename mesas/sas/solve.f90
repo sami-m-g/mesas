@@ -355,7 +355,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                               end do
                            elseif (component_type(ic) == 1) then
                               !Gamma distribution
-                              do concurrent(c=0:N - 1, sT_temp(c) > 0)
+                              do concurrent(c=0:N - 1, sT_temp(c) > 0) local(loc, scale, a_arg, b_arg, X, PQcum_component)
                                  loc = SAS_args(jt(c), args_index_list(ic) + 0)
                                  scale = SAS_args(jt(c), args_index_list(ic) + 1)
                                  a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
@@ -372,7 +372,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                               end do
                            elseif (component_type(ic) == 2) then
                               !beta distribution
-                              do concurrent(c=0:N - 1, sT_temp(c) > 0)
+                              do concurrent(c=0:N - 1, sT_temp(c) > 0) local(loc, scale, a_arg, b_arg, X, PQcum_component)
                                  loc = SAS_args(jt(c), args_index_list(ic) + 0)
                                  scale = SAS_args(jt(c), args_index_list(ic) + 1)
                                  a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
@@ -391,7 +391,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                               end do
                            elseif (component_type(ic) == 3) then
                               !kumaraswamy distribution
-                              do concurrent(c=0:N - 1, sT_temp(c) > 0)
+                              do concurrent(c=0:N - 1, sT_temp(c) > 0) local(loc, scale, a_arg, b_arg, X, PQcum_component)
                                  loc = SAS_args(jt(c), args_index_list(ic) + 0)
                                  scale = SAS_args(jt(c), args_index_list(ic) + 1)
                                  a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
