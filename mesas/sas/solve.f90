@@ -93,7 +93,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
    integer :: iq, s, M, N, ip, ic, c, rk, j_index_ts
    integer :: carry
    integer :: leftbreakpt
-   real(8) :: PQcum_component, X, scale, loc, a_arg, b_arg
+   real(8) :: PQcum_component, X, scale_, loc_, a_arg, b_arg
    integer :: jt_this, topbot
    integer :: na
    integer :: ia
@@ -356,10 +356,10 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                            elseif (component_type(ic) == 1) then
                               !Gamma distribution
                               do concurrent(c=0:N - 1, sT_temp(c) > 0)
-                                 loc = SAS_args(jt(c), args_index_list(ic) + 0)
-                                 scale = SAS_args(jt(c), args_index_list(ic) + 1)
+                                 loc_ = SAS_args(jt(c), args_index_list(ic) + 0)
+                                 scale_ = SAS_args(jt(c), args_index_list(ic) + 1)
                                  a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
-                                 X = (STcum_in(c) - loc)/scale
+                                 X = (STcum_in(c) - loc_)/scale_
                                  PQcum_component = 0
                                  if (X .gt. 0) then
                                     PQcum_component = cum_gamma_fun(X, a_arg)
@@ -373,11 +373,11 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                            elseif (component_type(ic) == 2) then
                               !beta distribution
                               do concurrent(c=0:N - 1, sT_temp(c) > 0)
-                                 loc = SAS_args(jt(c), args_index_list(ic) + 0)
-                                 scale = SAS_args(jt(c), args_index_list(ic) + 1)
+                                 loc_ = SAS_args(jt(c), args_index_list(ic) + 0)
+                                 scale_ = SAS_args(jt(c), args_index_list(ic) + 1)
                                  a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
                                  b_arg = SAS_args(jt(c), args_index_list(ic) + 3)
-                                 X = (STcum_in(c) - loc)/scale
+                                 X = (STcum_in(c) - loc_)/scale_
                                  X = DMIN1(DMAX1(0.0, X), 1.0)
                                  PQcum_component = 0
                                  if (X .gt. 0) then
@@ -392,11 +392,11 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                            elseif (component_type(ic) == 3) then
                               !kumaraswamy distribution
                               do concurrent(c=0:N - 1, sT_temp(c) > 0)
-                                 loc = SAS_args(jt(c), args_index_list(ic) + 0)
-                                 scale = SAS_args(jt(c), args_index_list(ic) + 1)
+                                 loc_ = SAS_args(jt(c), args_index_list(ic) + 0)
+                                 scale_ = SAS_args(jt(c), args_index_list(ic) + 1)
                                  a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
                                  b_arg = SAS_args(jt(c), args_index_list(ic) + 3)
-                                 X = (STcum_in(c) - loc)/scale
+                                 X = (STcum_in(c) - loc_)/scale_
                                  X = DMIN1(DMAX1(0.0, X), 1.0)
                                  PQcum_component = 1 - (1 - X**a_arg)**b_arg
                                  if (topbot == 0) then
@@ -777,7 +777,7 @@ contains
       integer :: CDFLIB90_STATUS
       logical :: CDFLIB90_CHECKINPUT
       CDFLIB90_CHECKINPUT = .true.
-      cum_beta_fun = CUM_BETA(X, 1 - X, a_arg, b_arg, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
+      cum_beta_fun = CUM_BETA(X_, 1 - X_, a_arg_, b_arg_, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
    end function cum_beta_fun
 
    subroutine f_debug_blank()
