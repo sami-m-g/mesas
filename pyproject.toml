@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mesas"
-version = "v1.20230417"
+version = "v1.20230420"
 description = "MESAS - Multiscale Estimation of StorAge Selection."
 readme = "README.md"
 authors = [
