@@ -162,7 +162,7 @@ letter = 'abcdefghijklmnopqrstuvwxyz'
 def test_steady(makefigure=False):
 #%%
     np.random.seed(2)
-    timeseries_length = 1000
+    timeseries_length = 100
     max_age = timeseries_length
     dt = 0.1
     Q_0 = 1.0 # <-- steady-state flow rate
@@ -235,7 +235,7 @@ def test_steady(makefigure=False):
         data_df = model.data_df
         err01 = -(data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)#/data_df[f'{name} benchmark C'].values
         #logging.info(f'{name} error01 = {err01.mean()}')
-        logging.info(f'{name} time 01 = {toc-tic}')
+        logging.info(f'{tic} : {toc-tic} {name} time 01')
 
         model = Model(
             data_df,
