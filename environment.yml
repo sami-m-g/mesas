@@ -1,0 +1,12 @@
+name: mesas-GMD
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - numpy
+  - scipy
+  - pandas
+  - pytest
+  - matplotlib
+  - ipykernel
