@@ -777,7 +777,7 @@ contains
       integer :: CDFLIB90_STATUS
       logical :: CDFLIB90_CHECKINPUT
       CDFLIB90_CHECKINPUT = .true.
-      cum_beta_fun = CUM_BETA(X_, 1 - X_, a_arg_, b_arg_, CDFLIB90_STATUS, CDFLIB90_CHECKINPUT)
+      cum_beta_fun = cum_beta_pure(X_, a_arg_, b_arg_)
    end function cum_beta_fun
 
    subroutine f_debug_blank()
