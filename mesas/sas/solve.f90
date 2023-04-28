@@ -90,7 +90,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
    real(8), dimension(4) :: rk_coeff
    real(8), dimension(5) :: rk_time
    character(len=128) :: tempdebugstring
-   integer :: iq, s, M, N, ip, ic, c, rk, j_index_ts
+   integer :: iq, s, M, N, ip, ic, c, rk, j_index_ts, jt_c
    integer :: carry
    integer :: leftbreakpt
    real(8) :: PQcum_component, X, scale_, loc_, a_arg, b_arg
@@ -252,13 +252,15 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                ! Fluxes in & out
                if (iT_s == 0) then
                   do concurrent(c=0:N - 1)
-                     sT_temp(c) = sT_temp(c) + J_ts(jt(c))*hr/h
-                     mT_temp(c, :) = mT_temp(c, :) + J_ts(jt(c))*C_J_ts(jt(c), :)*(hr/h)
+                     jt_c = jt(c)
+                     sT_temp(c) = sT_temp(c) + J_ts(jt_c)*hr/h
+                     mT_temp(c, :) = mT_temp(c, :) + J_ts(jt_c)*C_J_ts(jt_c, :)*(hr/h)
                   end do
                   call f_debug('sT_temp 2              ', sT_temp(:))
                end if
                do concurrent(c=0:N - 1)
-                  sT_temp(c) = sT_temp(c) - sum(Q_ts(jt(c), :)*pQ_temp(c, :))*hr
+                  jt_c = jt(c)
+                  sT_temp(c) = sT_temp(c) - sum(Q_ts(jt_c, :)*pQ_temp(c, :))*hr
                   if (sT_temp(c) < 0) then
                      !call f_warning('WARNING: A value of sT is negative. Try increasing the number of substeps')
                      sT_temp(c) = 0
@@ -315,14 +317,15 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                         do concurrent(ic=component_index_list(iq):component_index_list(iq + 1) - 1)
                            if (component_type(ic) == -1) then
                               do concurrent(c=0:N - 1)
-                                 if (STcum_in(c) .le. SAS_args(jt(c), args_index_list(ic))) then
+                                 jt_c = jt(c)
+                                 if (STcum_in(c) .le. SAS_args(jt_c, args_index_list(ic))) then
                                     if (topbot == 0) then
-                                       PQcum_component = P_list(jt(c), args_index_list(ic))
-                                       PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                       PQcum_component = P_list(jt_c, args_index_list(ic))
+                                       PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                        leftbreakpt_top(c, ic) = -1
                                     else
-                                       PQcum_component = P_list(jt(c), args_index_list(ic))
-                                       PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                       PQcum_component = P_list(jt_c, args_index_list(ic))
+                                       PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                        leftbreakpt_bot(c, ic) = -1
                                     end if
                                  else
@@ -330,25 +333,25 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                     ia = 0
                                     foundit = .FALSE.
                                     do i = 0, na - 1
-                                       if (STcum_in(c) .lt. SAS_args(jt(c), args_index_list(ic) + i)) then
+                                       if (STcum_in(c) .lt. SAS_args(jt_c, args_index_list(ic) + i)) then
                                           ia = i - 1
                                           foundit = .TRUE.
                                           exit
                                        end if
                                     end do
                                     if (.not. foundit) then
-                                       PQcum_component = P_list(jt(c), args_index_list(ic + 1) - 1)
+                                       PQcum_component = P_list(jt_c, args_index_list(ic + 1) - 1)
                                        ia = na - 1
                                     else
-                                       dif = STcum_in(c) - SAS_args(jt(c), args_index_list(ic) + ia)
-                                       PQcum_component = P_list(jt(c), args_index_list(ic) + ia) &
-                                       + dif*grad(jt(c), args_index_list(ic) + ia)
+                                       dif = STcum_in(c) - SAS_args(jt_c, args_index_list(ic) + ia)
+                                       PQcum_component = P_list(jt_c, args_index_list(ic) + ia) &
+                                       + dif*grad(jt_c, args_index_list(ic) + ia)
                                     end if
                                     if (topbot == 0) then
-                                       PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                       PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                        leftbreakpt_top(c, ic) = ia
                                     else
-                                       PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                       PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                        leftbreakpt_bot(c, ic) = ia
                                     end if
                                  end if
@@ -356,53 +359,56 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                            elseif (component_type(ic) == 1) then
                               !Gamma distribution
                               do concurrent(c=0:N - 1, sT_temp(c) > 0)
-                                 loc_ = SAS_args(jt(c), args_index_list(ic) + 0)
-                                 scale_ = SAS_args(jt(c), args_index_list(ic) + 1)
-                                 a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
+                                 jt_c = jt(c)
+                                 loc_ = SAS_args(jt_c, args_index_list(ic) + 0)
+                                 scale_ = SAS_args(jt_c, args_index_list(ic) + 1)
+                                 a_arg = SAS_args(jt_c, args_index_list(ic) + 2)
                                  X = (STcum_in(c) - loc_)/scale_
                                  PQcum_component = 0
                                  if (X .gt. 0) then
                                     PQcum_component = cum_gamma_fun(X, a_arg)
                                  end if
                                  if (topbot == 0) then
-                                    PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                    PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                  else
-                                    PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                    PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                  end if
                               end do
                            elseif (component_type(ic) == 2) then
                               !beta distribution
                               do concurrent(c=0:N - 1, sT_temp(c) > 0)
-                                 loc_ = SAS_args(jt(c), args_index_list(ic) + 0)
-                                 scale_ = SAS_args(jt(c), args_index_list(ic) + 1)
-                                 a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
-                                 b_arg = SAS_args(jt(c), args_index_list(ic) + 3)
+                                 jt_c = jt(c)
+                                 loc_ = SAS_args(jt_c, args_index_list(ic) + 0)
+                                 scale_ = SAS_args(jt_c, args_index_list(ic) + 1)
+                                 a_arg = SAS_args(jt_c, args_index_list(ic) + 2)
+                                 b_arg = SAS_args(jt_c, args_index_list(ic) + 3)
                                  X = (STcum_in(c) - loc_)/scale_
-                                 X = DMIN1(DMAX1(0.0, X), 1.0)
+                                 X = MIN(MAX(0.0, X), 1.0)
                                  PQcum_component = 0
                                  if (X .gt. 0) then
                                     PQcum_component = cum_beta_fun(X, a_arg, b_arg)
                                  end if
                                  if (topbot == 0) then
-                                    PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                    PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                  else
-                                    PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                    PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                  end if
                               end do
                            elseif (component_type(ic) == 3) then
                               !kumaraswamy distribution
                               do concurrent(c=0:N - 1, sT_temp(c) > 0)
-                                 loc_ = SAS_args(jt(c), args_index_list(ic) + 0)
-                                 scale_ = SAS_args(jt(c), args_index_list(ic) + 1)
-                                 a_arg = SAS_args(jt(c), args_index_list(ic) + 2)
-                                 b_arg = SAS_args(jt(c), args_index_list(ic) + 3)
+                                 jt_c = jt(c)
+                                 loc_ = SAS_args(jt_c, args_index_list(ic) + 0)
+                                 scale_ = SAS_args(jt_c, args_index_list(ic) + 1)
+                                 a_arg = SAS_args(jt_c, args_index_list(ic) + 2)
+                                 b_arg = SAS_args(jt_c, args_index_list(ic) + 3)
                                  X = (STcum_in(c) - loc_)/scale_
-                                 X = DMIN1(DMAX1(0.0, X), 1.0)
+                                 X = MIN(MAX(0.0, X), 1.0)
                                  PQcum_component = 1 - (1 - X**a_arg)**b_arg
                                  if (topbot == 0) then
-                                    PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                    PQcum_top(c, iq) = PQcum_top(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                  else
-                                    PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt(c), ic)*PQcum_component
+                                    PQcum_bot(c, iq) = PQcum_bot(c, iq) + weights_ts(jt_c, ic)*PQcum_component
                                  end if
                               end do
                            end if
@@ -427,6 +433,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                mQ_temp = 0.
                do concurrent(s=0:numsol - 1, iq=0:numflux - 1, c=0:N - 1, sT_temp(c) .gt. 0)
                   ! Get the mass flux out
+                  jt_c = jt(c)
                   mQ_temp(c, iq, s) = mT_temp(c, s)*alpha_ts(jt(c), iq, s)*Q_ts(jt(c), iq) &
                                       *pQ_temp(c, iq)/sT_temp(c)
                end do
@@ -434,7 +441,8 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                ! Reaction mass accounting
                ! If there are first-order reactions, get the total mass rate
                do concurrent(s=0:numsol - 1, c=0:N - 1, k1_ts(jt(c), s) .gt. 0)
-                  mR_temp(c, s) = k1_ts(jt(c), s)*(C_eq_ts(jt(c), s)*sT_temp(c) - mT_temp(c, s))
+                  jt_c = jt(c)
+                  mR_temp(c, s) = k1_ts(jt_c, s)*(C_eq_ts(jt_c, s)*sT_temp(c) - mT_temp(c, s))
                end do
 
                if (jacobian) then
@@ -442,30 +450,31 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                   fsQ_temp = 0.
                   do concurrent(c=0:N - 1, iq=0:numflux - 1, sT_temp(c) .gt. 0)
                      fsQ_temp(c, :, iq) = fsQ_temp(c, :, iq) &
-                                          + ds_temp(c, :)*pQ_temp(c, iq)*Q_ts(jt(c), iq)/sT_temp(c)
+                                          + ds_temp(c, :)*pQ_temp(c, iq)*Q_ts(jt_c, iq)/sT_temp(c)
                   end do
                   do iq = 0, numflux - 1
                      do ic = component_index_list(iq), component_index_list(iq + 1) - 1
                         do c = 0, N - 1
+                           jt_c = jt(c)
                            ! sensitivity to point before the start
                            if ((leftbreakpt_top(c, ic) >= 0) .and. (leftbreakpt_top(c, ic) < numargs_list(ic) - 1)) then
                               ip = args_index_list(ic) + leftbreakpt_top(c, ic)
                               call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
-                              dS = SAS_args(jt(c), ip + 1) - SAS_args(jt(c), ip)
-                              dP = P_list(jt(c), ip + 1) - P_list(jt(c), ip)
+                              dS = SAS_args(jt_c, ip + 1) - SAS_args(jt_c, ip)
+                              dP = P_list(jt_c, ip + 1) - P_list(jt_c, ip)
                               call f_debug('dP/dS start    ', (/dP/dS/))
                               fs_temp(c, ip) = fs_temp(c, ip) &
-                                               + dP/(dS*dS)*sT_temp(c)*weights_ts(jt(c), ic)*Q_ts(jt(c), iq)
+                                               + dP/(dS*dS)*sT_temp(c)*weights_ts(jt_c, ic)*Q_ts(jt_c, iq)
                            end if
                            ! sensitivity to point after the end
                            if ((leftbreakpt_bot(c, ic) + 1 > 0) .and. (leftbreakpt_bot(c, ic) + 1 <= numargs_list(ic) - 1)) then
                               ip = args_index_list(ic) + leftbreakpt_bot(c, ic) + 1
                               call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
-                              dS = SAS_args(jt(c), ip) - SAS_args(jt(c), ip - 1)
-                              dP = P_list(jt(c), ip) - P_list(jt(c), ip - 1)
+                              dS = SAS_args(jt_c, ip) - SAS_args(jt_c, ip - 1)
+                              dP = P_list(jt_c, ip) - P_list(jt_c, ip - 1)
                               call f_debug('dP/dS end      ', (/dP/dS/))
                               fs_temp(c, ip) = fs_temp(c, ip) &
-                                               - dP/(dS*dS)*sT_temp(c)*weights_ts(jt(c), ic)*Q_ts(jt(c), iq)
+                                               - dP/(dS*dS)*sT_temp(c)*weights_ts(jt_c, ic)*Q_ts(jt_c, iq)
                            end if
                            ! sensitivity to point within
                            if (leftbreakpt_bot(c, ic) > leftbreakpt_top(c, ic)) then
@@ -475,22 +484,22 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                                  ip = args_index_list(ic) + leftbreakpt
                                  call f_debug('iq, ic, ip, c ', (/iq*one8, ic*one8, ip*one8, c*one8/))
                                  if (leftbreakpt > 0) then
-                                    dSs = SAS_args(jt(c), ip) - SAS_args(jt(c), ip - 1)
-                                    dPs = P_list(jt(c), ip) - P_list(jt(c), ip - 1)
+                                    dSs = SAS_args(jt_c, ip) - SAS_args(jt_c, ip - 1)
+                                    dPs = P_list(jt_c, ip) - P_list(jt_c, ip - 1)
                                  else
                                     dSs = 1.
                                     dPs = 0.
                                  end if
                                  if (leftbreakpt < numargs_list(ic) - 1) then
-                                    dSe = SAS_args(jt(c), ip + 1) - SAS_args(jt(c), ip)
-                                    dPe = P_list(jt(c), ip + 1) - P_list(jt(c), ip)
+                                    dSe = SAS_args(jt_c, ip + 1) - SAS_args(jt_c, ip)
+                                    dPe = P_list(jt_c, ip + 1) - P_list(jt_c, ip)
                                  else
                                     dSe = 1.
                                     dPe = 0.
                                  end if
                                  call f_debug('dP/dS middle   ', (/dPe/dSe, dPs/dSs/))
                                  fs_temp(c, ip) = fs_temp(c, ip) &
-                                                  - (dPe/dSe - dPs/dSs)/h*weights_ts(jt(c), ic)*Q_ts(jt(c), iq)
+                                                  - (dPe/dSe - dPs/dSs)/h*weights_ts(jt_c, ic)*Q_ts(jt_c, iq)
                               end do
                            end if
                         end do
@@ -504,7 +513,7 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                            do c = 0, N - 1
                               if (sT_temp(c) > 0) then
                                  fmQ_temp(c, ip, iq, s) = fmQ_temp(c, ip, iq, s) &
-                                                          + dm_temp(c, ip, s)*alpha_ts(jt(c), iq, s)*Q_ts(jt(c), iq) &
+                                                          + dm_temp(c, ip, s)*alpha_ts(jt_c, iq, s)*Q_ts(jt_c, iq) &
                                                           *pQ_temp(c, iq)/sT_temp(c)
                               end if
                            end do
@@ -514,53 +523,55 @@ subroutine solveSAS(J_ts, Q_ts, SAS_args, P_list, weights_ts, sT_init_ts, dt, &
                   do s = 0, numsol - 1
                      do ip = 0, numargs_total - 1
                         do c = 0, N - 1
+                           jt_c = jt(c)
                            fmR_temp(c, ip, s) = fmR_temp(c, ip, s) &
-                                                + k1_ts(jt(c), s)*(C_eq_ts(jt(c), s)*ds_temp(c, ip) - dm_temp(c, ip, s))
+                                                + k1_ts(jt_c, s)*(C_eq_ts(jt_c, s)*ds_temp(c, ip) - dm_temp(c, ip, s))
                         end do
                      end do
                   end do
                   do iq = 0, numflux - 1
                      do ic = component_index_list(iq), component_index_list(iq + 1) - 1
                         do c = 0, N - 1
+                           jt_c = jt(c)
                            ! sensitivity to point before the start
                            if ((leftbreakpt_top(c, ic) >= 0) .and. (leftbreakpt_top(c, ic) < numargs_list(ic) - 1)) then
                               ip = args_index_list(ic) + leftbreakpt_top(c, ic)
-                              dS = SAS_args(jt(c), ip + 1) - SAS_args(jt(c), ip)
-                              dP = P_list(jt(c), ip + 1) - P_list(jt(c), ip)
+                              dS = SAS_args(jt_c, ip + 1) - SAS_args(jt_c, ip)
+                              dP = P_list(jt_c, ip + 1) - P_list(jt_c, ip)
                               fm_temp(c, ip, :) = fm_temp(c, ip, :) &
                                                   + dP/(dS*dS)*mT_temp(c, :) &
-                                                  *alpha_ts(jt(c), iq, :)*weights_ts(jt(c), ic)*Q_ts(jt(c), iq)
+                                                  *alpha_ts(jt_c, iq, :)*weights_ts(jt_c, ic)*Q_ts(jt_c, iq)
                            end if
                            ! sensitivity to point after the end
                            if ((leftbreakpt_bot(c, ic) + 1 > 0) .and. (leftbreakpt_bot(c, ic) + 1 <= numargs_list(ic) - 1)) then
                               ip = args_index_list(ic) + leftbreakpt_bot(c, ic) + 1
-                              dS = SAS_args(jt(c), ip) - SAS_args(jt(c), ip - 1)
-                              dP = P_list(jt(c), ip) - P_list(jt(c), ip - 1)
+                              dS = SAS_args(jt_c, ip) - SAS_args(jt_c, ip - 1)
+                              dP = P_list(jt_c, ip) - P_list(jt_c, ip - 1)
                               fm_temp(c, ip, :) = fm_temp(c, ip, :) &
                                                   - dP/(dS*dS)*mT_temp(c, :) &
-                                                  *alpha_ts(jt(c), iq, :)*weights_ts(jt(c), ic)*Q_ts(jt(c), iq)
+                                                  *alpha_ts(jt_c, iq, :)*weights_ts(jt_c, ic)*Q_ts(jt_c, iq)
                            end if
                            ! sensitivity to point within
                            if (leftbreakpt_bot(c, ic) > leftbreakpt_top(c, ic)) then
                               do leftbreakpt = leftbreakpt_top(c, ic) + 1, leftbreakpt_bot(c, ic)
                                  ip = args_index_list(ic) + leftbreakpt
                                  if (leftbreakpt > 0) then
-                                    dSs = SAS_args(jt(c), ip) - SAS_args(jt(c), ip - 1)
-                                    dPs = P_list(jt(c), ip) - P_list(jt(c), ip - 1)
+                                    dSs = SAS_args(jt_c, ip) - SAS_args(jt_c, ip - 1)
+                                    dPs = P_list(jt_c, ip) - P_list(jt_c, ip - 1)
                                  else
                                     dSs = 1.
                                     dPs = 0.
                                  end if
                                  if (leftbreakpt < numargs_list(ic) - 1) then
-                                    dSe = SAS_args(jt(c), ip + 1) - SAS_args(jt(c), ip)
-                                    dPe = P_list(jt(c), ip + 1) - P_list(jt(c), ip)
+                                    dSe = SAS_args(jt_c, ip + 1) - SAS_args(jt_c, ip)
+                                    dPe = P_list(jt_c, ip + 1) - P_list(jt_c, ip)
                                  else
                                     dSe = 1.
                                     dPe = 0.
                                  end if
                                  fm_temp(c, ip, :) = fm_temp(c, ip, :) &
                                                      - (dPe/dSe - dPs/dSs)*mT_temp(c, :)/sT_temp(c)/h &
-                                                     *weights_ts(jt(c), ic)*Q_ts(jt(c), iq)
+                                                     *weights_ts(jt_c, ic)*Q_ts(jt_c, iq)
                               end do
                            end if
                         end do
