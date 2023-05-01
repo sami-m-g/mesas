@@ -74,9 +74,9 @@ To debug and get verbose out, try: `pip install -v .`
 
 ---
 
-# Step 3: Check if https://github.com/charman2/mesas is running properly
+# Step 3: Check if mesas.py is running properly
 
-## a) Make sure you are not in the folder where you downloaded https://github.com/charman2/mesas
+## a) Make sure you are not in the folder where you downloaded mesas.py
 
 ```bash
 # you can simply do this if you have been strictly following my guide so far
