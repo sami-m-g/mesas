@@ -154,6 +154,7 @@ def test_steady(makefigure=False):
     debug = False
     verbose = True
     jacobian = False
+    num_scheme = 4
 
     data_df = pd.DataFrame(index=range(timeseries_length))
     data_df['t'] = data_df.index * dt
@@ -205,15 +206,17 @@ def test_steady(makefigure=False):
             n_substeps=n_substeps,
             jacobian=jacobian,
             max_age=max_age,
-            warning=True
+            warning=True,
+            num_scheme=num_scheme
         )
         tic = time.perf_counter()
         model.run()
         toc = time.perf_counter()
         data_df = model.data_df
         err01 = -(data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)#/data_df[f'{name} benchmark C'].values
-        logging.info(f'{name} error01 = {err01.mean()}')
+        logging.info(f'{name} error01 = {RMS(err01)}')
         logging.info(f'{name} time 01 = {toc-tic}')
+        assert RMS(err01)<1E-2
 
         model = Model(
             data_df,
@@ -225,16 +228,17 @@ def test_steady(makefigure=False):
             n_substeps=n_substeps*10,
             jacobian=jacobian,
             max_age=max_age,
-            warning=True
+            warning=True,
+            num_scheme=num_scheme
         )
         tic = time.perf_counter()
         model.run()
         toc = time.perf_counter()
         data_df = model.data_df
         err10 = -(data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)#/data_df[f'{name} benchmark C'].values
-        logging.info(f'{name} error10 = {err10.mean()}')
+        logging.info(f'{name} error10 = {RMS(err10)}')
         logging.info(f'{name} time 10 = {toc-tic}')
-        assert err10.mean()<1E-2
+        assert RMS(err10)<1E-3
         if makefigure:
             #icol = int(figcount/nrow)
             #irow = figcount - nrow * icol

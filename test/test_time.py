@@ -57,7 +57,7 @@ steady_benchmarks = {
     'Exponential':{
 		'spec':{
 			"func": "gamma",
-			"args": {"a": 1.0, "scale": "S_0", "loc": "S_m"},
+			"args": {"a": 1.0-0.00001, "scale": "S_0", "loc": "S_m"},
         },
         'pQdisc': lambda delta, i: (2*np.log(1 + i*delta) - np.log((1 + (-1 + i)*delta)*(1 + delta + i*delta)))/delta,
         'pQdisc0':lambda delta: (delta + np.log(1/(1 + delta)))/delta,
@@ -162,7 +162,7 @@ letter = 'abcdefghijklmnopqrstuvwxyz'
 def test_steady(makefigure=False):
 #%%
     np.random.seed(2)
-    timeseries_length = 100
+    timeseries_length = 500
     max_age = timeseries_length
     dt = 0.1
     Q_0 = 1.0 # <-- steady-state flow rate
@@ -176,6 +176,7 @@ def test_steady(makefigure=False):
     debug = False
     verbose = True
     jacobian = False
+    num_scheme=4
 
     data_df = pd.DataFrame(index=range(timeseries_length))
     data_df['t'] = data_df.index * dt
@@ -227,7 +228,8 @@ def test_steady(makefigure=False):
             n_substeps=n_substeps,
             jacobian=jacobian,
             max_age=max_age,
-            warning=True
+            warning=True,
+            num_scheme=num_scheme
         )
         tic = time.perf_counter()
         model.run()
