@@ -4,7 +4,7 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
                     mT_init_fullstep, C_J_fullstep, alpha_fullstep, k1_fullstep, C_eq_fullstep, C_old, &
                     n_substeps, component_type, numcomponent_list, numargs_list, numflux, numsol, max_age, &
                     timeseries_length, output_these_fullsteps, num_output_fullsteps, numcomponent_total, numargs_total, &
-                    sT_outputstep, pQ_outputstep, WaterBalance_outputstep, &
+                    num_scheme, sT_outputstep, pQ_outputstep, WaterBalance_outputstep, &
                     mT_outputstep, mQ_outputstep, mR_outputstep, C_Q_fullstep, ds_outputstep, dm_outputstep, &
                     dC_fullstep, SoluteBalance_outputstep)
    use cdf_gamma_mod
@@ -13,7 +13,7 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    implicit none
 
    ! Start by declaring and initializing all the variables we will be using
-   integer, intent(in) :: n_substeps, numflux, numsol, max_age, &
+   integer, intent(in) :: n_substeps, numflux, numsol, max_age, num_scheme, &
                           timeseries_length, numcomponent_total, numargs_total, num_output_fullsteps
    real(8), intent(in) :: dt
    logical, intent(in) :: verbose, debug, warning, jacobian
@@ -207,7 +207,7 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
          sT_temp = sT_start
          mT_temp = mT_start
 
-         call f_debug('sT_temp                           ', sT_temp )
+         call f_debug('sT_temp                           ', sT_temp)
 
          !if (jacobian) then
          !fs_aver = 0
@@ -223,59 +223,64 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
          !dm_temp = dm_start
          !end if
 
-         ! This is the forward Euler
-         call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
-         if (iT_substep==0) then
-            call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
+         select case (num_scheme)
+         case (1)
+            ! This is the forward Euler
             call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
-         end if
-         call add_to_average(pQ_temp, mQ_temp, mR_temp, one8)
-         call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, one8)
+            if (iT_substep == 0) then
+               call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
+               call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
+            end if
+            call add_to_average(pQ_temp, mQ_temp, mR_temp, one8)
+            call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, one8)
 
-         !! This is the Runge-Kutta 2nd order algorithm
-         !rk = 1
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk2_coeff(rk))
-         !rk = 2
-         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk2_coeff(rk))
-         !rk = 3
-         !call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, rk2_stepfraction(rk))
+         case (2)
+            ! This is the Runge-Kutta 2nd order algorithm
+            rk = 1
+            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
+            call add_to_average(pQ_temp, mQ_temp, mR_temp, rk2_coeff(rk))
+            rk = 2
+            call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
+            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
+            call add_to_average(pQ_temp, mQ_temp, mR_temp, rk2_coeff(rk))
+            rk = 3
+            call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, rk2_stepfraction(rk))
 
-         !! This is the Runge-Kutta 4th order algorithm
-         !rk = 1
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
-         !rk = 2
-         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
-         !rk = 3
-         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
-         !rk = 4
-         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
-         !rk = 5
-         !call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, rk4_stepfraction(rk))
+         case (4)
+            ! This is the Runge-Kutta 4th order algorithm
+            rk = 1
+            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+            call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
+            rk = 2
+            call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+            call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
+            rk = 3
+            call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+            call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
+            rk = 4
+            call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+            call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
+            rk = 5
+            call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, rk4_stepfraction(rk))
+         end select
 
          !! This is the Runge-Kutta 4th order algorithm
          !do rk = 1, 5
-            !if (rk > 1) then
-               !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-            !end if
-            !if (rk < 5) then
-               !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-               !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
-            !end if
-            !if (rk == 4) then
+         !if (rk > 1) then
+         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
+         !end if
+         !if (rk < 5) then
+         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
+         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
+         !end if
+         !if (rk == 4) then
                !!call f_debug('FINALIZE  rk           ', (/rk*one8, iT_substep*one8/))
-               !pQ_temp = pQ_aver
-               !mQ_temp = mQ_aver
-               !mR_temp = mR_aver
+         !pQ_temp = pQ_aver
+         !mQ_temp = mQ_aver
+         !mR_temp = mR_aver
                !!if (jacobian) then
                !!fs_temp = fs_aver
                !!fsQ_temp = fsQ_aver
@@ -283,8 +288,8 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
                !!fmR_temp = fmR_aver
                !!fmQ_temp = fmQ_aver
                !!end if
-               !call f_debug('pQ_aver                ', pQ_aver(:, 0))
-            !end if
+         !call f_debug('pQ_aver                ', pQ_aver(:, 0))
+         !end if
          !end do
          !call f_debug_blank()
 
@@ -302,13 +307,13 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
          STcum_topbot_start(:, 0) = STcum_topbot_start(:, 1)
          do concurrent(c=0:total_num_substeps - 1)
             jt_c = jt_substep_at_(c)
-            if (jt_c<total_num_substeps) then
+            if (jt_c < total_num_substeps) then
                STcum_topbot_start(jt_c + 1, 1) = STcum_topbot_start(jt_c + 1, 0) + sT_start(c)*dt_substep
             end if
          end do
          STcum_topbot_start(0, 1) = STcum_topbot_start(0, 0) + sT_init_fullstep(iT_fullstep)*dt_substep
-         call f_debug('STcum_topbot_start t              ', STcum_topbot_start(:,0))
-         call f_debug('STcum_topbot_start b              ', STcum_topbot_start(:,1))
+         call f_debug('STcum_topbot_start t              ', STcum_topbot_start(:, 0))
+         call f_debug('STcum_topbot_start b              ', STcum_topbot_start(:, 1))
 
          ! update output conc and old water frac
          do concurrent(jt_fullstep=0:timeseries_length - 1, jt_is_which_substep=0:n_substeps - 1, &
@@ -342,11 +347,11 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
             jt_fullstep = output_these_fullsteps(outputstep)
             c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
             pQ_outputstep(outputstep, :, iT_fullstep) = &
-            pQ_outputstep(outputstep, :, iT_fullstep) + pQ_aver(c, :)*norm
+               pQ_outputstep(outputstep, :, iT_fullstep) + pQ_aver(c, :)*norm
             mQ_outputstep(outputstep, :, :, iT_fullstep) = &
-            mQ_outputstep(outputstep, :, :, iT_fullstep) + mQ_aver(c, :, :)*norm
+               mQ_outputstep(outputstep, :, :, iT_fullstep) + mQ_aver(c, :, :)*norm
             mR_outputstep(outputstep, :, iT_fullstep) = &
-            mR_outputstep(outputstep, :, iT_fullstep) + mR_aver(c, :)*norm
+               mR_outputstep(outputstep, :, iT_fullstep) + mR_aver(c, :)*norm
          end do
 
          !if (jacobian) then
@@ -419,16 +424,16 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
          jt_fullstep = output_these_fullsteps(outputstep)
          if (iT_fullstep == 0) then
             WaterBalance_outputstep(outputstep, iT_fullstep) = &
-            J_fullstep(jt_fullstep) - sT_outputstep(outputstep + 1, iT_fullstep)
+               J_fullstep(jt_fullstep) - sT_outputstep(outputstep + 1, iT_fullstep)
          else
             WaterBalance_outputstep(outputstep, iT_fullstep) = &
-            sT_outputstep(outputstep, iT_fullstep - 1) - sT_outputstep(outputstep + 1, iT_fullstep)
+               sT_outputstep(outputstep, iT_fullstep - 1) - sT_outputstep(outputstep + 1, iT_fullstep)
          end if
          ! subtract time-averaged water fluxes
          do iq = 0, numflux - 1
             WaterBalance_outputstep(outputstep, iT_fullstep) = &
-            WaterBalance_outputstep(outputstep, iT_fullstep) - &
-                                              (Q_fullstep(jt_fullstep, iq)*pQ_outputstep(outputstep, iq, iT_fullstep))*dt
+               WaterBalance_outputstep(outputstep, iT_fullstep) - &
+               (Q_fullstep(jt_fullstep, iq)*pQ_outputstep(outputstep, iq, iT_fullstep))*dt
          end do
 
          ! Calculate a solute balance
@@ -436,20 +441,20 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
          if (iT_fullstep == 0) then
             do s = 0, numsol - 1
                SoluteBalance_outputstep(outputstep, s, iT_fullstep) = &
-               C_J_fullstep(jt_fullstep, s)*J_fullstep(jt_fullstep) - mT_outputstep(outputstep + 1, s, iT_fullstep)*dt
+                  C_J_fullstep(jt_fullstep, s)*J_fullstep(jt_fullstep) - mT_outputstep(outputstep + 1, s, iT_fullstep)*dt
             end do
          else
             SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
-            mT_outputstep(outputstep, :, iT_fullstep - 1)*dt - mT_outputstep(outputstep + 1, :, iT_fullstep)*dt
+               mT_outputstep(outputstep, :, iT_fullstep - 1)*dt - mT_outputstep(outputstep + 1, :, iT_fullstep)*dt
          end if
          ! Subtract timestep-averaged mass fluxes
          do iq = 0, numflux - 1
             SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
-            SoluteBalance_outputstep(outputstep, :, iT_fullstep) - (mQ_outputstep(outputstep, iq, :, iT_fullstep))*dt
+               SoluteBalance_outputstep(outputstep, :, iT_fullstep) - (mQ_outputstep(outputstep, iq, :, iT_fullstep))*dt
          end do
          ! Reacted mass
          SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
-         SoluteBalance_outputstep(outputstep, :, iT_fullstep) + mR_outputstep(outputstep, :, iT_fullstep)*dt
+            SoluteBalance_outputstep(outputstep, :, iT_fullstep) + mR_outputstep(outputstep, :, iT_fullstep)*dt
       end do
 
    end do ! End of main loop
@@ -669,7 +674,7 @@ contains
 
       call f_debug('NEW STATE rk           ', (/rk*one8, iT_substep*one8/))
       call f_debug('pQ                ', pQ(:, 0))
-      dt_numerical_solution = dt_substep * stepfraction
+      dt_numerical_solution = dt_substep*stepfraction
 
       ! Calculate the new age-ranked storage
       sT = sT_start ! Initial value
@@ -680,8 +685,8 @@ contains
       if (iT_substep == 0) then
          do concurrent(c=0:total_num_substeps - 1)
             jt_c = jt_fullstep_at_(c)
-            sT(c) = sT(c) + J_fullstep(jt_c) * stepfraction
-            mT(c, :) = mT(c, :) + J_fullstep(jt_c) * C_J_fullstep(jt_c, :) * stepfraction
+            sT(c) = sT(c) + J_fullstep(jt_c)*stepfraction
+            mT(c, :) = mT(c, :) + J_fullstep(jt_c)*C_J_fullstep(jt_c, :)*stepfraction
          end do
          call f_debug('sT 2              ', sT(:))
       end if
@@ -694,7 +699,7 @@ contains
          end if
       end do
 
-      mT = mT - sum(mQ, dim=2) * dt_numerical_solution
+      mT = mT - sum(mQ, dim=2)*dt_numerical_solution
 
       call f_debug('sT 3              ', sT(:))
 
@@ -732,7 +737,7 @@ contains
          else
             do concurrent(c=0:total_num_substeps - 1)
                STcum_topbot(c, 0) = STcum_topbot_start(jt_substep_at_(c), 0)*(1 - stepfraction) &
-                                  + STcum_topbot_start(jt_substep_at_(c) + 1, 1)*(stepfraction)
+                                    + STcum_topbot_start(jt_substep_at_(c) + 1, 1)*(stepfraction)
             end do
          end if
          STcum_topbot(:, 1) = STcum_topbot(:, 0) + sT*dt_substep
@@ -749,45 +754,45 @@ contains
                   select case (component_type(ic))
                   case (-1)
                      do concurrent(c=0:total_num_substeps - 1)
-                           jt_c = jt_fullstep_at_(c)
-                           PQcum_component(c) = &
-                              piecewiselinear_SAS_function(STcum_topbot(c, topbot), &
-                                           SAS_args(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
-                                             P_list(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
-                                       grad_precalc(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
-                                                numargs_list(ic))
+                        jt_c = jt_fullstep_at_(c)
+                        PQcum_component(c) = &
+                           piecewiselinear_SAS_function(STcum_topbot(c, topbot), &
+                                                   SAS_args(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
+                                                     P_list(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
+                                               grad_precalc(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
+                                                        numargs_list(ic))
                      end do
                   case (1)
                      !Gamma distribution
                      do concurrent(c=0:total_num_substeps - 1, sT(c) > 0)
                         jt_c = jt_fullstep_at_(c)
-                           PQcum_component(c) = &
-                              gamma_SAS_function(STcum_topbot(c, topbot), &
-                                                   SAS_args(args_index_list(ic):(args_index_list(ic) + 2), jt_c))
+                        PQcum_component(c) = &
+                           gamma_SAS_function(STcum_topbot(c, topbot), &
+                                              SAS_args(args_index_list(ic):(args_index_list(ic) + 2), jt_c))
                      end do
                   case (2)
                      !beta distribution
                      do concurrent(c=0:total_num_substeps - 1, sT(c) > 0)
                         jt_c = jt_fullstep_at_(c)
-                           PQcum_component(c) = &
-                              beta_SAS_function(STcum_topbot(c, topbot), &
-                                                SAS_args(args_index_list(ic):(args_index_list(ic) + 3), jt_c))
+                        PQcum_component(c) = &
+                           beta_SAS_function(STcum_topbot(c, topbot), &
+                                             SAS_args(args_index_list(ic):(args_index_list(ic) + 3), jt_c))
                      end do
                   case (3)
                      !kumaraswamy distribution
                      do concurrent(c=0:total_num_substeps - 1, sT(c) > 0)
                         jt_c = jt_fullstep_at_(c)
-                           PQcum_component(c) = &
-                              kumaraswamy_SAS_function(STcum_topbot(c, topbot), &
-                                                      SAS_args(args_index_list(ic):(args_index_list(ic) + 3), jt_c))
+                        PQcum_component(c) = &
+                           kumaraswamy_SAS_function(STcum_topbot(c, topbot), &
+                                                    SAS_args(args_index_list(ic):(args_index_list(ic) + 3), jt_c))
                      end do
                   end select
                   call f_debug('STcum_topbot        ', STcum_topbot(:, topbot))
                   call f_debug('PQcum_component        ', PQcum_component)
                   do concurrent(c=0:total_num_substeps - 1, sT(c) > 0)
-                           jt_c = jt_fullstep_at_(c)
-                           PQcum_topbot(c, iq, topbot) = &
-                              PQcum_topbot(c, iq, topbot) + weights_fullstep(jt_c, ic)*PQcum_component(c)
+                     jt_c = jt_fullstep_at_(c)
+                     PQcum_topbot(c, iq, topbot) = &
+                        PQcum_topbot(c, iq, topbot) + weights_fullstep(jt_c, ic)*PQcum_component(c)
                   end do
                end do
             end do

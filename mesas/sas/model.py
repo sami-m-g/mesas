@@ -58,6 +58,7 @@ class Model:
         self._default_options = {
             'dt': 1,
             'verbose': False,
+            'num_scheme': 4,
             'debug': False,
             'warning': True,
             'jacobian': False,
@@ -406,6 +407,7 @@ class Model:
         jacobian = self.options['jacobian']
         n_substeps = self.options['n_substeps']
         max_age = self.options['max_age']
+        num_scheme = self.options['num_scheme']
 
         index_ts = self._index_ts
 
@@ -419,7 +421,7 @@ class Model:
             sT_init, dt, verbose, debug, warning, jacobian,
             mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
             np.asfortranarray(C_eq), C_old,
-            n_substeps, component_type, nC_list, nargs_list, index_ts, numflux, numsol, max_age, timeseries_length, len(index_ts), nC_total, nargs_total)
+            n_substeps, component_type, nC_list, nargs_list, index_ts, num_scheme, numflux, numsol, max_age, timeseries_length, len(index_ts), nC_total, nargs_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
         if numsol > 0:
