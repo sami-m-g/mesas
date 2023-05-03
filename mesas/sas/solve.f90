@@ -20,8 +20,8 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    real(8), intent(in), dimension(0:timeseries_length - 1) :: J_fullstep
    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1) :: Q_fullstep
    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numcomponent_total - 1) :: weights_fullstep
-   real(8), intent(in), dimension(0:timeseries_length - 1, 0:numargs_total - 1) :: SAS_args
-   real(8), intent(in), dimension(0:timeseries_length - 1, 0:numargs_total - 1) :: P_list
+   real(8), intent(in), dimension(0:numargs_total - 1, 0:timeseries_length - 1) :: SAS_args
+   real(8), intent(in), dimension(0:numargs_total - 1, 0:timeseries_length - 1) :: P_list
    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: C_J_fullstep
    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numflux - 1, 0:numsol - 1) :: alpha_fullstep
    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: k1_fullstep
@@ -77,13 +77,15 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    real(8), dimension(0:timeseries_length*n_substeps - 1) :: STcum_in
    integer, dimension(0:timeseries_length*n_substeps - 1) :: jt_fullstep_at_
    integer, dimension(0:timeseries_length*n_substeps - 1) :: jt_substep_at_
-   real(8), dimension(0:timeseries_length - 1, 0:numargs_total - 1) :: grad_precalc
+   real(8), dimension(0:numargs_total - 1, 0:timeseries_length - 1) :: grad_precalc
    integer :: substep, iT_fullstep, iT_substep, iT_prev_fullstep, jt_is_which_substep, jt_fullstep
    real(8) :: one8, norm
    real(8) :: dS, dP, dSe, dPe, dSs, dPs
    real(8) :: dt_substep, dt_numerical_solution
-   real(8), dimension(4) :: rk_coeff
-   real(8), dimension(5) :: rk_stepfraction
+   real(8), dimension(2) :: rk2_coeff
+   real(8), dimension(3) :: rk2_stepfraction
+   real(8), dimension(4) :: rk4_coeff
+   real(8), dimension(5) :: rk4_stepfraction
    character(len=128) :: tempdebugstring
    integer :: iq, s, total_num_substeps, ip, ic, c, rk, outputstep, jt_c
    integer :: carry
@@ -137,8 +139,10 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
 
    call f_verbose('...Initializing arrays...')
    one8 = 1.0
-   rk_stepfraction = (/0.0D0, 0.5D0, 0.5D0, 1.0D0, 1.0D0/)
-   rk_coeff = (/1./6, 2./6, 2./6, 1./6/)
+   rk4_stepfraction = (/0.0D0, 0.5D0, 0.5D0, 1.0D0, 1.0D0/)
+   rk4_coeff = (/1./6, 2./6, 2./6, 1./6/)
+   rk2_stepfraction = (/0.0D0, 1.0D0, 1.0D0/)
+   rk2_coeff = (/1./2, 1./2/)
    norm = 1.0/n_substeps/n_substeps
 
    ! The list of probabilities in each sas function is a 1-D array.
@@ -158,9 +162,9 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
       do ic = component_index_list(iq), component_index_list(iq + 1) - 1
          if (component_type(ic) == -1) then
             do ia = 0, numargs_list(ic) - 1
-               grad_precalc(:, args_index_list(ic) + ia) = &
-                  (P_list(:, args_index_list(ic) + ia + 1) - P_list(:, args_index_list(ic) + ia)) &
-                  /(SAS_args(:, args_index_list(ic) + ia + 1) - SAS_args(:, args_index_list(ic) + ia))
+               grad_precalc(args_index_list(ic) + ia, :) = &
+                  (P_list(args_index_list(ic) + ia + 1, :) - P_list(args_index_list(ic) + ia, :)) &
+                  /(SAS_args(args_index_list(ic) + ia + 1, :) - SAS_args(args_index_list(ic) + ia, :))
             end do
          end if
       end do
@@ -219,50 +223,70 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
          !dm_temp = dm_start
          !end if
 
+         ! This is the forward Euler
+         call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
+         if (iT_substep==0) then
+            call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
+            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
+         end if
+         call add_to_average(pQ_temp, mQ_temp, mR_temp, one8)
+         call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, one8)
+
+         !! This is the Runge-Kutta 2nd order algorithm
+         !rk = 1
+         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
+         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk2_coeff(rk))
+         !rk = 2
+         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
+         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk2_stepfraction(rk))
+         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk2_coeff(rk))
+         !rk = 3
+         !call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, rk2_stepfraction(rk))
+
          !! This is the Runge-Kutta 4th order algorithm
          !rk = 1
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
+         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
          !rk = 2
-         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
+         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
          !rk = 3
-         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
+         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
          !rk = 4
-         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
+         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk4_stepfraction(rk))
+         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk4_coeff(rk))
          !rk = 5
-         !call new_state(sT_aver, pQ_aver, mQ_aver, mR_aver, rk_stepfraction(rk))
+         !call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, rk4_stepfraction(rk))
 
-         ! This is the Runge-Kutta 4th order algorithm
-         do rk = 1, 5
-            if (rk > 1) then
-               call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-            end if
-            if (rk < 5) then
-               call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-               call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
-            end if
-            if (rk == 4) then
-               !call f_debug('FINALIZE  rk           ', (/rk*one8, iT_substep*one8/))
-               pQ_temp = pQ_aver
-               mQ_temp = mQ_aver
-               mR_temp = mR_aver
-               !if (jacobian) then
-               !fs_temp = fs_aver
-               !fsQ_temp = fsQ_aver
-               !fm_temp = fm_aver
-               !fmR_temp = fmR_aver
-               !fmQ_temp = fmQ_aver
-               !end if
-               call f_debug('pQ_aver                ', pQ_aver(:, 0))
-            end if
-         end do
-         call f_debug_blank()
+         !! This is the Runge-Kutta 4th order algorithm
+         !do rk = 1, 5
+            !if (rk > 1) then
+               !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
+            !end if
+            !if (rk < 5) then
+               !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
+               !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
+            !end if
+            !if (rk == 4) then
+               !!call f_debug('FINALIZE  rk           ', (/rk*one8, iT_substep*one8/))
+               !pQ_temp = pQ_aver
+               !mQ_temp = mQ_aver
+               !mR_temp = mR_aver
+               !!if (jacobian) then
+               !!fs_temp = fs_aver
+               !!fsQ_temp = fsQ_aver
+               !!fm_temp = fm_aver
+               !!fmR_temp = fmR_aver
+               !!fmQ_temp = fmQ_aver
+               !!end if
+               !call f_debug('pQ_aver                ', pQ_aver(:, 0))
+            !end if
+         !end do
+         !call f_debug_blank()
 
          ! Update the state with the new estimates
          sT_start = sT_temp
@@ -693,6 +717,8 @@ contains
       real(8), dimension(0:timeseries_length*n_substeps - 1) :: PQcum_component
       real(8), dimension(0:timeseries_length*n_substeps - 1, 0:1) :: STcum_topbot
       real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numflux - 1, 0:1) :: PQcum_topbot
+      !integer :: i_, ia_, na_
+      !logical :: foundit
 
       if ((iT_substep == 0) .and. (stepfraction == 0)) then
          STcum_topbot = 0
@@ -726,9 +752,9 @@ contains
                            jt_c = jt_fullstep_at_(c)
                            PQcum_component(c) = &
                               piecewiselinear_SAS_function(STcum_topbot(c, topbot), &
-                                          SAS_args(jt_c, args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1), &
-                                             P_list(jt_c, args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1), &
-                                       grad_precalc(jt_c, args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1), &
+                                           SAS_args(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
+                                             P_list(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
+                                       grad_precalc(args_index_list(ic):args_index_list(ic) + numargs_list(ic) - 1, jt_c), &
                                                 numargs_list(ic))
                      end do
                   case (1)
@@ -737,7 +763,7 @@ contains
                         jt_c = jt_fullstep_at_(c)
                            PQcum_component(c) = &
                               gamma_SAS_function(STcum_topbot(c, topbot), &
-                                                   SAS_args(jt_c, args_index_list(ic):(args_index_list(ic) + 2)))
+                                                   SAS_args(args_index_list(ic):(args_index_list(ic) + 2), jt_c))
                      end do
                   case (2)
                      !beta distribution
@@ -745,7 +771,7 @@ contains
                         jt_c = jt_fullstep_at_(c)
                            PQcum_component(c) = &
                               beta_SAS_function(STcum_topbot(c, topbot), &
-                                                SAS_args(jt_c, args_index_list(ic):(args_index_list(ic) + 3)))
+                                                SAS_args(args_index_list(ic):(args_index_list(ic) + 3), jt_c))
                      end do
                   case (3)
                      !kumaraswamy distribution
@@ -753,7 +779,7 @@ contains
                         jt_c = jt_fullstep_at_(c)
                            PQcum_component(c) = &
                               kumaraswamy_SAS_function(STcum_topbot(c, topbot), &
-                                                      SAS_args(jt_c, args_index_list(ic):(args_index_list(ic) + 3)))
+                                                      SAS_args(args_index_list(ic):(args_index_list(ic) + 3), jt_c))
                      end do
                   end select
                   call f_debug('STcum_topbot        ', STcum_topbot(:, topbot))

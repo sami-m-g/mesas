@@ -415,7 +415,7 @@ class Model:
 
         # call the Fortran code
         fresult = solve(
-            J, Q, SAS_args, P_list, weights,
+            J, Q, np.asfortranarray(SAS_args.T), np.asfortranarray(P_list.T), np.asfortranarray(weights),
             sT_init, dt, verbose, debug, warning, jacobian,
             mT_init, np.asfortranarray(C_J), np.asfortranarray(alpha), np.asfortranarray(k1),
             np.asfortranarray(C_eq), C_old,
