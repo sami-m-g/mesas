@@ -44,7 +44,7 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    real(8), intent(out), dimension(0:num_output_fullsteps - 1, 0:numsol - 1, 0:max_age - 1) :: mR_outputstep
    real(8), intent(out), dimension(0:num_output_fullsteps - 1, 0:max_age - 1) :: WaterBalance_outputstep
    real(8), intent(out), dimension(0:num_output_fullsteps - 1, 0:numsol - 1, 0:max_age - 1) :: SoluteBalance_outputstep
-   real(8), dimension(0:timeseries_length - 1, 0:numargs_total - 1, 0:numflux - 1) :: dW_outputstep
+   !real(8), dimension(0:timeseries_length - 1, 0:numargs_total - 1, 0:numflux - 1) :: dW_outputstep
    real(8), dimension(0:timeseries_length - 1, 0:numflux - 1) :: P_old_fullstep
    integer, dimension(0:numcomponent_total) :: args_index_list
    integer, dimension(0:numflux) :: component_index_list
@@ -56,31 +56,31 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numflux - 1, 0:numsol - 1) :: mQ_aver
    real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numsol - 1) :: mR_temp
    real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numsol - 1) :: mR_aver
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1) :: fs_temp
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1) :: fs_aver
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numflux - 1) :: fsQ_temp
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numflux - 1) :: fsQ_aver
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: fm_temp
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: fm_aver
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numflux - 1, 0:numsol - 1) :: fmQ_temp
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numflux - 1, 0:numsol - 1) :: fmQ_aver
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: fmR_temp
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: fmR_aver
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1) :: fs_temp
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1) :: fs_aver
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numflux - 1) :: fsQ_temp
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numflux - 1) :: fsQ_aver
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: fm_temp
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: fm_aver
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numflux - 1, 0:numsol - 1) :: fmQ_temp
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numflux - 1, 0:numsol - 1) :: fmQ_aver
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: fmR_temp
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: fmR_aver
    real(8), dimension(0:timeseries_length*n_substeps - 1) :: sT_start
    real(8), dimension(0:timeseries_length*n_substeps - 1) :: sT_temp
    real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numsol - 1) :: mT_start
    real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numsol - 1) :: mT_temp
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1) :: ds_start
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1) :: ds_temp
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: dm_start
-   real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: dm_temp
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1) :: ds_start
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1) :: ds_temp
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: dm_start
+   !real(8), dimension(0:timeseries_length*n_substeps - 1, 0:numargs_total - 1, 0:numsol - 1) :: dm_temp
    real(8), dimension(0:timeseries_length*n_substeps - 1) :: STcum_in
    integer, dimension(0:timeseries_length*n_substeps - 1) :: jt_fullstep_at_
    integer, dimension(0:timeseries_length*n_substeps - 1) :: jt_substep_at_
    real(8), dimension(0:numargs_total - 1, 0:timeseries_length - 1) :: grad_precalc
    integer :: substep, iT_fullstep, iT_substep, iT_prev_fullstep, jt_is_which_substep, jt_fullstep
    real(8) :: one8, norm
-   real(8) :: dS, dP, dSe, dPe, dSs, dPs
+   !real(8) :: dS, dP, dSe, dPe, dSs, dPs
    real(8) :: dt_substep, dt_numerical_solution
    real(8), dimension(2) :: rk2_coeff
    real(8), dimension(3) :: rk2_stepfraction
@@ -94,85 +94,19 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    integer :: i
    real(8) :: start, finish
 
-   C_Q_fullstep = 0.
-   sT_outputstep = 0.
-   mT_outputstep = 0.
-   ds_outputstep = 0.
-   dm_outputstep = 0.
-   dC_fullstep = 0.
-   dW_outputstep = 0.
-   pQ_outputstep = 0.
-   mQ_outputstep = 0.
-   mR_outputstep = 0.
-   WaterBalance_outputstep = 0.
-   SoluteBalance_outputstep = 0.
-   P_old_fullstep = 1.
-   args_index_list = 0
-   component_index_list = 0
-   STcum_topbot_start = 0.
-   leftbreakpt_topbot = 0
-   pQ_temp = 0.
-   pQ_aver = 0.
-   mQ_temp = 0.
-   mQ_aver = 0.
-   mR_temp = 0.
-   mR_aver = 0.
-   fs_temp = 0.
-   fs_aver = 0.
-   fsQ_temp = 0.
-   fsQ_aver = 0.
-   fm_temp = 0.
-   fm_aver = 0.
-   fmQ_temp = 0.
-   fmQ_aver = 0.
-   fmR_temp = 0.
-   fmR_aver = 0.
-   sT_start = 0.
-   sT_temp = 0.
-   mT_start = 0.
-   mT_temp = 0.
-   ds_start = 0.
-   ds_temp = 0.
-   dm_start = 0.
-   dm_temp = 0.
-   iT_prev_fullstep = -1
-
-   call f_verbose('...Initializing arrays...')
+   ! Useful constants
    one8 = 1.0
    rk4_stepfraction = (/0.0D0, 0.5D0, 0.5D0, 1.0D0, 1.0D0/)
    rk4_coeff = (/1./6, 2./6, 2./6, 1./6/)
    rk2_stepfraction = (/0.0D0, 1.0D0, 1.0D0/)
    rk2_coeff = (/1./2, 1./2/)
    norm = 1.0/n_substeps/n_substeps
-
-   ! The list of probabilities in each sas function is a 1-D array.
-   ! args_index_list gives the starting index of the probabilities (P) associated
-   ! with each flux
-   args_index_list(0) = 0
-   component_index_list(0) = 0
-   do iq = 0, numflux - 1
-      component_index_list(iq + 1) = component_index_list(iq) + numcomponent_list(iq)
-      do ic = component_index_list(iq), component_index_list(iq + 1) - 1
-         args_index_list(ic + 1) = args_index_list(ic) + numargs_list(ic)
-      end do
-   end do
-   call f_debug('args_index_list', one8*args_index_list(:))
-
-   do iq = 0, numflux - 1
-      do ic = component_index_list(iq), component_index_list(iq + 1) - 1
-         if (component_type(ic) == -1) then
-            do ia = 0, numargs_list(ic) - 1
-               grad_precalc(args_index_list(ic) + ia, :) = &
-                  (P_list(args_index_list(ic) + ia + 1, :) - P_list(args_index_list(ic) + ia, :)) &
-                  /(SAS_args(args_index_list(ic) + ia + 1, :) - SAS_args(args_index_list(ic) + ia, :))
-            end do
-         end if
-      end do
-   end do
-
-   ! modify the number of ages and the timestep by a facotr of n_substeps
    total_num_substeps = timeseries_length*n_substeps
    dt_substep = dt/n_substeps
+
+   call initialize_arrays()
+
+   call precalculate_useful_things()
 
    call f_verbose('...Setting initial conditions...')
    sT_outputstep(0, :) = sT_init_fullstep
@@ -267,32 +201,6 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
             call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, rk4_stepfraction(rk))
          end select
 
-         !! This is the Runge-Kutta 4th order algorithm
-         !do rk = 1, 5
-         !if (rk > 1) then
-         !call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !end if
-         !if (rk < 5) then
-         !call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, rk_stepfraction(rk))
-         !call add_to_average(pQ_temp, mQ_temp, mR_temp, rk_coeff(rk))
-         !end if
-         !if (rk == 4) then
-               !!call f_debug('FINALIZE  rk           ', (/rk*one8, iT_substep*one8/))
-         !pQ_temp = pQ_aver
-         !mQ_temp = mQ_aver
-         !mR_temp = mR_aver
-               !!if (jacobian) then
-               !!fs_temp = fs_aver
-               !!fsQ_temp = fsQ_aver
-               !!fm_temp = fm_aver
-               !!fmR_temp = fmR_aver
-               !!fmQ_temp = fmQ_aver
-               !!end if
-         !call f_debug('pQ_aver                ', pQ_aver(:, 0))
-         !end if
-         !end do
-         !call f_debug_blank()
-
          ! Update the state with the new estimates
          sT_start = sT_temp
          mT_start = mT_temp
@@ -302,106 +210,9 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
          !end if
          call f_debug('sT_start                          ', sT_start)
 
-         ! Aggregate data from substep to timestep
-         ! Record the new values of ST
-         STcum_topbot_start(:, 0) = STcum_topbot_start(:, 1)
-         do concurrent(c=0:total_num_substeps - 1)
-            jt_c = jt_substep_at_(c)
-            if (jt_c < total_num_substeps) then
-               STcum_topbot_start(jt_c + 1, 1) = STcum_topbot_start(jt_c + 1, 0) + sT_start(c)*dt_substep
-            end if
-         end do
-         STcum_topbot_start(0, 1) = STcum_topbot_start(0, 0) + sT_init_fullstep(iT_fullstep)*dt_substep
-         call f_debug('STcum_topbot_start t              ', STcum_topbot_start(:, 0))
-         call f_debug('STcum_topbot_start b              ', STcum_topbot_start(:, 1))
+         call update_ST()
 
-         ! update output conc and old water frac
-         do concurrent(jt_fullstep=0:timeseries_length - 1, jt_is_which_substep=0:n_substeps - 1, &
-                       iq=0:numflux - 1, Q_fullstep(jt_fullstep, iq) .gt. 0)
-            c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
-            C_Q_fullstep(jt_fullstep, iq, :) = &
-               C_Q_fullstep(jt_fullstep, iq, :) + (mQ_aver(c, iq, :)*dt_substep/Q_fullstep(jt_fullstep, iq))/n_substeps
-         end do
-         do concurrent(c=0:total_num_substeps - 1)
-            jt_c = jt_fullstep_at_(c)
-            P_old_fullstep(jt_c, :) = P_old_fullstep(jt_c, :) - pQ_aver(c, :)*dt_substep/n_substeps
-         end do
-
-         ! Get the timestep-averaged transit time distribution
-         if (iT_fullstep < max_age - 1) then
-            do concurrent(outputstep=0:num_output_fullsteps - 1, jt_is_which_substep=0:n_substeps - 1, &
-                          jt_is_which_substep < substep)
-               jt_fullstep = output_these_fullsteps(outputstep)
-               c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
-               pQ_outputstep(outputstep, :, iT_fullstep + 1) = &
-                  pQ_outputstep(outputstep, :, iT_fullstep + 1) + pQ_aver(c, :)*norm
-               mQ_outputstep(outputstep, :, :, iT_fullstep + 1) = &
-                  mQ_outputstep(outputstep, :, :, iT_fullstep + 1) + mQ_aver(c, :, :)*norm
-               mR_outputstep(outputstep, :, iT_fullstep + 1) = &
-                  mR_outputstep(outputstep, :, iT_fullstep + 1) + mR_aver(c, :)*norm
-            end do
-         end if
-
-         do concurrent(outputstep=0:num_output_fullsteps - 1, jt_is_which_substep=0:n_substeps - 1, &
-                       jt_is_which_substep .ge. substep)
-            jt_fullstep = output_these_fullsteps(outputstep)
-            c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
-            pQ_outputstep(outputstep, :, iT_fullstep) = &
-               pQ_outputstep(outputstep, :, iT_fullstep) + pQ_aver(c, :)*norm
-            mQ_outputstep(outputstep, :, :, iT_fullstep) = &
-               mQ_outputstep(outputstep, :, :, iT_fullstep) + mQ_aver(c, :, :)*norm
-            mR_outputstep(outputstep, :, iT_fullstep) = &
-               mR_outputstep(outputstep, :, iT_fullstep) + mR_aver(c, :)*norm
-         end do
-
-         !if (jacobian) then
-         !do outputstep = 0, num_output_fullsteps - 1
-         !jt_fullstep = output_these_fullsteps(outputstep)
-         !do jt_substep = 0, n_substeps - 1
-         !c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_substep - iT_substep, total_num_substeps)
-         !do iq = 0, numflux - 1
-         !if (Q_fullstep(jt_fullstep, iq) > 0) then
-         !dW_outputstep(outputstep, :, iq) = dW_outputstep(outputstep, :, iq) + fsQ_aver(c, :, iq)/Q_fullstep(jt_fullstep, iq)*norm*dt
-         !do ic = component_index_list(iq), component_index_list(iq + 1) - 1
-         !do ip = args_index_list(ic), args_index_list(ic + 1) - 1
-         !dW_outputstep(outputstep, ip, iq) = dW_outputstep(outputstep, ip, iq) + fs_aver(c, ip)/Q_fullstep(jt_fullstep, iq)*norm*dt
-         !end do
-         !end do
-         !dC_outputstep(outputstep, :, iq, :) = dC_outputstep(outputstep, :, iq, :) &
-         !+ fmQ_aver(c, :, iq, :)/Q_fullstep(jt_fullstep, iq)*norm*dt
-         !do ic = component_index_list(iq), component_index_list(iq + 1) - 1
-         !do ip = args_index_list(ic), args_index_list(ic + 1) - 1
-         !dC_outputstep(outputstep, ip, iq, :) = dC_outputstep(outputstep, ip, iq, :) &
-         !+ fm_aver(c, ip, :)/Q_fullstep(jt_fullstep, iq)*norm*dt
-         !end do
-         !end do
-         !end if
-         !end do
-         !end do
-         !end do
-         !end if
-
-         do concurrent(outputstep=0:num_output_fullsteps - 1)
-            jt_fullstep = output_these_fullsteps(outputstep)
-            ! Extract substep state at timesteps
-            ! age-ranked storage at the end of the timestep
-            jt_is_which_substep = n_substeps - 1
-            c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
-            sT_outputstep(outputstep + 1, iT_fullstep) = &
-               sT_outputstep(outputstep + 1, iT_fullstep) + sT_start(c)/n_substeps
-            ! parameter sensitivity
-            ! Age-ranked solute mass
-            mT_outputstep(outputstep + 1, :, iT_fullstep) = &
-               mT_outputstep(outputstep + 1, :, iT_fullstep) + mT_start(c, :)/n_substeps
-            ! parameter sensitivity
-            !if (jacobian) then
-            !ds_outputstep(outputstep + 1, :, iT_fullstep) = ds_outputstep(outputstep + 1, :, iT_fullstep) + ds_start(c, :)/n_substeps
-            !dm_outputstep(outputstep + 1, :, :, iT_fullstep) = dm_outputstep(outputstep + 1, :, :, iT_fullstep) + dm_start(c, :, :)/n_substeps
-            !end if
-         end do
-
-         call f_debug('sT_outputstep(iT_fullstep, :)     ', sT_outputstep(:, iT_fullstep))
-         call f_debug('pQ_outputstep(iT_fullstep, :, 0)', pQ_outputstep(:, 0, iT_fullstep))
+         call update_records()
 
          iT_prev_fullstep = iT_fullstep
 
@@ -417,51 +228,10 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    end do
    ! End of the main agestep loop
 
-   ! Calculate a water balance
-   ! Difference of starting and ending age-ranked storage
-   do iT_fullstep = 0, max_age - 1
-      do outputstep = 0, num_output_fullsteps - 1
-         jt_fullstep = output_these_fullsteps(outputstep)
-         if (iT_fullstep == 0) then
-            WaterBalance_outputstep(outputstep, iT_fullstep) = &
-               J_fullstep(jt_fullstep) - sT_outputstep(outputstep + 1, iT_fullstep)
-         else
-            WaterBalance_outputstep(outputstep, iT_fullstep) = &
-               sT_outputstep(outputstep, iT_fullstep - 1) - sT_outputstep(outputstep + 1, iT_fullstep)
-         end if
-         ! subtract time-averaged water fluxes
-         do iq = 0, numflux - 1
-            WaterBalance_outputstep(outputstep, iT_fullstep) = &
-               WaterBalance_outputstep(outputstep, iT_fullstep) - &
-               (Q_fullstep(jt_fullstep, iq)*pQ_outputstep(outputstep, iq, iT_fullstep))*dt
-         end do
-
-         ! Calculate a solute balance
-         ! Difference of starting and ending age-ranked mass
-         if (iT_fullstep == 0) then
-            do s = 0, numsol - 1
-               SoluteBalance_outputstep(outputstep, s, iT_fullstep) = &
-                  C_J_fullstep(jt_fullstep, s)*J_fullstep(jt_fullstep) - mT_outputstep(outputstep + 1, s, iT_fullstep)*dt
-            end do
-         else
-            SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
-               mT_outputstep(outputstep, :, iT_fullstep - 1)*dt - mT_outputstep(outputstep + 1, :, iT_fullstep)*dt
-         end if
-         ! Subtract timestep-averaged mass fluxes
-         do iq = 0, numflux - 1
-            SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
-               SoluteBalance_outputstep(outputstep, :, iT_fullstep) - (mQ_outputstep(outputstep, iq, :, iT_fullstep))*dt
-         end do
-         ! Reacted mass
-         SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
-            SoluteBalance_outputstep(outputstep, :, iT_fullstep) + mR_outputstep(outputstep, :, iT_fullstep)*dt
-      end do
-
-   end do ! End of main loop
 
    call f_verbose('...Finalizing...')
 
-   ! From the old water concentration
+   ! Add in the old water concentration
    do concurrent(s=0:numsol - 1, iq=0:numflux - 1)
       where (Q_fullstep(:, iq) > 0)
          C_Q_fullstep(:, iq, s) = C_Q_fullstep(:, iq, s) + alpha_fullstep(:, iq, s)*C_old(s)*P_old_fullstep(:, iq)
@@ -476,9 +246,239 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    !end do
    !end if
 
+   call calculate_balances()
+
    call f_verbose('...Finished...')
 
 contains
+
+   subroutine initialize_arrays()
+      call f_verbose('...Initializing arrays...')
+      C_Q_fullstep = 0.
+      sT_outputstep = 0.
+      mT_outputstep = 0.
+      !ds_outputstep = 0.
+      !dm_outputstep = 0.
+      !dC_fullstep = 0.
+      !dW_outputstep = 0.
+      pQ_outputstep = 0.
+      mQ_outputstep = 0.
+      mR_outputstep = 0.
+      WaterBalance_outputstep = 0.
+      SoluteBalance_outputstep = 0.
+      P_old_fullstep = 1.
+      args_index_list = 0
+      component_index_list = 0
+      STcum_topbot_start = 0.
+      leftbreakpt_topbot = 0
+      pQ_temp = 0.
+      pQ_aver = 0.
+      mQ_temp = 0.
+      mQ_aver = 0.
+      mR_temp = 0.
+      mR_aver = 0.
+      !fs_temp = 0.
+      !fs_aver = 0.
+      !fsQ_temp = 0.
+      !fsQ_aver = 0.
+      !fm_temp = 0.
+      !fm_aver = 0.
+      !fmQ_temp = 0.
+      !fmQ_aver = 0.
+      !fmR_temp = 0.
+      !fmR_aver = 0.
+      sT_start = 0.
+      sT_temp = 0.
+      mT_start = 0.
+      mT_temp = 0.
+      !ds_start = 0.
+      !ds_temp = 0.
+      !dm_start = 0.
+      !dm_temp = 0.
+      iT_prev_fullstep = -1
+   end subroutine initialize_arrays
+
+   subroutine precalculate_useful_things()
+      ! The list of probabilities in each sas function is a 1-D array.
+      ! args_index_list gives the starting index of the probabilities (P) associated
+      ! with each flux
+      args_index_list(0) = 0
+      component_index_list(0) = 0
+      do iq = 0, numflux - 1
+         component_index_list(iq + 1) = component_index_list(iq) + numcomponent_list(iq)
+         do ic = component_index_list(iq), component_index_list(iq + 1) - 1
+            args_index_list(ic + 1) = args_index_list(ic) + numargs_list(ic)
+         end do
+      end do
+      call f_debug('args_index_list', one8*args_index_list(:))
+
+      ! Calculate the gradient of each linear segment in a piecewise SAS function
+      do iq = 0, numflux - 1
+         do ic = component_index_list(iq), component_index_list(iq + 1) - 1
+            if (component_type(ic) == -1) then
+               do ia = 0, numargs_list(ic) - 1
+                  grad_precalc(args_index_list(ic) + ia, :) = &
+                     (P_list(args_index_list(ic) + ia + 1, :) - P_list(args_index_list(ic) + ia, :)) &
+                     /(SAS_args(args_index_list(ic) + ia + 1, :) - SAS_args(args_index_list(ic) + ia, :))
+               end do
+            end if
+         end do
+      end do
+
+   end subroutine precalculate_useful_things
+
+   subroutine update_ST()
+
+      ! Record the new values of ST
+      STcum_topbot_start(:, 0) = STcum_topbot_start(:, 1)
+      do concurrent(c=0:total_num_substeps - 1)
+         jt_c = jt_substep_at_(c)
+         if (jt_c < total_num_substeps) then
+            STcum_topbot_start(jt_c + 1, 1) = STcum_topbot_start(jt_c + 1, 0) + sT_start(c)*dt_substep
+         end if
+      end do
+      STcum_topbot_start(0, 1) = STcum_topbot_start(0, 0) + sT_init_fullstep(iT_fullstep)*dt_substep
+      call f_debug('STcum_topbot_start t              ', STcum_topbot_start(:, 0))
+      call f_debug('STcum_topbot_start b              ', STcum_topbot_start(:, 1))
+
+   end subroutine update_ST
+
+   subroutine update_records()
+      ! update output conc
+      do concurrent(jt_fullstep=0:timeseries_length - 1, jt_is_which_substep=0:n_substeps - 1, &
+                    iq=0:numflux - 1, Q_fullstep(jt_fullstep, iq) .gt. 0)
+         c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
+         C_Q_fullstep(jt_fullstep, iq, :) = &
+            C_Q_fullstep(jt_fullstep, iq, :) + (mQ_aver(c, iq, :)*dt_substep/Q_fullstep(jt_fullstep, iq))/n_substeps
+      end do
+
+      ! update the old water fraction
+      do concurrent(c=0:total_num_substeps - 1)
+         jt_c = jt_fullstep_at_(c)
+         P_old_fullstep(jt_c, :) = P_old_fullstep(jt_c, :) - pQ_aver(c, :)*dt_substep/n_substeps
+      end do
+
+! Get the timestep-averaged transit time distribution
+      if (iT_fullstep < max_age - 1) then
+      do concurrent(outputstep=0:num_output_fullsteps - 1, jt_is_which_substep=0:n_substeps - 1, &
+                    jt_is_which_substep < substep)
+         jt_fullstep = output_these_fullsteps(outputstep)
+         c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
+         pQ_outputstep(outputstep, :, iT_fullstep + 1) = &
+            pQ_outputstep(outputstep, :, iT_fullstep + 1) + pQ_aver(c, :)*norm
+         mQ_outputstep(outputstep, :, :, iT_fullstep + 1) = &
+            mQ_outputstep(outputstep, :, :, iT_fullstep + 1) + mQ_aver(c, :, :)*norm
+         mR_outputstep(outputstep, :, iT_fullstep + 1) = &
+            mR_outputstep(outputstep, :, iT_fullstep + 1) + mR_aver(c, :)*norm
+      end do
+      end if
+
+      do concurrent(outputstep=0:num_output_fullsteps - 1, jt_is_which_substep=0:n_substeps - 1, &
+                    jt_is_which_substep .ge. substep)
+         jt_fullstep = output_these_fullsteps(outputstep)
+         c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
+         pQ_outputstep(outputstep, :, iT_fullstep) = &
+            pQ_outputstep(outputstep, :, iT_fullstep) + pQ_aver(c, :)*norm
+         mQ_outputstep(outputstep, :, :, iT_fullstep) = &
+            mQ_outputstep(outputstep, :, :, iT_fullstep) + mQ_aver(c, :, :)*norm
+         mR_outputstep(outputstep, :, iT_fullstep) = &
+            mR_outputstep(outputstep, :, iT_fullstep) + mR_aver(c, :)*norm
+      end do
+
+!if (jacobian) then
+!do outputstep = 0, num_output_fullsteps - 1
+!jt_fullstep = output_these_fullsteps(outputstep)
+!do jt_substep = 0, n_substeps - 1
+!c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_substep - iT_substep, total_num_substeps)
+!do iq = 0, numflux - 1
+!if (Q_fullstep(jt_fullstep, iq) > 0) then
+!dW_outputstep(outputstep, :, iq) = dW_outputstep(outputstep, :, iq) + fsQ_aver(c, :, iq)/Q_fullstep(jt_fullstep, iq)*norm*dt
+!do ic = component_index_list(iq), component_index_list(iq + 1) - 1
+!do ip = args_index_list(ic), args_index_list(ic + 1) - 1
+!dW_outputstep(outputstep, ip, iq) = dW_outputstep(outputstep, ip, iq) + fs_aver(c, ip)/Q_fullstep(jt_fullstep, iq)*norm*dt
+!end do
+!end do
+!dC_outputstep(outputstep, :, iq, :) = dC_outputstep(outputstep, :, iq, :) &
+!+ fmQ_aver(c, :, iq, :)/Q_fullstep(jt_fullstep, iq)*norm*dt
+!do ic = component_index_list(iq), component_index_list(iq + 1) - 1
+!do ip = args_index_list(ic), args_index_list(ic + 1) - 1
+!dC_outputstep(outputstep, ip, iq, :) = dC_outputstep(outputstep, ip, iq, :) &
+!+ fm_aver(c, ip, :)/Q_fullstep(jt_fullstep, iq)*norm*dt
+!end do
+!end do
+!end if
+!end do
+!end do
+!end do
+!end if
+
+      ! Extract substep state at timesteps
+      do concurrent(outputstep=0:num_output_fullsteps - 1)
+         jt_fullstep = output_these_fullsteps(outputstep)
+         jt_is_which_substep = n_substeps - 1
+         c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
+         ! age-ranked storage at the end of the timestep
+         sT_outputstep(outputstep + 1, iT_fullstep) = &
+            sT_outputstep(outputstep + 1, iT_fullstep) + sT_start(c)/n_substeps
+         ! Age-ranked solute mass
+         mT_outputstep(outputstep + 1, :, iT_fullstep) = &
+            mT_outputstep(outputstep + 1, :, iT_fullstep) + mT_start(c, :)/n_substeps
+! parameter sensitivity
+!if (jacobian) then
+!ds_outputstep(outputstep + 1, :, iT_fullstep) = ds_outputstep(outputstep + 1, :, iT_fullstep) + ds_start(c, :)/n_substeps
+!dm_outputstep(outputstep + 1, :, :, iT_fullstep) = dm_outputstep(outputstep + 1, :, :, iT_fullstep) + dm_start(c, :, :)/n_substeps
+!end if
+      end do
+
+      call f_debug('sT_outputstep(iT_fullstep, :)     ', sT_outputstep(:, iT_fullstep))
+      call f_debug('pQ_outputstep(iT_fullstep, :, 0)  ', pQ_outputstep(:, 0, iT_fullstep))
+
+   end subroutine update_records
+
+   subroutine calculate_balances()
+
+      ! Calculate a water balance
+      ! Difference of starting and ending age-ranked storage
+      do iT_fullstep = 0, max_age - 1
+         do outputstep = 0, num_output_fullsteps - 1
+            jt_fullstep = output_these_fullsteps(outputstep)
+            if (iT_fullstep == 0) then
+               WaterBalance_outputstep(outputstep, iT_fullstep) = &
+                  J_fullstep(jt_fullstep) - sT_outputstep(outputstep + 1, iT_fullstep)
+            else
+               WaterBalance_outputstep(outputstep, iT_fullstep) = &
+                  sT_outputstep(outputstep, iT_fullstep - 1) - sT_outputstep(outputstep + 1, iT_fullstep)
+            end if
+            ! subtract time-averaged water fluxes
+            do iq = 0, numflux - 1
+               WaterBalance_outputstep(outputstep, iT_fullstep) = &
+                  WaterBalance_outputstep(outputstep, iT_fullstep) - &
+                  (Q_fullstep(jt_fullstep, iq)*pQ_outputstep(outputstep, iq, iT_fullstep))*dt
+            end do
+
+            ! Calculate a solute balance
+            ! Difference of starting and ending age-ranked mass
+            if (iT_fullstep == 0) then
+               do s = 0, numsol - 1
+                  SoluteBalance_outputstep(outputstep, s, iT_fullstep) = &
+                     C_J_fullstep(jt_fullstep, s)*J_fullstep(jt_fullstep) - mT_outputstep(outputstep + 1, s, iT_fullstep)*dt
+               end do
+            else
+               SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
+                  mT_outputstep(outputstep, :, iT_fullstep - 1)*dt - mT_outputstep(outputstep + 1, :, iT_fullstep)*dt
+            end if
+            ! Subtract timestep-averaged mass fluxes
+            do iq = 0, numflux - 1
+               SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
+                  SoluteBalance_outputstep(outputstep, :, iT_fullstep) - (mQ_outputstep(outputstep, iq, :, iT_fullstep))*dt
+            end do
+            ! Reacted mass
+            SoluteBalance_outputstep(outputstep, :, iT_fullstep) = &
+               SoluteBalance_outputstep(outputstep, :, iT_fullstep) + mR_outputstep(outputstep, :, iT_fullstep)*dt
+         end do
+
+      end do
+   end subroutine calculate_balances
 
    subroutine get_flux(sT, mT, pQ, mQ, mR, stepfraction)
       real(8), intent(in), dimension(0:timeseries_length*n_substeps - 1) :: sT
