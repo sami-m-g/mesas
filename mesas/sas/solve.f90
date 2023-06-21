@@ -873,8 +873,13 @@ contains
       loc_ = params(1)
       scale_ = params(2)
       a_arg = params(3)
-      X = (ST - loc_)/scale_
-      gamma_SAS_function = cum_gamma_pure(X, a_arg)
+      if (ST>loc_) then
+         X = (ST - loc_)/scale_
+         gamma_SAS_function = cum_gamma_pure(X, a_arg)
+      else
+         gamma_SAS_function = 0
+      end if
+         
    end function gamma_SAS_function
 
    subroutine f_debug_blank()
