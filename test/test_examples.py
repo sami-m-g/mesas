@@ -5,7 +5,6 @@ from mesas.sas.model import Model
 
 eg_list = [
     "lower_hafren",
-    "miniLEO",
     "hyporheic"
 ]
 
@@ -16,8 +15,8 @@ eg_list = [
 def run_example(eg, makeplots=False):
 
     # Create the model
-    model = Model(data_df=f'./mesas/examples/{eg}/data.csv',
-                  config=f'./mesas/examples/{eg}/config.json')
+    model = Model(data_df=f'./examples/{eg}/data.csv',
+                  config=f'./examples/{eg}/config.json')
     
     # Run the model
     model.run()
@@ -41,4 +40,5 @@ def run_example(eg, makeplots=False):
     fig.savefig(eg+".pdf")
 
 if __name__=="__main__":
-    test_examples(True)
+    for eg in eg_list:
+        run_example(eg, True)
