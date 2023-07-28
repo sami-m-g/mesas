@@ -160,11 +160,7 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
          select case (num_scheme)
          case (1)
             ! This is the forward Euler
-            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
-            if (iT_substep == 0) then
-               call new_state(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
-               call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, one8)
-            end if
+            call get_flux(sT_temp, mT_temp, pQ_temp, mQ_temp, mR_temp, 0.0D0)
             call add_to_average(pQ_temp, mQ_temp, mR_temp, one8)
             call new_state(sT_temp, mT_temp, pQ_aver, mQ_aver, mR_aver, one8)
 

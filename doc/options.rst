@@ -47,6 +47,9 @@ Default options are
 ``n_substeps``: (int, default=1)
   Number of substeps in the calculation. Each timestep can be subdivided to increase the numerical accuracy of the solution and address some numerical issues, at the cost of longer run times. Note that the substep calculations are not retained in the output. The substeps are aggregated back to the full timestep first
 
+``num_scheme``: (int, default=4)
+  Numerical scheme used to solve the SAS function. Default is a 4th-order Runge-Kutta scheme (``num_scheme=4``). Valid alternatives are a second-order accurate midpoint scheme (``num_scheme=2``) and a first order accurate forward Euler scheme (``num_scheme=1``).
+
 ``max_age``: (int, default=len(data_df))
   The maximum age that will be calculated. This controls the number of rows in the output matricies. Set to a smaller value than the default to reduce calculation time (at the cost of replacing calculated concentrations of old water with ``C_old``)
 
