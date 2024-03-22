@@ -137,6 +137,8 @@ steady_benchmarks = {
 }
 #%%
 letter = 'abcdefghijklmnopqrstuvwxyz'
+
+
 def test_steady(makefigure=False):
 #%%
     np.random.seed(2)
@@ -488,72 +490,72 @@ def test_part_multiple(makefigure=False):
 
     if makefigure:
         fig = plt.figure()
-        name = 'Uniform'
-        bm = steady_benchmarks[name]
-        j = np.arange(timeseries_length)
-        pQdisc = np.zeros_like(j, dtype=float)
-        delta = dt * Q_0 / (S_0)
-        pQdisc[0] = bm['pQdisc0'](delta) / dt
-        pQdisc[1:] = bm['pQdisc'](delta, j[1:]) / dt
-        data_df[f'{name} benchmark C'] = (np.convolve(C_J, pQdisc, mode='full')[:timeseries_length] * dt + C_old * (1-np.cumsum(pQdisc)[:timeseries_length]*dt))
-        data_df[f'{name} benchmark t'] = data_df['t']
+    name = 'Uniform'
+    bm = steady_benchmarks[name]
+    j = np.arange(timeseries_length)
+    pQdisc = np.zeros_like(j, dtype=float)
+    delta = dt * Q_0 / (S_0)
+    pQdisc[0] = bm['pQdisc0'](delta) / dt
+    pQdisc[1:] = bm['pQdisc'](delta, j[1:]) / dt
+    data_df[f'{name} benchmark C'] = (np.convolve(C_J, pQdisc, mode='full')[:timeseries_length] * dt + C_old * (1-np.cumsum(pQdisc)[:timeseries_length]*dt))
+    data_df[f'{name} benchmark t'] = data_df['t']
 
-        solute_parameters = {
-            "C":{
-                "C_old": C_old,
-                'alpha':{'Q1':0.5, 'Q2':1.5, 'Q3':1.}
-            },
-        }
+    solute_parameters = {
+        "C":{
+            "C_old": C_old,
+            'alpha':{'Q1':0.5, 'Q2':1.5, 'Q3':1.}
+        },
+    }
 
-        sas_specs = {
-            'Q1':{
-                'Q1_SAS':{
-                    'ST': [0, S_0/3, S_0*2/3, S_0]
-                }
-            },
-            'Q2':{
-                'Q2_SAS':{
-                    'ST': [0, S_0/3, S_0*2/3, S_0]
-                }
-            },
-            'Q3':{
-                'Q3_SAS':{
-                    'ST': [0, S_0/2, S_0*3/4, S_0],
-                    'P': [0, 1/2., 3/4., 1]
-                }
+    sas_specs = {
+        'Q1':{
+            'Q1_SAS':{
+                'ST': [0, S_0/3, S_0*2/3, S_0]
+            }
+        },
+        'Q2':{
+            'Q2_SAS':{
+                'ST': [0, S_0/3, S_0*2/3, S_0]
+            }
+        },
+        'Q3':{
+            'Q3_SAS':{
+                'ST': [0, S_0/2, S_0*3/4, S_0],
+                'P': [0, 1/2., 3/4., 1]
             }
         }
+    }
 
-        model = Model(
-            data_df,
-            sas_specs=sas_specs,
-            solute_parameters=solute_parameters,
-            debug=debug,
-            verbose=verbose,
-            dt=dt,
-            n_substeps=n_substeps,
-            jacobian=jacobian,
-            max_age=max_age,
-            warning=True
-        )
-        model.run()
-        data_df = model.data_df
-        data_df[f'C --> {name}'] = f1*data_df[f'C --> Q1']+f2*data_df[f'C --> Q2']+f3*data_df[f'C --> Q3']
-        err = (data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)/data_df[f'{name} benchmark C'].values
-        logging.info(f'Part/multiple error = {err.mean()}')
-        assert err.mean()<1E-2
-        if makefigure:
-            ax = plt.subplot()
-            ax.plot(data_df['t'], data_df[f'C --> {name}'], alpha=0.3, lw=2)
-            ax.plot(data_df['t'], data_df[f'C --> Q1'], 'c', alpha=0.3, lw=2)
-            ax.plot(data_df['t'], data_df[f'C --> Q2'], 'm', alpha=0.3, lw=2)
-            ax.plot(data_df['t'], data_df[f'C --> Q3'], 'k', alpha=0.3, lw=2)
-            ax.plot(data_df[f'{name} benchmark t'], data_df[f'{name} benchmark C'], 'k--', alpha=0.3, lw=2)
-            ax.set_title(name)
-            ax.legend()
-            #ax.set_ylim((500, 2500))
-            ax.set_ylabel('Tracer conc.')
-            ax.set_xlabel('Time')
+    model = Model(
+        data_df,
+        sas_specs=sas_specs,
+        solute_parameters=solute_parameters,
+        debug=debug,
+        verbose=verbose,
+        dt=dt,
+        n_substeps=n_substeps,
+        jacobian=jacobian,
+        max_age=max_age,
+        warning=True
+    )
+    model.run()
+    data_df = model.data_df
+    data_df[f'C --> {name}'] = f1*data_df[f'C --> Q1']+f2*data_df[f'C --> Q2']+f3*data_df[f'C --> Q3']
+    err = (data_df[f'{name} benchmark C'].values-data_df[f'C --> {name}'].values)/data_df[f'{name} benchmark C'].values
+    logging.info(f'Part/multiple error = {err.mean()}')
+    assert err.mean()<1E-2
+    if makefigure:
+        ax = plt.subplot()
+        ax.plot(data_df['t'], data_df[f'C --> {name}'], alpha=0.3, lw=2)
+        ax.plot(data_df['t'], data_df[f'C --> Q1'], 'c', alpha=0.3, lw=2)
+        ax.plot(data_df['t'], data_df[f'C --> Q2'], 'm', alpha=0.3, lw=2)
+        ax.plot(data_df['t'], data_df[f'C --> Q3'], 'k', alpha=0.3, lw=2)
+        ax.plot(data_df[f'{name} benchmark t'], data_df[f'{name} benchmark C'], 'k--', alpha=0.3, lw=2)
+        ax.set_title(name)
+        ax.legend()
+        #ax.set_ylim((500, 2500))
+        ax.set_ylabel('Tracer conc.')
+        ax.set_xlabel('Time')
     if makefigure:
         fig.tight_layout()
         fig.savefig('test_part_multiple.pdf')
@@ -589,63 +591,63 @@ def test_reaction(makefigure=False):
 
     if makefigure:
         fig = plt.figure()
-        bm = steady_benchmarks['Uniform']
-        j = np.arange(timeseries_length)
-        pQdisc = np.zeros_like(j, dtype=float)
-        delta = dt * Q_0 / (S_0)
-        pQdisc[0] = bm['pQdisc0'](delta) / dt
-        pQdisc[1:] = bm['pQdisc'](delta, j[1:]) / dt
-        kappa = dt * k1
-        pkdisc = np.zeros_like(j, dtype=float)
-        pkdisc[0] = bm['pQdisc0'](kappa) / dt
-        pkdisc[1:] = bm['pQdisc'](kappa, j[1:]) / dt
-        data_df[f'Reaction benchmark R'] = (np.convolve((C_J/k1+C_eq/(Q_0/S_0)), pQdisc*pkdisc, mode='full')[:timeseries_length] * dt 
-                                        + C_old * (1-np.cumsum(pkdisc)[:timeseries_length]*dt) * (1-np.cumsum(pQdisc)[:timeseries_length]*dt))
-        data_df[f'Reaction benchmark t'] = data_df['t']
+    bm = steady_benchmarks['Uniform']
+    j = np.arange(timeseries_length)
+    pQdisc = np.zeros_like(j, dtype=float)
+    delta = dt * Q_0 / (S_0)
+    pQdisc[0] = bm['pQdisc0'](delta) / dt
+    pQdisc[1:] = bm['pQdisc'](delta, j[1:]) / dt
+    kappa = dt * k1
+    pkdisc = np.zeros_like(j, dtype=float)
+    pkdisc[0] = bm['pQdisc0'](kappa) / dt
+    pkdisc[1:] = bm['pQdisc'](kappa, j[1:]) / dt
+    data_df[f'Reaction benchmark R'] = (np.convolve((C_J/k1+C_eq/(Q_0/S_0)), pQdisc*pkdisc, mode='full')[:timeseries_length] * dt 
+                                    + C_old * (1-np.cumsum(pkdisc)[:timeseries_length]*dt) * (1-np.cumsum(pQdisc)[:timeseries_length]*dt))
+    data_df[f'Reaction benchmark t'] = data_df['t']
 
-        solute_parameters = {
-            "R":{
-                "C_old": C_old,
-                'k1': k1,
-                'C_eq': C_eq
+    solute_parameters = {
+        "R":{
+            "C_old": C_old,
+            'k1': k1,
+            'C_eq': C_eq
+        }
+    }
+
+    sas_specs = {
+        'Q1':{
+            'Q1_SAS':{
+                'ST': [0, S_0/3, S_0*2/3, S_0]
             }
         }
+    }
 
-        sas_specs = {
-            'Q1':{
-                'Q1_SAS':{
-                    'ST': [0, S_0/3, S_0*2/3, S_0]
-                }
-            }
-        }
-
-        model = Model(
-            data_df,
-            sas_specs=sas_specs,
-            solute_parameters=solute_parameters,
-            debug=debug,
-            verbose=verbose,
-            dt=dt,
-            n_substeps=n_substeps,
-            jacobian=jacobian,
-            max_age=max_age,
-            warning=True
-        )
-        model.run()
-        data_df = model.data_df
-        err = (data_df[f'Reaction benchmark R'].values-data_df[f'R --> Q1'].values)/data_df[f'Reaction benchmark R'].values
-        logging.info(f'Reaction error = {err.mean()}')
-        assert err.mean()<1E-2
-        if makefigure:
-            ax = plt.subplot()
-            ax.plot(data_df['t'], data_df[f'R --> Q1'], 'r', alpha=0.3, lw=2, label='mesas.py')
-            ax.plot(data_df[f'Reaction benchmark t'], data_df[f'Reaction benchmark R'], 'r--', alpha=0.3, lw=2, label='benchmark')
-            ax.set_title('First order reaction')
-            ax.legend()
-            ax.set_ylim((0, 1100))
-            ax.set_ylabel('Tracer conc.')
-            ax.set_xlabel('Time')
-            ax.set_title(data_df[f'R --> Q1'].values[-1])
+    model = Model(
+        data_df,
+        sas_specs=sas_specs,
+        solute_parameters=solute_parameters,
+        debug=debug,
+        verbose=verbose,
+        dt=dt,
+        n_substeps=n_substeps,
+        jacobian=jacobian,
+        max_age=max_age,
+        warning=True
+    )
+    model.run()
+    data_df = model.data_df
+    err = (data_df[f'Reaction benchmark R'].values-data_df[f'R --> Q1'].values)/data_df[f'Reaction benchmark R'].values
+    logging.info(f'Reaction error = {err.mean()}')
+    assert err.mean()<1E-2
+    if makefigure:
+        ax = plt.subplot()
+        ax.plot(data_df['t'], data_df[f'R --> Q1'], 'r', alpha=0.3, lw=2, label='mesas.py')
+        ax.plot(data_df[f'Reaction benchmark t'], data_df[f'Reaction benchmark R'], 'r--', alpha=0.3, lw=2, label='benchmark')
+        ax.set_title('First order reaction')
+        ax.legend()
+        ax.set_ylim((0, 1100))
+        ax.set_ylabel('Tracer conc.')
+        ax.set_xlabel('Time')
+        ax.set_title(data_df[f'R --> Q1'].values[-1])
     if makefigure:
         fig.tight_layout()
         fig.savefig('test_reaction.pdf')

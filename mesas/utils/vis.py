@@ -6,7 +6,7 @@ import matplotlib.colors as colors
 from collections import OrderedDict
 
 
-def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=None,
+def plot_transport_column(model, flux, sol, i=0, ax=None, dST=None, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=None,
                           ST_max=None, omega_max=None, valvegap=0.3, hspace=0.015, artists_dict=OrderedDict(), do_init=True):
     dt = model.options['dt']
     Q = model.data_df[flux].iloc[i]
@@ -152,7 +152,7 @@ def plot_transport_column(model, flux, sol, i=None, ax=None, dST=None, nST=20, c
         return ax1, ax2
 
 
-def plot_influx(model, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+def plot_influx(model, ax=None, sharex=None, i=0, artists_dict=OrderedDict(), do_init=True):
     J = model.data_df[model.options['influx']]
     if do_init:
         if ax is None:
@@ -167,7 +167,7 @@ def plot_influx(model, ax=None, sharex=None, i=None, artists_dict=OrderedDict(),
         artists_dict[f'plot_influx timeline'].set_data(2*[model.data_df.index[i]], ax.get_ylim())
 
 
-def plot_outflux(model, flux, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+def plot_outflux(model, flux, ax=None, sharex=None, i=0, artists_dict=OrderedDict(), do_init=True):
     Q = model.data_df[flux]
     if do_init:
         if ax is None:
@@ -182,7 +182,7 @@ def plot_outflux(model, flux, ax=None, sharex=None, i=None, artists_dict=Ordered
         artists_dict[f'plot_outflux timeline'].set_data(2*[model.data_df.index[i]], ax.get_ylim())
 
 
-def plot_influx_conc(model, sol, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+def plot_influx_conc(model, sol, ax=None, sharex=None, i=0, artists_dict=OrderedDict(), do_init=True):
     C_J = model.data_df[sol]
     if do_init:
         if ax is None:
@@ -196,7 +196,7 @@ def plot_influx_conc(model, sol, ax=None, sharex=None, i=None, artists_dict=Orde
         artists_dict[f'plot_influx_conc timeline'].set_data(2*[model.data_df.index[i]], ax.get_ylim())
 
 
-def plot_outflux_conc(model, flux, sol, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+def plot_outflux_conc(model, flux, sol, ax=None, sharex=None, i=0, artists_dict=OrderedDict(), do_init=True):
     colname = sol + ' --> ' + flux
     C_Q = model.data_df[colname]
     if do_init:
@@ -211,7 +211,7 @@ def plot_outflux_conc(model, flux, sol, ax=None, sharex=None, i=None, artists_di
         artists_dict[f'plot_outflux_conc timeline'].set_data(2*[model.data_df.index[i]], ax.get_ylim())
 
 
-def plot_SAS_cumulative(model, flux, ax=None, sharex=None, i=None, artists_dict=OrderedDict(), do_init=True):
+def plot_SAS_cumulative(model, flux, ax=None, sharex=None, i=0, artists_dict=OrderedDict(), do_init=True):
     if do_init:
         if ax is None:
             ax = plt.subplot(111, sharex=sharex)
@@ -232,7 +232,7 @@ def plot_SAS_cumulative(model, flux, ax=None, sharex=None, i=None, artists_dict=
         artists_dict[f'plot_SAS {flux}'].set_data(model.sas_blends[flux].ST[i, :], model.sas_blends[flux].P[i, :])
 
 
-def plot_transport_column_with_timeseries(model, flux, sol, i=None, fig=None, artists_dict=OrderedDict(), **kwargs):
+def plot_transport_column_with_timeseries(model, flux, sol, i=0, fig=None, artists_dict=OrderedDict(), **kwargs):
 
     if fig is None:
         fig = plt.figure(figsize=[11.5,  4.])

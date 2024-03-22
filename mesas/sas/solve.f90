@@ -7,8 +7,8 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
                     num_scheme, sT_outputstep, pQ_outputstep, WaterBalance_outputstep, &
                     mT_outputstep, mQ_outputstep, mR_outputstep, C_Q_fullstep, ds_outputstep, dm_outputstep, &
                     dC_fullstep, SoluteBalance_outputstep)
-   use cdf_gamma_mod
-   use cdf_beta_mod
+   ! use cdf_gamma_mod
+   ! use cdf_beta_mod
    !use cdf_normal_mod
    implicit none
 
@@ -859,7 +859,8 @@ contains
       b_arg = params(4)
       X = (ST - loc_)/scale_
       X = MIN(MAX(0.0, X), 1.0)
-      beta_SAS_function = cum_beta_pure(X, a_arg, b_arg)
+      ! beta_SAS_function = cum_beta_pure(X, a_arg, b_arg)
+      beta_SAS_function = betain( X, a_arg, b_arg)
    end function beta_SAS_function
 
    real(8) PURE FUNCTION gamma_SAS_function(ST, params)
@@ -871,7 +872,8 @@ contains
       a_arg = params(3)
       if (ST>loc_) then
          X = (ST - loc_)/scale_
-         gamma_SAS_function = cum_gamma_pure(X, a_arg)
+         ! gamma_SAS_function = cum_gamma_pure(X, a_arg)
+         gamma_SAS_function = gammad ( X, a_arg)!, ifault )
       else
          gamma_SAS_function = 0
       end if
@@ -914,4 +916,682 @@ contains
       end if
    end subroutine f_verbose
 
+   pure function alngam ( xvalue) result(result)!, ifault )
+
+      !*****************************************************************************80
+      !
+      !! ALNGAM computes the logarithm of the gamma function.
+      !
+      !  Modified:
+      !
+      !    13 January 2008
+      !
+      !  Author:
+      !
+      !    Original FORTRAN77 version by Allan Macleod.
+      !    FORTRAN90 version by John Burkardt.
+      !
+      !  Reference:
+      !
+      !    Allan Macleod,
+      !    Algorithm AS 245,
+      !    A Robust and Reliable Algorithm for the Logarithm of the Gamma Function,
+      !    Applied Statistics,
+      !    Volume 38, Number 2, 1989, pages 397-402.
+      !
+      !  Parameters:
+      !
+      !    Input, real ( kind = 8 ) XVALUE, the argument of the Gamma function.
+      !
+      !    Output, integer ( kind = 4 ) IFAULT, error flag.
+      !    0, no error occurred.
+      !    1, XVALUE is less than or equal to 0.
+      !    2, XVALUE is too big.
+      !
+      !    Output, real ( kind = 8 ) ALNGAM, the logarithm of the gamma function of X.
+      !
+        implicit none
+      
+      !   real ( kind = 8 ) alngam
+        real(kind=8) :: result
+        real ( kind = 8 ), parameter :: alr2pi = 0.918938533204673D+00
+      !   integer ( kind = 4 ) ifault
+        real ( kind = 8 ), dimension ( 9 ) :: r1
+        real ( kind = 8 ), dimension ( 9 ) :: r2
+        real ( kind = 8 ), dimension ( 9 ) :: r3
+        real ( kind = 8 ), dimension ( 5 ) :: r4
+        real ( kind = 8 ) x
+        real ( kind = 8 ) x1
+        real ( kind = 8 ) x2
+        real ( kind = 8 ), parameter :: xlge = 5.10D+05
+        real ( kind = 8 ), parameter :: xlgst = 1.0D+30
+        real ( kind = 8 ), intent(in) :: xvalue
+        real ( kind = 8 ) y
+     
+        r1 = (/ &
+          -2.66685511495D+00, &
+          -24.4387534237D+00, &
+          -21.9698958928D+00, &
+           11.1667541262D+00, &
+           3.13060547623D+00, &
+           0.607771387771D+00, &
+           11.9400905721D+00, &
+           31.4690115749D+00, &
+           15.2346874070D+00 /)
+        r2 = (/ &
+          -78.3359299449D+00, &
+          -142.046296688D+00, &
+           137.519416416D+00, &
+           78.6994924154D+00, &
+           4.16438922228D+00, &
+           47.0668766060D+00, &
+           313.399215894D+00, &
+           263.505074721D+00, &
+           43.3400022514D+00 /)
+        r3 = (/ &
+          -2.12159572323D+05, &
+           2.30661510616D+05, &
+           2.74647644705D+04, &
+          -4.02621119975D+04, &
+          -2.29660729780D+03, &
+          -1.16328495004D+05, &
+          -1.46025937511D+05, &
+          -2.42357409629D+04, &
+          -5.70691009324D+02 /)
+        r4 = (/ &
+           0.279195317918525D+00, &
+           0.4917317610505968D+00, &
+           0.0692910599291889D+00, &
+           3.350343815022304D+00, &
+           6.012459259764103D+00 /) 
+
+        x = xvalue
+        result = 0.0D+00
+      !
+      !  Check the input.
+      !
+      !   if ( xlgst <= x ) then
+      !     ifault = 2
+      !     return
+      !   end if
+      
+      !   if ( x <= 0.0D+00 ) then
+      !     ifault = 1
+      !     return
+      !   end if
+      
+      !   ifault = 0
+      !
+      !  Calculation for 0 < X < 0.5 and 0.5 <= X < 1.5 combined.
+      !
+        if ( x < 1.5D+00 ) then
+      
+          if ( x < 0.5D+00 ) then
+      
+            result = - log ( x )
+            y = x + 1.0D+00
+      !
+      !  Test whether X < machine epsilon.
+      !
+            if ( y == 1.0D+00 ) then
+              return
+            end if
+      
+          else
+      
+            result = 0.0D+00
+            y = x
+            x = ( x - 0.5D+00 ) - 0.5D+00
+      
+          end if
+      
+          result = result + x * (((( &
+              r1(5)   * y &
+            + r1(4) ) * y &
+            + r1(3) ) * y &
+            + r1(2) ) * y &
+            + r1(1) ) / (((( &
+                        y &
+            + r1(9) ) * y &
+            + r1(8) ) * y &
+            + r1(7) ) * y &
+            + r1(6) )
+      
+          return
+      
+        end if
+      !
+      !  Calculation for 1.5 <= X < 4.0.
+      !
+        if ( x < 4.0D+00 ) then
+      
+          y = ( x - 1.0D+00 ) - 1.0D+00
+      
+          result = y * (((( &
+              r2(5)   * x &
+            + r2(4) ) * x &
+            + r2(3) ) * x &
+            + r2(2) ) * x &
+            + r2(1) ) / (((( &
+                        x &
+            + r2(9) ) * x &
+            + r2(8) ) * x &
+            + r2(7) ) * x &
+            + r2(6) )
+      !
+      !  Calculation for 4.0 <= X < 12.0.
+      !
+        else if ( x < 12.0D+00 ) then
+      
+          result = (((( &
+              r3(5)   * x &
+            + r3(4) ) * x &
+            + r3(3) ) * x &
+            + r3(2) ) * x &
+            + r3(1) ) / (((( &
+                        x &
+            + r3(9) ) * x &
+            + r3(8) ) * x &
+            + r3(7) ) * x &
+            + r3(6) )
+      !
+      !  Calculation for 12.0 <= X.
+      !
+        else
+      
+          y = log ( x )
+          result = x * ( y - 1.0D+00 ) - 0.5D+00 * y + alr2pi
+      
+          if ( x <= xlge ) then
+      
+            x1 = 1.0D+00 / x
+            x2 = x1 * x1
+      
+            result = result + x1 * ( ( &
+                   r4(3)   * &
+              x2 + r4(2) ) * &
+              x2 + r4(1) ) / ( ( &
+              x2 + r4(5) ) * &
+              x2 + r4(4) )
+      
+          end if
+      
+        end if
+      
+        return
+      end
+
+   pure function alnorm ( x, upper ) result(result)
+   
+   !*****************************************************************************80
+   !
+   !! ALNORM computes the cumulative density of the standard normal distribution.
+   !
+   !  Modified:
+   !
+   !    13 January 2008
+   !
+   !  Author:
+   !
+   !    Original FORTRAN77 version by David Hill.
+   !    FORTRAN90 version by John Burkardt.
+   !
+   !  Reference:
+   !
+   !    David Hill,
+   !    Algorithm AS 66:
+   !    The Normal Integral,
+   !    Applied Statistics,
+   !    Volume 22, Number 3, 1973, pages 424-427.
+   !
+   !  Parameters:
+   !
+   !    Input, real ( kind = 8 ) X, is one endpoint of the semi-infinite interval
+   !    over which the integration takes place.
+   !
+   !    Input, logical UPPER, determines whether the upper or lower
+   !    interval is to be integrated:
+   !    .TRUE.  => integrate from X to + Infinity;
+   !    .FALSE. => integrate from - Infinity to X.
+   !
+   !    Output, real ( kind = 8 ) ALNORM, the integral of the standard normal
+   !    distribution over the desired interval.
+   !
+      implicit none
+   
+      real(kind=8) :: result
+      real ( kind = 8 ), parameter :: a1 = 5.75885480458D+00
+      real ( kind = 8 ), parameter :: a2 = 2.62433121679D+00
+      real ( kind = 8 ), parameter :: a3 = 5.92885724438D+00
+      ! real ( kind = 8 ), value:: alnorm
+      real ( kind = 8 ), parameter :: b1 = -29.8213557807D+00
+      real ( kind = 8 ), parameter :: b2 = 48.6959930692D+00
+      real ( kind = 8 ), parameter :: c1 = -0.000000038052D+00
+      real ( kind = 8 ), parameter :: c2 = 0.000398064794D+00
+      real ( kind = 8 ), parameter :: c3 = -0.151679116635D+00
+      real ( kind = 8 ), parameter :: c4 = 4.8385912808D+00
+      real ( kind = 8 ), parameter :: c5 = 0.742380924027D+00
+      real ( kind = 8 ), parameter :: c6 = 3.99019417011D+00
+      real ( kind = 8 ), parameter :: con = 1.28D+00
+      real ( kind = 8 ), parameter :: d1 = 1.00000615302D+00
+      real ( kind = 8 ), parameter :: d2 = 1.98615381364D+00
+      real ( kind = 8 ), parameter :: d3 = 5.29330324926D+00
+      real ( kind = 8 ), parameter :: d4 = -15.1508972451D+00
+      real ( kind = 8 ), parameter :: d5 = 30.789933034D+00
+      real ( kind = 8 ), parameter :: ltone = 7.0D+00
+      real ( kind = 8 ), parameter :: p = 0.398942280444D+00
+      real ( kind = 8 ), parameter :: q = 0.39990348504D+00
+      real ( kind = 8 ), parameter :: r = 0.398942280385D+00
+      logical up
+      logical, intent(in) :: upper
+      real ( kind = 8 ), parameter :: utzero = 18.66D+00
+      real ( kind = 8 ), intent(in) :: x
+      real ( kind = 8 ) y
+      real ( kind = 8 ) z
+   
+      up = upper
+      z = x
+   
+      if ( z < 0.0D+00 ) then
+         up = .not. up
+         z = - z
+      end if
+   
+      if ( ltone < z .and. ( ( .not. up ) .or. utzero < z ) ) then
+   
+         if ( up ) then
+         result = 0.0D+00
+         else
+         result = 1.0D+00
+         end if
+   
+         return
+   
+      end if
+   
+      y = 0.5D+00 * z * z
+   
+      if ( z <= con ) then
+   
+         result = 0.5D+00 - z * ( p - q * y &
+         / ( y + a1 + b1 &
+         / ( y + a2 + b2 & 
+         / ( y + a3 ))))
+   
+      else
+   
+         result = r * exp ( - y ) &
+         / ( z + c1 + d1 &
+         / ( z + c2 + d2 &
+         / ( z + c3 + d3 &
+         / ( z + c4 + d4 &
+         / ( z + c5 + d5 &
+         / ( z + c6 ))))))
+   
+      end if
+   
+      if ( .not. up ) then
+         result = 1.0D+00 - result
+      end if
+   
+      return
+   end
+   
+   pure function gammad ( x, p) result(result)!, ifault )
+   
+   !*****************************************************************************80
+   !
+   !! GAMMAD computes the Incomplete Gamma Integral
+   !
+   !  Auxiliary functions:
+   !
+   !    ALOGAM = logarithm of the gamma function, 
+   !    ALNORM = algorithm AS66
+   !
+   !  Modified:
+   !
+   !    20 January 2008
+   !
+   !  Author:
+   !
+   !    Original FORTRAN77 version by B Shea.
+   !    FORTRAN90 version by John Burkardt.
+   !
+   !  Reference:
+   !
+   !    B Shea,
+   !    Algorithm AS 239:
+   !    Chi-squared and Incomplete Gamma Integral,
+   !    Applied Statistics,
+   !    Volume 37, Number 3, 1988, pages 466-473.
+   !
+   !  Parameters:
+   !
+   !    Input, real ( kind = 8 ) X, P, the parameters of the incomplete 
+   !    gamma ratio.  0 <= X, and 0 < P.
+   !
+   !    Output, integer ( kind = 4 ) IFAULT, error flag.
+   !    0, no error.
+   !    1, X < 0 or P <= 0.
+   !
+   !    Output, real ( kind = 8 ) GAMMAD, the value of the incomplete 
+   !    Gamma integral.
+   !
+      implicit none
+   
+      real ( kind = 8 ) result
+      real ( kind = 8 ) a
+      ! real ( kind = 8 ) alnorm
+      ! real ( kind = 8 ) alngam
+      real ( kind = 8 ) an
+      real ( kind = 8 ) arg
+      real ( kind = 8 ) b
+      real ( kind = 8 ) cc
+      real ( kind = 8 ), parameter :: elimit = - 88.0D+00
+      ! integer ( kind = 4 ) ifault
+      real ( kind = 8 ), parameter :: oflo = 1.0D+37
+      real ( kind = 8 ), intent(in) :: p
+      real ( kind = 8 ), parameter :: plimit = 1000.0D+00
+      real ( kind = 8 ) pn1
+      real ( kind = 8 ) pn2
+      real ( kind = 8 ) pn3
+      real ( kind = 8 ) pn4
+      real ( kind = 8 ) pn5
+      real ( kind = 8 ) pn6
+      real ( kind = 8 ) rn
+      real ( kind = 8 ), parameter :: tol = 1.0D-14
+      logical upper
+      real ( kind = 8 ), intent(in) :: x
+      real ( kind = 8 ), parameter :: xbig = 1.0D+08
+   
+      result = 0.0D+00
+   !
+   !  Check the input.
+   !
+      ! if ( x < 0.0D+00 ) then
+      !    ifault = 1
+      !    return
+      ! end if
+   
+      ! if ( p <= 0.0D+00 ) then
+      !    ifault = 1
+      !    return
+      ! end if
+   
+      ! ifault = 0
+   
+      if ( x == 0.0D+00 ) then
+         result = 0.0D+00
+         return
+      end if
+   !
+   !  If P is large, use a normal approximation.
+   !
+      if ( plimit < p ) then
+   
+         pn1 = 3.0D+00 * sqrt ( p ) * ( ( x / p )**( 1.0D+00 / 3.0D+00 ) &
+         + 1.0D+00 / ( 9.0D+00 * p ) - 1.0D+00 )
+   
+         upper = .false.
+         result = alnorm ( pn1, upper )
+         return
+   
+      end if
+   !
+   !  If X is large set result = 1.
+   !
+      if ( xbig < x ) then
+         result = 1.0D+00
+         return
+      end if
+   !
+   !  Use Pearson's series expansion.
+   !  (Note that P is not large enough to force overflow in ALOGAM).
+   !  No need to test IFAULT on exit since P > 0.
+   !
+      if ( x <= 1.0D+00 .or. x < p ) then
+   
+         arg = p * log ( x ) - x - alngam ( p + 1.0D+00)!, ifault )
+         cc = 1.0D+00
+         result = 1.0D+00
+         a = p
+   
+         do
+   
+         a = a + 1.0D+00
+         cc = cc * x / a
+         result = result + cc
+   
+         if ( cc <= tol ) then
+            exit
+         end if
+   
+         end do
+   
+         arg = arg + log ( result )
+   
+         if ( elimit <= arg ) then
+         result = exp ( arg )
+         else
+         result = 0.0D+00
+         end if
+   !
+   !  Use a continued fraction expansion.
+   !
+      else 
+   
+         arg = p * log ( x ) - x - alngam ( p)!, ifault )
+         a = 1.0D+00 - p
+         b = a + x + 1.0D+00
+         cc = 0.0D+00
+         pn1 = 1.0D+00
+         pn2 = x
+         pn3 = x + 1.0D+00
+         pn4 = x * b
+         result = pn3 / pn4
+   
+         do
+   
+         a = a + 1.0D+00
+         b = b + 2.0D+00
+         cc = cc + 1.0D+00
+         an = a * cc
+         pn5 = b * pn3 - an * pn1
+         pn6 = b * pn4 - an * pn2
+   
+         if ( pn6 /= 0.0D+00 ) then
+   
+            rn = pn5 / pn6
+   
+            if ( abs ( result - rn ) <= min ( tol, tol * rn ) ) then
+               exit
+            end if
+   
+            result = rn
+   
+         end if
+   
+         pn1 = pn3
+         pn2 = pn4
+         pn3 = pn5
+         pn4 = pn6
+   !
+   !  Re-scale terms in continued fraction if terms are large.
+   !
+         if ( oflo <= abs ( pn5 ) ) then
+            pn1 = pn1 / oflo
+            pn2 = pn2 / oflo
+            pn3 = pn3 / oflo
+            pn4 = pn4 / oflo
+         end if
+   
+         end do
+   
+         arg = arg + log ( result )
+   
+         if ( elimit <= arg ) then
+         result = 1.0D+00 - exp ( arg )
+         else
+         result = 1.0D+00
+         end if
+   
+      end if
+   
+      return
+   end
+   
+
+   
+   pure function betain ( x, p, q) result(result)!, beta)!, ifault )
+   
+   !*****************************************************************************80
+   !
+   !! BETAIN computes the incomplete Beta function ratio.
+   !
+   !  Modified:
+   !
+   !    12 January 2008
+   !
+   !  Author:
+   !
+   !    Original FORTRAN77 version by KL Majumder, GP Bhattacharjee.
+   !    FORTRAN90 version by John Burkardt.
+   !
+   !  Reference:
+   !
+   !    KL Majumder, GP Bhattacharjee,
+   !    Algorithm AS 63:
+   !    The incomplete Beta Integral,
+   !    Applied Statistics,
+   !    Volume 22, Number 3, 1973, pages 409-411.
+   !
+   !  Parameters:
+   !
+   !    Input, real ( kind = 8 ) X, the argument, between 0 and 1.
+   !
+   !    Input, real ( kind = 8 ) P, Q, the parameters, which
+   !    must be positive.
+   !
+   !    Input, real ( kind = 8 ) BETA, the logarithm of the complete
+   !    beta function.
+   !
+   !    Output, integer ( kind = 4 ) IFAULT, error flag.
+   !    0, no error.
+   !    nonzero, an error occurred.
+   !
+   !    Output, real ( kind = 8 ) BETAIN, the value of the incomplete
+   !    Beta function ratio.
+   !
+      implicit none
+   
+      real ( kind = 8 ), parameter :: acu = 0.1D-14
+      real ( kind = 8 ) ai
+      real ( kind = 8 ) beta
+      real ( kind = 8 ) :: result
+      real ( kind = 8 ) cx
+      ! integer ( kind = 4 ) ifault
+      logical indx
+      integer ( kind = 4 ) ns
+      real ( kind = 8 ), intent(in) :: p
+      real ( kind = 8 ) pp
+      real ( kind = 8 ) psq
+      real ( kind = 8 ), intent(in) :: q
+      real ( kind = 8 ) qq
+      real ( kind = 8 ) rx
+      real ( kind = 8 ) temp
+      real ( kind = 8 ) term
+      real ( kind = 8 ), intent(in) :: x
+      real ( kind = 8 ) xx
+   
+      result = x
+      ! ifault = 0
+   !
+   !  Check the input arguments.
+   !
+      ! if ( p <= 0.0D+00 .or. q <= 0.0D+00 ) then
+      !    ifault = 1
+      !    return
+      ! end if
+   
+      ! if ( x < 0.0D+00 .or. 1.0D+00 < x ) then
+      !    ifault = 2
+      !    return
+      ! end if
+   !
+   !  Special cases.
+   !
+      if ( x == 0.0D+00 .or. x == 1.0D+00 ) then
+         return
+      end if
+   !
+   !  Change tail if necessary and determine S.
+   !
+      psq = p + q
+      cx = 1.0D+00 - x
+   
+      if ( p < psq * x ) then
+         xx = cx
+         cx = x
+         pp = q
+         qq = p
+         indx = .true.
+      else
+         xx = x
+         pp = p
+         qq = q
+         indx = .false.
+      end if
+   
+      term = 1.0D+00
+      ai = 1.0D+00
+      result = 1.0D+00
+      ns = int ( qq + cx * psq )
+   !
+   !  Use Soper's reduction formula.
+   !
+      rx = xx / cx
+      temp = qq - ai
+      if ( ns == 0 ) then
+         rx = xx
+      end if
+
+      beta = alngam ( pp) + alngam ( qq) - alngam ( pp + qq)
+   
+      do
+   
+         term = term * temp * rx / ( pp + ai )
+         result = result + term
+         temp = abs ( term )
+   
+         if ( temp <= acu .and. temp <= acu * result ) then
+   
+         result = result * exp ( pp * log ( xx ) &
+            + ( qq - 1.0D+00 ) * log ( cx ) - beta ) / pp
+   
+         if ( indx ) then
+            result = 1.0D+00 - result
+         end if
+   
+         exit
+   
+         end if
+   
+         ai = ai + 1.0D+00
+         ns = ns - 1
+   
+         if ( 0 <= ns ) then
+         temp = qq - ai
+         if ( ns == 0 ) then
+            rx = xx
+         end if
+         else
+         temp = psq
+         psq = psq + 1.0D+00
+         end if
+   
+      end do
+   
+      return
+   end
+      
 end subroutine solveSAS

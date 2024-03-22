@@ -450,7 +450,7 @@ class Continuous(_SASFunctionBase):
             self._argsP = np.ones_like(self._argsS)*np.NaN
         elif self._use=='scipy.stats':
             # generate a piecewise approximation
-            self.ST_max = np.float(ST_max)
+            self.ST_max = float(ST_max)
             # Make a list of probabilities P
             if P is not None:
                 # Use the supplied values
