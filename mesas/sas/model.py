@@ -325,6 +325,7 @@ class Model:
         else:
             self._numsol = 0
             self._solute_parameters = {}
+            self._solorder = []
 
     def set_solute_parameters(self, sol, params):
         invalid_parameters = [paramkey for paramkey in params.keys()
@@ -334,12 +335,13 @@ class Model:
         self._solute_parameters[sol].update(params)
 
     def _create_solute_inputs(self):
-        C_J = np.zeros((self._timeseries_length, self._numsol), dtype=dtype)
-        mT_init = np.zeros((self._max_age, self._numsol), dtype=dtype)
-        C_old = np.zeros(self._numsol, dtype=dtype)
-        k1 = np.zeros((self._timeseries_length, self._numsol), dtype=dtype)
-        C_eq = np.zeros((self._timeseries_length, self._numsol), dtype=dtype)
-        alpha = np.ones((self._timeseries_length, self._numflux, self._numsol), dtype=dtype)
+        numsol = max(self._numsol,1)
+        C_J = np.zeros((self._timeseries_length, numsol), dtype=dtype)
+        mT_init = np.zeros((self._max_age, numsol), dtype=dtype)
+        C_old = np.zeros(numsol, dtype=dtype)
+        k1 = np.zeros((self._timeseries_length, numsol), dtype=dtype)
+        C_eq = np.zeros((self._timeseries_length, numsol), dtype=dtype)
+        alpha = np.ones((self._timeseries_length, self._numflux, numsol), dtype=dtype)
         if self.solute_parameters is not None:
             def _get_array(param, N):
                 if param in self.data_df:
@@ -397,7 +399,7 @@ class Model:
         #
         # Solutes
         C_J, mT_init, C_old, alpha, k1, C_eq = self._create_solute_inputs()
-        numsol = self._numsol
+        numsol = max(self._numsol,1)
         #
         # options
         dt = self.options['dt']
@@ -424,7 +426,7 @@ class Model:
             n_substeps, component_type, nC_list, nargs_list, index_ts, num_scheme, numflux, numsol, max_age, timeseries_length, len(index_ts), nC_total, nargs_total)
         sT, pQ, WaterBalance, mT, mQ, mR, C_Q, dsTdSj, dmTdSj, dCdSj, SoluteBalance = fresult
 
-        if numsol > 0:
+        if self._numsol > 0:
             self._result = {'C_Q': C_Q}
             for isol, sol in enumerate(self._solorder):
                 for iflux, flux in enumerate(self._fluxorder):
@@ -434,7 +436,7 @@ class Model:
             self._result = {}
         self._result.update({'sT': np.moveaxis(sT, -1, 0), 'pQ': np.moveaxis(pQ, -1, 0),
                              'WaterBalance': np.moveaxis(WaterBalance, -1, 0), 'dsTdSj':np.moveaxis(dsTdSj, -1, 0)})
-        if numsol > 0:
+        if self._numsol > 0:
             self._result.update({'mT': np.moveaxis(mT, -1, 0), 'mQ': np.moveaxis(mQ, -1, 0), 'mR': np.moveaxis(mR, -1, 0),
             'SoluteBalance': np.moveaxis(SoluteBalance, -1, 0),
                                  'dmTdSj':np.moveaxis(dmTdSj, -1, 0), 'dCdSj':dCdSj})
