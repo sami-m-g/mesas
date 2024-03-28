@@ -13,13 +13,6 @@ Alternatively, the code can be obtained from GitHub: https://github.com/charman2
 
 Clone the git repo and open a command prompt in the mesas directory (where the setup.py file sits). Make and install with::
 
-    python setup.py install
-
-Build from source
------------------
-
-*mesas* can be *pip*-installed in the usual way,
-
 .. code:: bash
 
-  $ pip install -e .
+  pip install -e .
