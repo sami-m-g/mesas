@@ -434,6 +434,19 @@ class Continuous(_SASFunctionBase):
         self._use = use
 
         self._frozen_func = self._func(**func_kwargs)
+
+        # generate a piecewise approximation
+        self.ST_max = float(ST_max)
+        # Make a list of probabilities P
+        if P is not None:
+            # Use the supplied values
+            self.nsegment = len(P) - 1
+            self.P = np.r_[P]
+        else:
+            # Make P equally-spaced
+            self.nsegment = nsegment
+            self.P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
+        
         if self._use=='builtin':
             if func == 'gamma':
                 self._argsS = []
@@ -449,17 +462,6 @@ class Continuous(_SASFunctionBase):
                 self._argsS += [func_kwargs['a'], func_kwargs['b']]
             self._argsP = np.ones_like(self._argsS)*np.NaN
         elif self._use=='scipy.stats':
-            # generate a piecewise approximation
-            self.ST_max = float(ST_max)
-            # Make a list of probabilities P
-            if P is not None:
-                # Use the supplied values
-                self.nsegment = len(P) - 1
-                self.P = np.r_[P]
-            else:
-                # Make P equally-spaced
-                self.nsegment = nsegment
-                self.P = np.linspace(0, 1, self.nsegment + 1, endpoint=True)
             self._argsS = self._ST
             self._argsP = self._P
 

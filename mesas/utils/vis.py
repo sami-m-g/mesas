@@ -7,7 +7,8 @@ from collections import OrderedDict
 
 
 def plot_transport_column(model, flux, sol, i=0, ax=None, dST=None, nST=20, cmap='cividis_r', TC_frac=0.3, vrange=None,
-                          ST_max=None, omega_max=None, valvegap=0.3, hspace=0.015, artists_dict=OrderedDict(), do_init=True):
+                          ST_max=None, omega_max=None, piecewise_omega=True, valvegap=0.3, hspace=0.015, artists_dict=OrderedDict(), do_init=True, 
+                          total_storage=None, normalized_omega=True):
     dt = model.options['dt']
     Q = model.data_df[flux].iloc[i]
     C_old = model.solute_parameters[sol]['C_old']
@@ -31,6 +32,8 @@ def plot_transport_column(model, flux, sol, i=0, ax=None, dST=None, nST=20, cmap
     ST_mod = np.r_[0., model.sas_specs[flux].ST[i, :]]
     PQ_mod = np.r_[0., model.sas_specs[flux].P[i, :]]
     omega_mod = np.diff(PQ_mod) / np.diff(ST_mod)
+    if not normalized_omega:
+        omega_mod *= Q
     if omega_max is None:
         omega_max = np.nanmax(omega_mod) * 1.1
     if ST_max is None:
@@ -50,6 +53,8 @@ def plot_transport_column(model, flux, sol, i=0, ax=None, dST=None, nST=20, cmap
 
     PQ_regmod = np.interp(ST_reg, ST_mod, PQ_mod, right=np.NaN)
     omega_reg = np.diff(PQ_regmod) / dt / sT_reg
+    if not normalized_omega:
+        omega_reg *= Q
 
     PQ_reg = np.interp(ST_reg, ST, PQ)
     pQ_reg = np.diff(PQ_reg)
@@ -100,6 +105,9 @@ def plot_transport_column(model, flux, sol, i=0, ax=None, dST=None, nST=20, cmap
             ax1.add_patch(artists_dict[f'TCpatch {j}'])
         artists_dict[f'TCpatch C_old'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='0.5', visible=False, hatch=r"///")#, clip_on=False)
         ax1.add_patch(artists_dict[f'TCpatch C_old'])
+        if total_storage is not None:
+            artists_dict[f'TCpatch below total'] = patches.Rectangle((0, 0), 0, 0, linewidth=0, edgecolor='w', facecolor='w', visible=False)#, clip_on=False)
+            ax1.add_patch(artists_dict[f'TCpatch below total'])
 
     for j in range(len(sT)):
         if sT[j] > 0:
@@ -109,6 +117,9 @@ def plot_transport_column(model, flux, sol, i=0, ax=None, dST=None, nST=20, cmap
     artists_dict[f'TCpatch C_old'].set_bounds((0, ST[-1], 1, ST_max - ST[-1]))
     artists_dict[f'TCpatch C_old'].set_facecolor(cmap(norm(C_old)))
     artists_dict[f'TCpatch C_old'].set_visible(True)
+    if total_storage is not None:
+        artists_dict[f'TCpatch below total'].set_bounds((0, total_storage[i], 1, ST_max - total_storage[i]))
+        artists_dict[f'TCpatch below total'].set_visible(True)
 
     if do_init:
         for n in range(nST):
@@ -133,16 +144,26 @@ def plot_transport_column(model, flux, sol, i=0, ax=None, dST=None, nST=20, cmap
 
     artists_dict[f'omegaline v start'].set_data([0, 0], [0, ST_mod[0]])
     artists_dict[f'omegaline h start'].set_data([0, omega_mod[0]], [ST_mod[0], ST_mod[0]])
-    for ip in range(len(omega_mod)):
-        artists_dict[f'omegaline v {ip}'].set_data([omega_mod[ip], omega_mod[ip]], [ST_mod[ip], ST_mod[ip + 1]])
-        if ip > 0:
-            artists_dict[f'omegaline h {ip}'].set_data([omega_mod[ip - 1], omega_mod[ip]], [ST_mod[ip], ST_mod[ip]])
-    artists_dict[f'omegaline h end'].set_data([omega_mod[-1], 0], [ST_mod[-1], ST_mod[-1]])
-    artists_dict[f'omegaline v end'].set_data([0, 0], [ST_mod[-1], ST_max])
+    if piecewise_omega:
+        for ip in range(len(omega_mod)):
+            artists_dict[f'omegaline v {ip}'].set_data([omega_mod[ip], omega_mod[ip]], [ST_mod[ip], ST_mod[ip + 1]])
+            if ip > 0:
+                artists_dict[f'omegaline h {ip}'].set_data([omega_mod[ip - 1], omega_mod[ip]], [ST_mod[ip], ST_mod[ip]])
+        artists_dict[f'omegaline h end'].set_data([omega_mod[-1], 0], [ST_mod[-1], ST_mod[-1]])
+    else:
+        for ip in range(1,len(omega_mod)):
+            artists_dict[f'omegaline v {ip}'].set_data([omega_mod[ip-1], omega_mod[ip]], [ST_mod[ip], ST_mod[ip + 1]])
+            # if ip > 0:
+                # artists_dict[f'omegaline h {ip}'].set_data([omega_mod[ip - 1], omega_mod[ip]], [ST_mod[ip], ST_mod[ip]])
+    if total_storage is not None:
+        artists_dict[f'omegaline v end'].set_data([0, 0], [ST_mod[-1], total_storage[i]])
+    else:
+        artists_dict[f'omegaline v end'].set_data([0, 0], [ST_mod[-1], ST_max])
 
     if do_init:
         ax1.set_ylim([0, ST_max])
         ax2.set_ylim([0, ST_max])
+        ax1.set_xlim([0, omega_max])
         ax2.set_xlim([0, omega_max])
         ax1.invert_yaxis()
         ax2.invert_yaxis()
@@ -212,12 +233,15 @@ def plot_outflux_conc(model, flux, sol, ax=None, sharex=None, i=0, artists_dict=
 
 
 def plot_SAS_cumulative(model, flux, ax=None, sharex=None, i=0, artists_dict=OrderedDict(), do_init=True):
+    model.sas_specs[flux].make_spec_ts()
+    ST_mod = np.r_[0., model.sas_specs[flux].ST[i, :]]
+    PQ_mod = np.r_[0., model.sas_specs[flux].P[i, :]]
     if do_init:
         if ax is None:
             ax = plt.subplot(111, sharex=sharex)
         if i is None:
             i = 0
-        artists_dict[f'plot_SAS {flux}'], = ax.plot(model.sas_blends[flux].ST[i, :], model.sas_blends[flux].P[i, :], 'bo-', lw=1.5)#, clip_on=False)
+        artists_dict[f'plot_SAS {flux}'], = ax.plot(ST_mod, PQ_mod, 'bo-', lw=1.5)#, clip_on=False)
         ax.set_ylim([0, 1])
         ax.set_xlim(xmin=0)
         ax.plot(ax.get_xlim(), [1, 1], color='0.1', lw=0.8, ls=':')
@@ -229,7 +253,7 @@ def plot_SAS_cumulative(model, flux, ax=None, sharex=None, i=0, artists_dict=Ord
         ax.spines['left'].set_position(('outward', 10))
         ax.spines['bottom'].set_position(('outward', 10))
     if i is not None:
-        artists_dict[f'plot_SAS {flux}'].set_data(model.sas_blends[flux].ST[i, :], model.sas_blends[flux].P[i, :])
+        artists_dict[f'plot_SAS {flux}'].set_data(ST_mod, PQ_mod)
 
 
 def plot_transport_column_with_timeseries(model, flux, sol, i=0, fig=None, artists_dict=OrderedDict(), **kwargs):
