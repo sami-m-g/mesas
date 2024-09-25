@@ -1,6 +1,6 @@
 [build-system]
-requires = ["numpy", "setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+build-backend = 'mesonpy'
+requires = ['meson-python']
 
 [project]
 name = "mesas"
@@ -44,9 +44,6 @@ dependencies = [
 homepage = "https://mesas.readthedocs.io/"
 documentation = "https://mesas.readthedocs.io/"
 repository = "https://github.com/charman2/mesas"
-
-[tool.setuptools]
-packages = ["mesas", "mesas.sas", "mesas.me", "mesas.utils"]
 
 [tool.pytest.ini_options]
 testpaths = ["mesas/test"]
