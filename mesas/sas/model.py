@@ -12,7 +12,7 @@ import pandas as pd
 import json
 
 import numpy as np
-from .solve import solvesas as solve
+from mesas_solve import solvesas as solve
 
 dtype = np.float64
 
@@ -556,7 +556,7 @@ class Model:
         isol = list(self._solorder).index(sol)
         sT = self._get_result(self.result['sT'], **kwargs)
         mT = self._get_result(self.result['mT'][:,:,isol], **kwargs)
-        return np.where(sT>0, mT / sT, np.NaN)
+        return np.where(sT>0, mT / sT, np.nan)
 
     def get_mR(self, sol, **kwargs):
         isol = list(self._solorder).index(sol)
