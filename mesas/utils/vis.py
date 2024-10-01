@@ -48,7 +48,7 @@ def plot_transport_column(model, flux, sol, i=0, ax=None, dST=None, nST=20, cmap
     sT_reg = np.diff(ST_reg) / dt
     spacer = sT_reg[0] * dt * valvegap
 
-    PQ_regmod = np.interp(ST_reg, ST_mod, PQ_mod, right=np.NaN)
+    PQ_regmod = np.interp(ST_reg, ST_mod, PQ_mod, right=np.nan)
     omega_reg = np.diff(PQ_regmod) / dt / sT_reg
 
     PQ_reg = np.interp(ST_reg, ST, PQ)

@@ -289,8 +289,8 @@ def test_steady(makefigure=False):
                 SASpdf[3:1003] = 1/S_0
             else:
                 SASpdf = model.sas_specs[name].components[f'{name}_SAS'].sas_fun[0].func.pdf(ST)
-            SASpdf[2]= np.NaN
-            SASpdf[-11] = np.NaN
+            SASpdf[2]= np.nan
+            SASpdf[-11] = np.nan
             ax0.plot(ST, SASpdf, alpha=0.6, lw=2, ls='-', label=bm['distname'])
             ax0.legend(frameon=False)
             if bm['subplot'] not in ax1_dict.keys():
@@ -418,7 +418,7 @@ def analytical_set(df, S_init = 1000., C_old = 50., dt=1):
 
 def test_unsteady_uniform(makefigure=False, tmax=500):
 #%%
-    data_df = pd.read_csv('unsteady_data.csv')
+    data_df = pd.read_csv('./test/unsteady_data.csv')
     data_df = data_df[:tmax]
     data_df['Q'] = data_df['Q'] + data_df['ET']
     data_df['ET'] = 0

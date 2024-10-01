@@ -447,7 +447,7 @@ class Continuous(_SASFunctionBase):
                 self._argsS = []
                 self._argsS += [func_kwargs['loc'], func_kwargs['scale']]
                 self._argsS += [func_kwargs['a'], func_kwargs['b']]
-            self._argsP = np.ones_like(self._argsS)*np.NaN
+            self._argsP = np.ones_like(self._argsS)*np.nan
         elif self._use=='scipy.stats':
             # generate a piecewise approximation
             self.ST_max = float(ST_max)
