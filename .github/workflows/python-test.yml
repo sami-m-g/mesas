@@ -18,6 +18,10 @@ on:
       - ".gitignore"
   workflow_dispatch:
 
+defaults:
+  run:
+    shell: bash -l {0}
+
 jobs:
   build:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
