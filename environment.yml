@@ -3,7 +3,6 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python=3.12
   - gfortran
   - ipykernel>=6.0
   - matplotlib>=3.3.0
