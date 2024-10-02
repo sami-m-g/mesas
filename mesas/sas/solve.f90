@@ -1,4 +1,12 @@
 ! -*- f90 -*-
+module solve
+   implicit none
+
+   private 
+   public solveSAS
+
+   contains
+
 subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, sT_init_fullstep, dt, &
                     verbose, debug, warning, jacobian, &
                     mT_init_fullstep, C_J_fullstep, alpha_fullstep, k1_fullstep, C_eq_fullstep, C_old, &
@@ -10,7 +18,6 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    ! use cdf_gamma_mod
    ! use cdf_beta_mod
    !use cdf_normal_mod
-   implicit none
 
    ! Start by declaring and initializing all the variables we will be using
    integer, intent(in) :: n_substeps, numflux, numsol, max_age, num_scheme, &
@@ -28,7 +35,7 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
    real(8), intent(in), dimension(0:timeseries_length - 1, 0:numsol - 1) :: C_eq_fullstep
    real(8), intent(in), dimension(0:numsol - 1) :: C_old
    real(8), intent(in), dimension(0:max_age - 1) :: sT_init_fullstep
-   real(8), intent(in), dimension(0:max_age - 1, 0:numsol - 1) :: mT_init_fullstep
+   real(8), intent(in), dimension(0:numsol - 1, 0:max_age - 1) :: mT_init_fullstep
    integer, intent(in), dimension(0:num_output_fullsteps - 1) :: output_these_fullsteps
    integer, intent(in), dimension(0:numcomponent_total - 1) :: component_type
    integer, intent(in), dimension(0:numflux - 1) :: numcomponent_list
@@ -123,8 +130,8 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
 
          ! jt_fullstep_at_(c) maps characteristic index c to the full timestep it is currently intersecting
          do c = 0, total_num_substeps - 1
-            jt_substep_at_(c) = mod(c + iT_substep, total_num_substeps)
-            jt_is_which_substep = mod(jt_substep_at_(c), n_substeps)
+            jt_substep_at_(c) = modulo(c + iT_substep, total_num_substeps)
+            jt_is_which_substep = modulo(jt_substep_at_(c), n_substeps)
             jt_fullstep_at_(c) = (jt_substep_at_(c) - jt_is_which_substep)/n_substeps
          end do
 
@@ -134,8 +141,10 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
 
          ! Apply the initial conditions
          if (iT_substep > 0) then
-            sT_start(total_num_substeps - iT_substep) = sT_init_fullstep(iT_prev_fullstep)
-            mT_start(total_num_substeps - iT_substep, :) = mT_init_fullstep(iT_prev_fullstep, :)
+            sT_start(modulo(total_num_substeps - modulo(iT_substep,total_num_substeps),total_num_substeps)) = &
+               sT_init_fullstep(iT_prev_fullstep)
+            mT_start(modulo(total_num_substeps - modulo(iT_substep,total_num_substeps),total_num_substeps), :) = &
+               mT_init_fullstep(:, iT_prev_fullstep)
          end if
 
          sT_temp = sT_start
@@ -216,7 +225,7 @@ subroutine solveSAS(J_fullstep, Q_fullstep, SAS_args, P_list, weights_fullstep, 
       ! End of the substep loop
 
       ! Print some updates
-      if (mod(iT_fullstep, 10) .eq. 0) then
+      if (modulo(iT_fullstep, 10) .eq. 0) then
          write (tempdebugstring, *) '...Done ', (iT_fullstep), &
             'of', (max_age)
          call f_verbose(tempdebugstring)
@@ -343,7 +352,7 @@ contains
       ! update output conc
       do concurrent(jt_fullstep=0:timeseries_length - 1, jt_is_which_substep=0:n_substeps - 1, &
                     iq=0:numflux - 1, Q_fullstep(jt_fullstep, iq) .gt. 0)
-         c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
+         c = modulo(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
          C_Q_fullstep(jt_fullstep, iq, :) = &
             C_Q_fullstep(jt_fullstep, iq, :) + (mQ_aver(c, iq, :)*dt_substep/Q_fullstep(jt_fullstep, iq))/n_substeps
       end do
@@ -359,7 +368,7 @@ contains
       do concurrent(outputstep=0:num_output_fullsteps - 1, jt_is_which_substep=0:n_substeps - 1, &
                     jt_is_which_substep < substep)
          jt_fullstep = output_these_fullsteps(outputstep)
-         c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
+         c = modulo(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
          pQ_outputstep(outputstep, :, iT_fullstep + 1) = &
             pQ_outputstep(outputstep, :, iT_fullstep + 1) + pQ_aver(c, :)*norm
          mQ_outputstep(outputstep, :, :, iT_fullstep + 1) = &
@@ -372,7 +381,7 @@ contains
       do concurrent(outputstep=0:num_output_fullsteps - 1, jt_is_which_substep=0:n_substeps - 1, &
                     jt_is_which_substep .ge. substep)
          jt_fullstep = output_these_fullsteps(outputstep)
-         c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
+         c = modulo(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
          pQ_outputstep(outputstep, :, iT_fullstep) = &
             pQ_outputstep(outputstep, :, iT_fullstep) + pQ_aver(c, :)*norm
          mQ_outputstep(outputstep, :, :, iT_fullstep) = &
@@ -385,7 +394,7 @@ contains
 !do outputstep = 0, num_output_fullsteps - 1
 !jt_fullstep = output_these_fullsteps(outputstep)
 !do jt_substep = 0, n_substeps - 1
-!c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_substep - iT_substep, total_num_substeps)
+!c = modulo(total_num_substeps + jt_fullstep*n_substeps + jt_substep - iT_substep, total_num_substeps)
 !do iq = 0, numflux - 1
 !if (Q_fullstep(jt_fullstep, iq) > 0) then
 !dW_outputstep(outputstep, :, iq) = dW_outputstep(outputstep, :, iq) + fsQ_aver(c, :, iq)/Q_fullstep(jt_fullstep, iq)*norm*dt
@@ -412,7 +421,7 @@ contains
       do concurrent(outputstep=0:num_output_fullsteps - 1)
          jt_fullstep = output_these_fullsteps(outputstep)
          jt_is_which_substep = n_substeps - 1
-         c = mod(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
+         c = modulo(total_num_substeps + jt_fullstep*n_substeps + jt_is_which_substep - iT_substep, total_num_substeps)
          ! age-ranked storage at the end of the timestep
          sT_outputstep(outputstep + 1, iT_fullstep) = &
             sT_outputstep(outputstep + 1, iT_fullstep) + sT_start(c)/n_substeps
@@ -897,6 +906,15 @@ contains
 1        format(A26, *(f16.10))
       end if
    end subroutine f_debug
+
+   subroutine f_print(debugstring, debugdblepr)
+      ! Prints debugging information
+      implicit none
+      character(len=*), intent(in) :: debugstring
+      real(8), dimension(:), intent(in) :: debugdblepr
+         print 1, debugstring, debugdblepr
+1        format(A26, *(f16.10))
+   end subroutine f_print
 
    subroutine f_warning(debugstring)
       ! Prints informative information
@@ -1595,3 +1613,4 @@ contains
    end
       
 end subroutine solveSAS
+end module solve
