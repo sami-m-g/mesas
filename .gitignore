@@ -5,11 +5,11 @@ dist/
 *.pyc
 *.swo
 *.swp
-/mesas/junk/
-/mesas/dev/
-/doc/_build/
-/.idea/
-/.vscode/
+mesas/junk/
+mesas/dev/
+doc/_build/
+.idea/
+.vscode/
 examples/benchmark/Ciaran/
 examples/miniLEO
 test/test.log

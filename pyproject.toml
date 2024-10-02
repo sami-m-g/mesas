@@ -4,7 +4,7 @@ requires = ['meson-python', 'numpy>1.22']
 
 [project]
 name = "mesas"
-version = "v1.20230427"
+version = "v1.20240709"
 description = "MESAS - Multiscale Estimation of StorAge Selection."
 readme = "README.md"
 authors = [
